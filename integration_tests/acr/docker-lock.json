@@ -1,9 +1,9 @@
 {
 	"dockerfiles": {
-		"testdata/verify/docker/buildargs/Dockerfile": [
+		"Dockerfile": [
 			{
-				"name": "busybox",
-				"tag": "",
+				"name": "dockerlocktestaccount.azurecr.io/busybox",
+				"tag": "v1",
 				"digest": "dd97a3fe6d721c5cf03abac0f50e2848dc583f7c4e41bf39102ceb42edfd1808"
 			}
 		]

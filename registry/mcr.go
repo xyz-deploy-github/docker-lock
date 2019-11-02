@@ -2,17 +2,33 @@ package registry
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 )
 
-type MCRWrapper struct{}
+// MCRWrapper is a registry wrapper for Microsoft Container Registry.
+type MCRWrapper struct {
+	Client *HTTPClient
+}
 
+// NewMCRWrapper creates an MCRWrapper.
+func NewMCRWrapper(client *HTTPClient) *MCRWrapper {
+	w := &MCRWrapper{}
+	if client == nil {
+		w.Client = &HTTPClient{
+			Client:        &http.Client{},
+			BaseDigestURL: fmt.Sprintf("https://%sv2", w.Prefix()),
+		}
+	}
+	return w
+}
+
+// GetDigest gets the digest from a name and tag.
 func (w *MCRWrapper) GetDigest(name string, tag string) (string, error) {
-	prefix := w.Prefix()
-	name = strings.Replace(name, prefix, "", 1)
-	registryUrl := "https://" + prefix + "v2/" + name + "/manifests/" + tag
-	req, err := http.NewRequest("GET", registryUrl, nil)
+	name = strings.Replace(name, w.Prefix(), "", 1)
+	url := fmt.Sprintf("%s/%s/manifests/%s", w.Client.BaseDigestURL, name, tag)
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", err
 	}
@@ -30,6 +46,7 @@ func (w *MCRWrapper) GetDigest(name string, tag string) (string, error) {
 	return strings.TrimPrefix(digest, "sha256:"), nil
 }
 
+// Prefix returns the registry prefix that identifies MCR.
 func (w *MCRWrapper) Prefix() string {
 	return "mcr.microsoft.com/"
 }

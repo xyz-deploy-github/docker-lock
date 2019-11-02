@@ -3,29 +3,43 @@ package registry
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/michaelperel/docker-lock/registry/internal/elastic"
 	"net/http"
 	"strings"
 )
 
-type ElasticWrapper struct{}
-
-type elasticTokenResponse struct {
-	Token string `json:"token"`
+// ElasticWrapper is a registry wrapper for the Elasticsearch repository.
+type ElasticWrapper struct {
+	Client *HTTPClient
 }
 
+// NewElasticWrapper creates an ElasticWrapper.
+func NewElasticWrapper(client *HTTPClient) *ElasticWrapper {
+	w := &ElasticWrapper{}
+	if client == nil {
+		w.Client = &HTTPClient{
+			Client:        &http.Client{},
+			BaseDigestURL: fmt.Sprintf("https://%sv2", w.Prefix()),
+			BaseTokenURL:  "https://docker-auth.elastic.co/auth",
+		}
+	}
+	return w
+}
+
+// GetDigest gets the digest from a name and tag.
 func (w *ElasticWrapper) GetDigest(name string, tag string) (string, error) {
-	prefix := w.Prefix()
-	name = strings.Replace(name, prefix, "", 1)
+	name = strings.Replace(name, w.Prefix(), "", 1)
 	token, err := w.getToken(name)
 	if err != nil {
 		return "", err
 	}
-	registryUrl := "https://" + prefix + "v2/" + name + "/manifests/" + tag
-	req, err := http.NewRequest("GET", registryUrl, nil)
+	url := fmt.Sprintf("%s/%s/manifests/%s", w.Client.BaseDigestURL, name, tag)
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", err
 	}
-	req.Header.Add("Authorization", "Bearer "+token)
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 	req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.v2+json")
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -42,20 +56,21 @@ func (w *ElasticWrapper) GetDigest(name string, tag string) (string, error) {
 
 func (w *ElasticWrapper) getToken(name string) (string, error) {
 	// example name -> "elasticsearch/elasticsearch-oss"
-	url := "https://docker-auth.elastic.co/auth?scope=repository:" + name + ":pull&service=token-service"
+	url := fmt.Sprintf("%s?scope=repository:%s:pull&service=token-service", w.Client.BaseTokenURL, name)
 	resp, err := http.Get(url)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
 	decoder := json.NewDecoder(resp.Body)
-	var t elasticTokenResponse
+	var t elastic.TokenResponse
 	if err = decoder.Decode(&t); err != nil {
 		return "", err
 	}
 	return t.Token, nil
 }
 
+// Prefix returns the registry prefix that identifies the Elasticsearch registry.
 func (w *ElasticWrapper) Prefix() string {
 	return "docker.elastic.co/"
 }

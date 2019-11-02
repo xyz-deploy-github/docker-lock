@@ -5,12 +5,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewRewriteCmd creates the command 'rewrite' used in 'docker lock rewrite'.
 func NewRewriteCmd() *cobra.Command {
 	rewriteCmd := &cobra.Command{
 		Use:   "rewrite",
-		Short: "Rewrites Dockerfiles and docker-compose files referenced in the Lockfile to use digests.",
-		Long: `After generating a Lockfile with "docker lock generate", running "docker lock rewrite"
-will rewrite all referenced base images to include the digests from the Lockfile.`,
+		Short: "Rewrite files referenced by a Lockfile to use image digests",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			rewriter, err := rewrite.NewRewriter(cmd)
 			if err != nil {
@@ -22,8 +21,12 @@ will rewrite all referenced base images to include the digests from the Lockfile
 			return nil
 		},
 	}
-	rewriteCmd.Flags().String("outpath", "docker-lock.json", "Path to load Lockfile.")
-	rewriteCmd.Flags().String("suffix", "", "String to append to rewritten Dockerfiles and docker-compose files.")
-	rewriteCmd.Flags().String("tempdir", "", "Directory where temporary files will be written during the rewrite transaction.")
+	rewriteCmd.Flags().String("outpath", "docker-lock.json", "Path to load Lockfile")
+	rewriteCmd.Flags().String("suffix",
+		"",
+		"Create new Dockerfiles and docker-compose files with a suffix rather than overwrite existing files")
+	rewriteCmd.Flags().String("tempdir",
+		"",
+		"Directory where a temporary directory will be created/deleted during a rewrite transaction")
 	return rewriteCmd
 }

@@ -14,13 +14,13 @@ func main() {
 			"SchemaVersion":    "0.1.0",
 			"Vendor":           "https://github.com/michaelperel/docker-lock",
 			"Version":          "v0.1.0",
-			"ShortDescription": "Manage lockfiles",
+			"ShortDescription": "Manage Lockfiles",
 		}
 		j, _ := json.Marshal(m)
 		fmt.Println(string(j))
 		os.Exit(0)
 	}
-	if err := cmd.Execute(); err != nil {
+	if err := cmd.Execute(nil); err != nil {
 		fmt.Fprint(os.Stderr, err)
 		os.Exit(1)
 	}

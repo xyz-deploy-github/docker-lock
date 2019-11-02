@@ -11,26 +11,33 @@ import (
 	"strings"
 
 	c "github.com/docker/docker-credential-helpers/client"
+	"github.com/michaelperel/docker-lock/registry/internal/acr"
 )
 
+// ACRWrapper is a registry wrapper for Azure Container Registry.
 type ACRWrapper struct {
-	ConfigFile   string
-	authCreds    authCredentials
-	registryName string
+	ConfigFile string
+	Client     *HTTPClient
+	authCreds  *acrAuthCredentials
+	regName    string
 }
 
-type acrTokenResponse struct {
-	Token string `json:"access_token"`
+type acrAuthCredentials struct {
+	username string
+	password string
 }
 
-type acrConfig struct {
-	Auths      map[string]map[string]string `json:"auths"`
-	CredsStore string                       `json:"credsStore"`
-}
-
-func NewACRWrapper(configFile string) (*ACRWrapper, error) {
-	w := &ACRWrapper{ConfigFile: configFile}
-	w.registryName = os.Getenv("ACR_REGISTRY_NAME")
+// NewACRWrapper creates an ACRWrapper from docker's config.json.
+func NewACRWrapper(configPath string, client *HTTPClient) (*ACRWrapper, error) {
+	w := &ACRWrapper{ConfigFile: configPath}
+	w.regName = os.Getenv("ACR_REGISTRY_NAME")
+	if client == nil {
+		w.Client = &HTTPClient{
+			Client:        &http.Client{},
+			BaseDigestURL: fmt.Sprintf("https://%sv2", w.Prefix()),
+			BaseTokenURL:  fmt.Sprintf("https://%soauth2/token", w.Prefix()),
+		}
+	}
 	authCreds, err := w.getAuthCredentials()
 	if err != nil {
 		return nil, err
@@ -39,20 +46,23 @@ func NewACRWrapper(configFile string) (*ACRWrapper, error) {
 	return w, nil
 }
 
+// GetDigest gets the digest from a name and tag. The workflow for
+// authenticating with private repositories:
+// (1) if "ACR_USERNAME" and "ACR_PASSWORD" are set, use them.
+// (2) Otherwise, try to get credentials from docker's config file. This method
+// requires the user to have logged in with the 'docker login' command
+// beforehand.
 func (w *ACRWrapper) GetDigest(name string, tag string) (string, error) {
-	prefix := w.Prefix()
-	name = strings.Replace(name, prefix, "", 1)
+	name = strings.Replace(name, w.Prefix(), "", 1)
 	token, err := w.getToken(name)
-	registryURL := fmt.Sprintf("https://%sv2/%s/manifests/%s", prefix, name, tag)
-	req, err := http.NewRequest("GET", registryURL, nil)
+	url := fmt.Sprintf("%s/%s/manifests/%s", w.Client.BaseDigestURL, name, tag)
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", err
 	}
-	req.Header.Add("Authorization", "Bearer "+token)
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 	req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.v2+json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := w.Client.Client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -65,54 +75,52 @@ func (w *ACRWrapper) GetDigest(name string, tag string) (string, error) {
 }
 
 func (w *ACRWrapper) getToken(name string) (string, error) {
-	prefix := w.Prefix()
-	client := &http.Client{}
-	url := fmt.Sprintf("https://%soauth2/token?service=%s.azurecr.io&scope=repository:%s:pull", prefix, w.registryName, name)
-
+	url := fmt.Sprintf("%s?service=%s.azurecr.io&scope=repository:%s:pull", w.Client.BaseTokenURL, w.regName, name)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", err
 	}
-
 	if w.authCreds.username != "" && w.authCreds.password != "" {
 		req.SetBasicAuth(w.authCreds.username, w.authCreds.password)
 	}
-	resp, err := client.Do(req)
+	resp, err := w.Client.Client.Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
 	decoder := json.NewDecoder(resp.Body)
-	var t acrTokenResponse
+	var t acr.TokenResponse
 	if err = decoder.Decode(&t); err != nil {
 		return "", err
 	}
 	return t.Token, nil
 }
 
-func (w *ACRWrapper) getAuthCredentials() (authCredentials, error) {
-	username := os.Getenv("ACR_USERNAME")
-	password := os.Getenv("ACR_PASSWORD")
+func (w *ACRWrapper) getAuthCredentials() (*acrAuthCredentials, error) {
+	var (
+		username = os.Getenv("ACR_USERNAME")
+		password = os.Getenv("ACR_PASSWORD")
+	)
 	if username != "" && password != "" {
-		return authCredentials{username: username, password: password}, nil
+		return &acrAuthCredentials{username: username, password: password}, nil
 	}
 	if w.ConfigFile == "" {
-		return authCredentials{}, nil
+		return &acrAuthCredentials{}, nil
 	}
 	confByt, err := ioutil.ReadFile(w.ConfigFile)
 	if err != nil {
-		return authCredentials{}, err
+		return nil, err
 	}
-	var conf acrConfig
+	var conf acr.Config
 	if err = json.Unmarshal(confByt, &conf); err != nil {
-		return authCredentials{}, err
+		return nil, err
 	}
 	var authByt []byte
 	for serverName, authInfo := range conf.Auths {
-		if serverName == fmt.Sprintf("%s.azurecr.io", w.registryName) {
+		if serverName == fmt.Sprintf("%s.azurecr.io", w.regName) {
 			authByt, err = base64.StdEncoding.DecodeString(authInfo["auth"])
 			if err != nil {
-				return authCredentials{}, err
+				return nil, err
 			}
 			break
 		}
@@ -120,34 +128,34 @@ func (w *ACRWrapper) getAuthCredentials() (authCredentials, error) {
 	authString := string(authByt)
 	if authString != "" {
 		auth := strings.Split(authString, ":")
-		return authCredentials{username: auth[0], password: auth[1]}, nil
+		return &acrAuthCredentials{username: auth[0], password: auth[1]}, nil
 	} else if conf.CredsStore != "" {
 		authCreds, err := w.getAuthCredentialsFromCredsStore(conf.CredsStore)
 		if err != nil {
-			return authCredentials{}, nil
+			return &acrAuthCredentials{}, nil
 		}
 		return authCreds, nil
 	}
-	return authCredentials{}, nil
+	return &acrAuthCredentials{}, nil
 }
 
-// Works for “osxkeychain” on macOS, “wincred” on windows, and “pass” on Linux.
-func (w *ACRWrapper) getAuthCredentialsFromCredsStore(credsStore string) (authCreds authCredentials, err error) {
+func (w *ACRWrapper) getAuthCredentialsFromCredsStore(credsStore string) (authCreds *acrAuthCredentials, err error) {
 	credsStore = fmt.Sprintf("%s-%s", "docker-credential", credsStore)
 	defer func() {
 		if err := recover(); err != nil {
-			authCreds = authCredentials{}
+			authCreds = &acrAuthCredentials{}
 			return
 		}
 	}()
 	p := c.NewShellProgramFunc(credsStore)
-	credResponse, err := c.Get(p, fmt.Sprintf("%s.azurecr.io", w.registryName))
+	credResponse, err := c.Get(p, fmt.Sprintf("%s.azurecr.io", w.regName))
 	if err != nil {
 		return authCreds, err
 	}
-	return authCredentials{username: credResponse.Username, password: credResponse.Secret}, nil
+	return &acrAuthCredentials{username: credResponse.Username, password: credResponse.Secret}, nil
 }
 
+// Prefix returns the registry prefix that identifies ACR.
 func (w *ACRWrapper) Prefix() string {
-	return fmt.Sprintf("%s.azurecr.io/", w.registryName)
+	return fmt.Sprintf("%s.azurecr.io/", w.regName)
 }

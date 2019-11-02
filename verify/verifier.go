@@ -1,8 +1,8 @@
 package verify
 
 import (
+	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
@@ -13,136 +13,146 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Verifier ensures that a Lockfile contains up-to-date information.
 type Verifier struct {
-	*generate.Generator
-	*generate.Lockfile
-	outPath string
+	Generator *generate.Generator
+	Lockfile  *generate.Lockfile
+	oPath     string
 }
 
+// NewVerifier creates a Verifier from command line flags.
 func NewVerifier(cmd *cobra.Command) (*Verifier, error) {
-	outPath, err := cmd.Flags().GetString("outpath")
+	oPath, err := cmd.Flags().GetString("outpath")
 	if err != nil {
 		return nil, err
 	}
-	lByt, err := ioutil.ReadFile(outPath)
+	oPath = filepath.ToSlash(oPath)
+	lFile, err := readLockfile(oPath)
 	if err != nil {
 		return nil, err
 	}
-	var lFile generate.Lockfile
-	if err := json.Unmarshal(lByt, &lFile); err != nil {
-		return nil, err
-	}
-	var i int
-	cFpaths := make([]string, len(lFile.ComposefileImages))
-	for fpath := range lFile.ComposefileImages {
-		cFpaths[i] = filepath.FromSlash(fpath)
-		i++
-	}
-	i = 0
-	dFpaths := make([]string, len(lFile.DockerfileImages))
-	for fpath := range lFile.DockerfileImages {
-		dFpaths[i] = filepath.FromSlash(fpath)
-		i++
-	}
-	dockerfileEnvBuildArgs, err := cmd.Flags().GetBool("dockerfile-env-build-args")
+	g, err := makeGenerator(cmd, lFile)
 	if err != nil {
 		return nil, err
 	}
-	g := &generate.Generator{Dockerfiles: dFpaths, Composefiles: cFpaths, DockerfileEnvBuildArgs: dockerfileEnvBuildArgs}
-	return &Verifier{Generator: g, Lockfile: &lFile, outPath: outPath}, nil
+	return &Verifier{Generator: g, Lockfile: lFile, oPath: oPath}, nil
 }
 
+// VerifyLockfile generates bytes for a new Lockfile and ensures that
+// the existing Lockfile contains the same information. Specifically,
+// the existing Lockfile must have:
+// (1) the same number of Dockerfiles and docker-compose files
+// (2) the same number of images in each Dockerfile and docker-compose file
+// (3) the same image in the proper order in each Dockerfile and docker-compose file
+// If any of these checks fail, VerifyLockfile will return an error.
 func (v *Verifier) VerifyLockfile(wrapperManager *registry.WrapperManager) error {
-	lByt, err := v.GenerateLockfileBytes(wrapperManager)
-	if err != nil {
+	var lByt bytes.Buffer
+	if err := v.Generator.GenerateLockfile(wrapperManager, &lByt); err != nil {
 		return err
 	}
 	var lFile generate.Lockfile
-	if err := json.Unmarshal(lByt, &lFile); err != nil {
+	if err := json.Unmarshal(lByt.Bytes(), &lFile); err != nil {
 		return err
 	}
-	err = errors.New("Failed to verify.")
-	if len(v.DockerfileImages) != len(lFile.DockerfileImages) {
-		err = fmt.Errorf("%s Got %d Dockerfiles. Want %d.",
-			err,
-			len(lFile.DockerfileImages),
-			len(v.DockerfileImages))
+	if err := v.verifyNumFiles(&lFile); err != nil {
 		return err
 	}
-	if len(v.ComposefileImages) != len(lFile.ComposefileImages) {
-		err = fmt.Errorf("%s Got %d Composefiles. Want %d.",
-			err,
-			len(lFile.ComposefileImages),
-			len(v.ComposefileImages))
-		return err
-	}
-	var dImagesWG sync.WaitGroup
-	dImagesErrs := make(chan error)
-	for dFpath := range v.DockerfileImages {
-		dImagesWG.Add(1)
-		go func(dFpath string) {
-			defer dImagesWG.Done()
-			if len(v.DockerfileImages[dFpath]) != len(lFile.DockerfileImages[dFpath]) {
-				err = fmt.Errorf("%s Got %d images in file %s. Want %d.",
-					err,
-					len(lFile.DockerfileImages[dFpath]),
-					dFpath,
-					len(v.DockerfileImages[dFpath]))
-				dImagesErrs <- err
-				return
-			}
-			for i := range v.DockerfileImages[dFpath] {
-				if v.DockerfileImages[dFpath][i] != lFile.DockerfileImages[dFpath][i] {
-					err = fmt.Errorf("%s Got image:\n%+v\nWant image:\n%+v",
-						err,
-						lFile.DockerfileImages[dFpath][i].Prettify(),
-						v.DockerfileImages[dFpath][i].Prettify())
-					dImagesErrs <- err
-					return
-				}
-			}
-		}(dFpath)
-	}
-	go func() {
-		dImagesWG.Wait()
-		close(dImagesErrs)
-	}()
-	for err := range dImagesErrs {
-		return err
-	}
-	var cImagesWG sync.WaitGroup
-	cImagesErrs := make(chan error)
-	for cFpath := range v.ComposefileImages {
-		cImagesWG.Add(1)
-		go func(cFpath string) {
-			defer cImagesWG.Done()
-			if len(v.ComposefileImages[cFpath]) != len(lFile.ComposefileImages[cFpath]) {
-				err = fmt.Errorf("%s Got %d images in file %s. Want %d.",
-					err,
-					len(lFile.ComposefileImages[cFpath]),
-					cFpath,
-					len(v.ComposefileImages[cFpath]))
-				cImagesErrs <- err
-				return
-			}
-			for i := range v.ComposefileImages[cFpath] {
-				if v.ComposefileImages[cFpath][i] != lFile.ComposefileImages[cFpath][i] {
-					err = fmt.Errorf("%s Got image:\n%+v\nWant image:\n%+v",
-						err,
-						lFile.ComposefileImages[cFpath][i].Prettify(),
-						v.ComposefileImages[cFpath][i].Prettify())
-					cImagesErrs <- err
-					return
-				}
-			}
-		}(cFpath)
-	}
-	go func() {
-		cImagesWG.Wait()
-		close(cImagesErrs)
-	}()
-	for err := range cImagesErrs {
+	if err := v.verifyImages(&lFile); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (v *Verifier) verifyNumFiles(lFile *generate.Lockfile) error {
+	if len(v.Lockfile.DockerfileImages) != len(lFile.DockerfileImages) {
+		return fmt.Errorf("got %d Dockerfiles, want %d",
+			len(lFile.DockerfileImages),
+			len(v.Lockfile.DockerfileImages))
+	}
+	if len(v.Lockfile.ComposefileImages) != len(lFile.ComposefileImages) {
+		return fmt.Errorf("got %d docker-compose files, want %d",
+			len(lFile.ComposefileImages),
+			len(v.Lockfile.ComposefileImages))
+	}
+	return nil
+}
+
+func (v *Verifier) verifyImages(lFile *generate.Lockfile) error {
+	for dPath := range v.Lockfile.DockerfileImages {
+		if len(v.Lockfile.DockerfileImages[dPath]) != len(lFile.DockerfileImages[dPath]) {
+			return fmt.Errorf("got %d images in file %s, want %d",
+				len(lFile.DockerfileImages[dPath]),
+				dPath,
+				len(v.Lockfile.DockerfileImages[dPath]))
+		}
+		for i := range v.Lockfile.DockerfileImages[dPath] {
+			if *v.Lockfile.DockerfileImages[dPath][i].Image != *lFile.DockerfileImages[dPath][i].Image {
+				return fmt.Errorf("got image:\n%+v\nwant image:\n%+v",
+					lFile.DockerfileImages[dPath][i].Image,
+					v.Lockfile.DockerfileImages[dPath][i].Image)
+			}
+		}
+	}
+	for cPath := range v.Lockfile.ComposefileImages {
+		if len(v.Lockfile.ComposefileImages[cPath]) != len(lFile.ComposefileImages[cPath]) {
+			return fmt.Errorf("got %d images in file %s, want %d",
+				len(lFile.ComposefileImages[cPath]),
+				cPath,
+				len(v.Lockfile.ComposefileImages[cPath]))
+		}
+		for i := range v.Lockfile.ComposefileImages[cPath] {
+			if *v.Lockfile.ComposefileImages[cPath][i].Image != *lFile.ComposefileImages[cPath][i].Image {
+				return fmt.Errorf("got image:\n%+v\nwant image:\n%+v",
+					lFile.ComposefileImages[cPath][i].Image,
+					v.Lockfile.ComposefileImages[cPath][i].Image)
+			}
+		}
+	}
+	return nil
+}
+
+func readLockfile(oPath string) (*generate.Lockfile, error) {
+	lByt, err := ioutil.ReadFile(oPath)
+	if err != nil {
+		return nil, err
+	}
+	var lFile generate.Lockfile
+	if err := json.Unmarshal(lByt, &lFile); err != nil {
+		return nil, err
+	}
+	return &lFile, nil
+}
+
+func makeGenerator(cmd *cobra.Command, lFile *generate.Lockfile) (*generate.Generator, error) {
+	var (
+		i      int
+		j      int
+		dPaths = make([]string, len(lFile.DockerfileImages))
+		cPaths = make([]string, len(lFile.ComposefileImages))
+		wg     sync.WaitGroup
+	)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for p := range lFile.DockerfileImages {
+			dPaths[i] = p
+			i++
+		}
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for p := range lFile.ComposefileImages {
+			cPaths[j] = p
+			j++
+		}
+	}()
+	dArgs, err := cmd.Flags().GetBool("dockerfile-env-build-args")
+	if err != nil {
+		return nil, err
+	}
+	wg.Wait()
+	return &generate.Generator{DockerfilePaths: dPaths,
+		ComposefilePaths:       cPaths,
+		DockerfileEnvBuildArgs: dArgs}, nil
 }

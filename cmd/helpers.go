@@ -5,13 +5,13 @@ import (
 	"path/filepath"
 )
 
-func getDefaultConfigFile() string {
+func getDefaultConfigPath() string {
 	if homeDir, err := os.UserHomeDir(); err == nil {
-		cFile := filepath.Join(homeDir, ".docker", "config.json")
-		if _, err := os.Stat(cFile); err != nil {
+		cPath := filepath.ToSlash(filepath.Join(homeDir, ".docker", "config.json"))
+		if _, err := os.Stat(cPath); err != nil {
 			return ""
 		}
-		return cFile
+		return cPath
 	}
 	return ""
 }

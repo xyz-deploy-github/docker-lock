@@ -1,0 +1,9 @@
+version: '3'
+
+services:
+  svc-one:
+    image: unused
+    build: ./abspath
+  svc-two:
+    image: unused
+    build: ${TestGenerateComposefileAbsPathDockerfile_ABS_BUILD_PATH}

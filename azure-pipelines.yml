@@ -6,14 +6,6 @@ trigger:
     include:
     - '*'
 
-schedules:
-  - cron: "0 4 * * *"
-    displayName: "Daily build at midnight EDT"
-    branches:
-      include:
-        - master
-    always: true
-
 jobs:
 - job: Lint
   pool:
@@ -22,6 +14,12 @@ jobs:
   - bash: |
       find . -name '*.sh' -print0 | xargs -n1 -0 shellcheck
     displayName: Shellcheck
+  - bash: |
+      go get -u golang.org/x/lint/golint
+      $(go list -f {{.Target}} golang.org/x/lint/golint) -set_exit_status ./...
+    displayName: Golint
+  - bash: if [ -n "$(gofmt -s -w .)" ]; then exit 1; fi
+    displayName: Gofmt
 
 - job: Build
   dependsOn: Lint
@@ -29,11 +27,11 @@ jobs:
   pool:
     vmImage: ubuntu-18.04
   steps:
-  - bash: GOOS=linux GOARCH=amd64 go build -o docker-lock-linux
+  - bash: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o docker-lock-linux
     displayName: Build linux
-  - bash: GOOS=darwin GOARCH=amd64 go build -o docker-lock-mac
+  - bash: CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="-w -s" -o docker-lock-mac
     displayName: Build mac
-  - bash: GOOS=windows GOARCH=amd64 go build -o docker-lock-windows.exe
+  - bash: CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-w -s" -o docker-lock-windows.exe
     displayName: Build windows
   - publish: $(System.DefaultWorkingDirectory)/docker-lock-linux
     artifact: docker-lock-linux
@@ -63,7 +61,7 @@ jobs:
     displayName: Configure wincred
   - bash: |
       # run without -race, because it requires gcc
-      go test ./...
+      go test ./unittests
     displayName: Run unit tests
   - download: current
     artifact: docker-lock-windows
@@ -99,7 +97,7 @@ jobs:
       mkdir -p ""$HOME"/.docker"
       echo '{"credsStore":"osxkeychain"}' > ""$HOME"/.docker/config.json"
     displayName: Configure osxkeychain
-  - bash: go test -race ./...
+  - bash: go test -race ./unittests
     displayName: Run unit tests
   - download: current
     artifact: docker-lock-mac
@@ -126,7 +124,7 @@ jobs:
   pool:
     vmImage: ubuntu-18.04
   steps:
-  - bash: go test -race ./...
+  - bash: go test -race ./unittests
     displayName: Run unit tests
   - download: current
     artifact: docker-lock-linux

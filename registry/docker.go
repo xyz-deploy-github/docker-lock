@@ -11,33 +11,32 @@ import (
 	"strings"
 
 	c "github.com/docker/docker-credential-helpers/client"
+	"github.com/michaelperel/docker-lock/registry/internal/docker"
 )
 
+// DockerWrapper is a registry wrapper for Docker Hub. It supports public
+// and private repositories.
 type DockerWrapper struct {
 	ConfigFile string
-	authCreds  authCredentials
+	Client     *HTTPClient
+	authCreds  *dockerAuthCredentials
 }
 
-type authCredentials struct {
+type dockerAuthCredentials struct {
 	username string
 	password string
 }
 
-type dockerTokenResponse struct {
-	Token string `json:"token"`
-}
-
-type config struct {
-	Auths struct {
-		Index struct {
-			Auth string `json:"auth"`
-		} `json:"https://index.docker.io/v1/"`
-	} `json:"auths"`
-	CredsStore string `json:"credsStore"`
-}
-
-func NewDockerWrapper(configFile string) (*DockerWrapper, error) {
-	w := &DockerWrapper{ConfigFile: configFile}
+// NewDockerWrapper creates a DockerWrapper from docker's config.json.
+func NewDockerWrapper(configPath string, client *HTTPClient) (*DockerWrapper, error) {
+	if client == nil {
+		client = &HTTPClient{
+			Client:        &http.Client{},
+			BaseDigestURL: "https://registry-1.docker.io/v2",
+			BaseTokenURL:  "https://auth.docker.io/token",
+		}
+	}
+	w := &DockerWrapper{ConfigFile: configPath, Client: client}
 	authCreds, err := w.getAuthCredentials()
 	if err != nil {
 		return nil, err
@@ -46,6 +45,12 @@ func NewDockerWrapper(configFile string) (*DockerWrapper, error) {
 	return w, nil
 }
 
+// GetDigest gets the digest from a name and tag. The workflow for
+// authenticating with private repositories:
+// (1) if "DOCKER_USERNAME" and "DOCKER_PASSWORD" are set, use them.
+// (2) Otherwise, try to get credentials from docker's config file. This method
+// requires the user to have logged in with the 'docker login' command
+// beforehand.
 func (w *DockerWrapper) GetDigest(name string, tag string) (string, error) {
 	// Docker-Content-Digest is the root of the hash chain
 	// https://github.com/docker/distribution/issues/1662
@@ -60,15 +65,14 @@ func (w *DockerWrapper) GetDigest(name string, tag string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		registryURL := "https://registry-1.docker.io/v2/" + name + "/manifests/" + tag
-		req, err := http.NewRequest("GET", registryURL, nil)
+		url := fmt.Sprintf("%s/%s/manifests/%s", w.Client.BaseDigestURL, name, tag)
+		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
 			return "", err
 		}
-		req.Header.Add("Authorization", "Bearer "+token)
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 		req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.v2+json")
-		client := &http.Client{}
-		resp, err := client.Do(req)
+		resp, err := w.Client.Client.Do(req)
 		if err != nil {
 			return "", err
 		}
@@ -82,8 +86,7 @@ func (w *DockerWrapper) GetDigest(name string, tag string) (string, error) {
 }
 
 func (w *DockerWrapper) getToken(name string) (string, error) {
-	client := &http.Client{}
-	url := "https://auth.docker.io/token?scope=repository:" + name + ":pull&service=registry.docker.io"
+	url := fmt.Sprintf("%s?scope=repository:%s:pull&service=registry.docker.io", w.Client.BaseTokenURL, name)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", err
@@ -91,60 +94,61 @@ func (w *DockerWrapper) getToken(name string) (string, error) {
 	if w.authCreds.username != "" && w.authCreds.password != "" {
 		req.SetBasicAuth(w.authCreds.username, w.authCreds.password)
 	}
-	resp, err := client.Do(req)
+	resp, err := w.Client.Client.Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
 	decoder := json.NewDecoder(resp.Body)
-	var t dockerTokenResponse
+	var t docker.TokenResponse
 	if err = decoder.Decode(&t); err != nil {
 		return "", err
 	}
 	return t.Token, nil
 }
 
-func (w *DockerWrapper) getAuthCredentials() (authCredentials, error) {
-	username := os.Getenv("DOCKER_USERNAME")
-	password := os.Getenv("DOCKER_PASSWORD")
+func (w *DockerWrapper) getAuthCredentials() (*dockerAuthCredentials, error) {
+	var (
+		username = os.Getenv("DOCKER_USERNAME")
+		password = os.Getenv("DOCKER_PASSWORD")
+	)
 	if username != "" && password != "" {
-		return authCredentials{username: username, password: password}, nil
+		return &dockerAuthCredentials{username: username, password: password}, nil
 	}
 	if w.ConfigFile == "" {
-		return authCredentials{}, nil
+		return &dockerAuthCredentials{}, nil
 	}
 	confByt, err := ioutil.ReadFile(w.ConfigFile)
 	if err != nil {
-		return authCredentials{}, err
+		return nil, err
 	}
-	var conf config
+	var conf docker.Config
 	if err = json.Unmarshal(confByt, &conf); err != nil {
-		return authCredentials{}, err
+		return nil, err
 	}
 	authByt, err := base64.StdEncoding.DecodeString(conf.Auths.Index.Auth)
 	if err != nil {
-		return authCredentials{}, err
+		return nil, err
 	}
 	authString := string(authByt)
 	if authString != "" {
 		auth := strings.Split(authString, ":")
-		return authCredentials{username: auth[0], password: auth[1]}, nil
+		return &dockerAuthCredentials{username: auth[0], password: auth[1]}, nil
 	} else if conf.CredsStore != "" {
 		authCreds, err := w.getAuthCredentialsFromCredsStore(conf.CredsStore)
 		if err != nil {
-			return authCredentials{}, nil
+			return &dockerAuthCredentials{}, nil
 		}
 		return authCreds, nil
 	}
-	return authCredentials{}, nil
+	return &dockerAuthCredentials{}, nil
 }
 
-// Works for “osxkeychain” on macOS, “wincred” on windows, and “pass” on Linux.
-func (w *DockerWrapper) getAuthCredentialsFromCredsStore(credsStore string) (authCreds authCredentials, err error) {
+func (w *DockerWrapper) getAuthCredentialsFromCredsStore(credsStore string) (authCreds *dockerAuthCredentials, err error) {
 	credsStore = fmt.Sprintf("%s-%s", "docker-credential", credsStore)
 	defer func() {
 		if err := recover(); err != nil {
-			authCreds = authCredentials{}
+			authCreds = &dockerAuthCredentials{}
 			return
 		}
 	}()
@@ -153,9 +157,11 @@ func (w *DockerWrapper) getAuthCredentialsFromCredsStore(credsStore string) (aut
 	if err != nil {
 		return authCreds, err
 	}
-	return authCredentials{username: credResponse.Username, password: credResponse.Secret}, nil
+	return &dockerAuthCredentials{username: credResponse.Username, password: credResponse.Secret}, nil
 }
 
+// Prefix returns an empty string since images on Docker Hub do not use a
+// prefix, unlike third party registries.
 func (w *DockerWrapper) Prefix() string {
 	return ""
 }

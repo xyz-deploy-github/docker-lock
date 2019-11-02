@@ -1,0 +1,17 @@
+{
+	"dockerfiles": {
+		"testdata/rewrite/docker/args/buildstage/Dockerfile": [
+			{
+				"name": "busybox",
+				"tag": "latest",
+				"digest": "679b1c1058c1f2dc59a3ee70eed986a88811c0205c8ceea57cec5f22d2c3fbb1"
+			},
+			{
+				"name": "ubuntu",
+				"tag": "latest",
+				"digest": "134c7fe821b9d359490cd009ce7ca322453f4f2d018623f849e580a89a685e5d"
+			}
+		]
+	},
+	"composefiles": {}
+}

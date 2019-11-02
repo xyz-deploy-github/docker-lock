@@ -1,0 +1,18 @@
+version: '3'
+services:
+  image-one-svc:
+    image: centos:latest@sha256:6ab380c5a5acf71c1b6660d645d2cd79cc8ce91b38e0352cbf9561e050427baf
+  image-two-svc:
+    image: python:latest@sha256:76aace0349933165c34ae8f99b32d269103bc14818c1914b104c34521b92f288
+  build-svc:
+    image: unused
+    build: ./build
+  context-svc:
+    image: unused
+    build:
+      context: ./context
+  dockerfile-svc:
+    image: unused
+    build:
+      context: ./dockerfile
+      dockerfile: Dockerfile

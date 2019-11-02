@@ -1,0 +1,18 @@
+version: '3'
+services:
+  image-one-svc:
+    image: centos
+  image-two-svc:
+    image: python
+  build-svc:
+    image: unused
+    build: ./build
+  context-svc:
+    image: unused
+    build:
+      context: ./context
+  dockerfile-svc:
+    image: unused
+    build:
+      context: ./dockerfile
+      dockerfile: Dockerfile

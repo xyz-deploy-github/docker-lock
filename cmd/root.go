@@ -1,31 +1,31 @@
 package cmd
 
 import (
+	"github.com/michaelperel/docker-lock/registry"
 	"github.com/spf13/cobra"
 )
 
+// NewRootCmd creates the root command for docker-lock.
 func NewRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "docker",
-		Short: "Root command for docker lock.",
-		Long: `Root command for docker lock, referenced by docker when listing
-	commands to the console.`,
+		Short: "Root command for docker lock",
 	}
 	return rootCmd
 }
 
-func Execute() error {
+// Execute creates all of docker-lock's commands, adds appropriate commands
+// to each other, and executes the root command.
+func Execute(client *registry.HTTPClient) error {
 	rootCmd := NewRootCmd()
 	rootCmd.SilenceUsage = true
 	rootCmd.SilenceErrors = true
 	lockCmd := NewLockCmd()
-	generateCmd := NewGenerateCmd()
-	verifyCmd := NewVerifyCmd()
+	generateCmd := NewGenerateCmd(client)
+	verifyCmd := NewVerifyCmd(client)
 	rewriteCmd := NewRewriteCmd()
 	rootCmd.AddCommand(lockCmd)
-	lockCmd.AddCommand(generateCmd)
-	lockCmd.AddCommand(verifyCmd)
-	lockCmd.AddCommand(rewriteCmd)
+	lockCmd.AddCommand([]*cobra.Command{generateCmd, verifyCmd, rewriteCmd}...)
 	if err := rootCmd.Execute(); err != nil {
 		return err
 	}

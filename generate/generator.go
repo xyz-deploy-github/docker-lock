@@ -2,6 +2,7 @@ package generate
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"path/filepath"
 	"sort"
@@ -94,9 +95,13 @@ func NewGenerator(cmd *cobra.Command) (*Generator, error) {
 
 // GenerateLockfile writes a Lockfile's bytes to an io.Writer.
 func (g *Generator) GenerateLockfile(wm *registry.WrapperManager, w io.Writer) error {
-	ilCh := g.parseFiles()
-	dIms, cIms, err := g.queryRegistries(wm, ilCh)
+	var (
+		doneCh = make(chan struct{})
+		ilCh   = g.parseFiles(doneCh)
+	)
+	dIms, cIms, err := g.queryRegistries(wm, ilCh, doneCh)
 	if err != nil {
+		close(doneCh)
 		return err
 	}
 	g.sortImages(dIms, cIms)
@@ -110,7 +115,9 @@ func (g *Generator) GenerateLockfile(wm *registry.WrapperManager, w io.Writer) e
 }
 
 func (g *Generator) queryRegistries(wm *registry.WrapperManager,
-	ilCh <-chan *imageLine) (map[string][]*DockerfileImage, map[string][]*ComposefileImage, error) {
+	ilCh <-chan *imageLine,
+	doneCh <-chan struct{},
+) (map[string][]*DockerfileImage, map[string][]*ComposefileImage, error) {
 
 	var (
 		ilReqs  = map[string]bool{}
@@ -126,7 +133,7 @@ func (g *Generator) queryRegistries(wm *registry.WrapperManager,
 		if !ilReqs[il.line] {
 			ilReqs[il.line] = true
 			numReqs++
-			go g.queryRegistry(il, wm, qResCh)
+			go g.queryRegistry(il, wm, qResCh, doneCh)
 		}
 	}
 	var (
@@ -134,7 +141,12 @@ func (g *Generator) queryRegistries(wm *registry.WrapperManager,
 		cIms = map[string][]*ComposefileImage{}
 	)
 	for i := 0; i < numReqs; i++ {
-		res := <-qResCh
+		var res *queryResponse
+		select {
+		case <-doneCh:
+			return nil, nil, fmt.Errorf("goroutine cancelled")
+		case res = <-qResCh:
+		}
 		if res.err != nil {
 			return nil, nil, res.err
 		}
@@ -157,7 +169,11 @@ func (g *Generator) queryRegistries(wm *registry.WrapperManager,
 	return dIms, cIms, nil
 }
 
-func (g *Generator) queryRegistry(il *imageLine, wm *registry.WrapperManager, qResCh chan<- *queryResponse) {
+func (g *Generator) queryRegistry(il *imageLine,
+	wm *registry.WrapperManager,
+	qResCh chan<- *queryResponse,
+	doneCh <-chan struct{}) {
+
 	var (
 		tagSeparator    = -1
 		digestSeparator = -1
@@ -196,11 +212,17 @@ func (g *Generator) queryRegistry(il *imageLine, wm *registry.WrapperManager, qR
 		var err error
 		digest, err = wrapper.GetDigest(name, tag)
 		if err != nil {
-			qResCh <- &queryResponse{err: err}
+			select {
+			case <-doneCh:
+			case qResCh <- &queryResponse{err: err}:
+			}
 			return
 		}
 	}
-	qResCh <- &queryResponse{im: &Image{Name: name, Tag: tag, Digest: digest}, line: il.line}
+	select {
+	case <-doneCh:
+	case qResCh <- &queryResponse{im: &Image{Name: name, Tag: tag, Digest: digest}, line: il.line}:
+	}
 }
 
 func (g *Generator) sortImages(dIms map[string][]*DockerfileImage, cIms map[string][]*ComposefileImage) {

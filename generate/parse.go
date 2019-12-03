@@ -22,7 +22,7 @@ type imageLine struct {
 	err     error
 }
 
-func (g *Generator) parseFiles() chan *imageLine {
+func (g *Generator) parseFiles(doneCh <-chan struct{}) chan *imageLine {
 	var (
 		ilCh = make(chan *imageLine)
 		wg   sync.WaitGroup
@@ -30,12 +30,12 @@ func (g *Generator) parseFiles() chan *imageLine {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		g.parseDockerfiles(ilCh)
+		g.parseDockerfiles(ilCh, doneCh)
 	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		g.parseComposefiles(ilCh)
+		g.parseComposefiles(ilCh, doneCh)
 	}()
 	go func() {
 		wg.Wait()
@@ -44,7 +44,7 @@ func (g *Generator) parseFiles() chan *imageLine {
 	return ilCh
 }
 
-func (g *Generator) parseDockerfiles(ilCh chan<- *imageLine) {
+func (g *Generator) parseDockerfiles(ilCh chan<- *imageLine, doneCh <-chan struct{}) {
 	var (
 		bArgs = map[string]string{}
 		wg    sync.WaitGroup
@@ -59,7 +59,7 @@ func (g *Generator) parseDockerfiles(ilCh chan<- *imageLine) {
 		wg.Add(1)
 		go func(dPath string) {
 			defer wg.Done()
-			g.parseDockerfile(dPath, bArgs, "", "", ilCh)
+			g.parseDockerfile(dPath, bArgs, "", "", ilCh, doneCh)
 		}(dPath)
 	}
 	wg.Wait()
@@ -69,11 +69,15 @@ func (g *Generator) parseDockerfile(dPath string,
 	bArgs map[string]string,
 	cPath string,
 	svcName string,
-	ilCh chan<- *imageLine) {
+	ilCh chan<- *imageLine,
+	doneCh <-chan struct{}) {
 
 	dFile, err := os.Open(dPath)
 	if err != nil {
-		ilCh <- &imageLine{err: err}
+		select {
+		case <-doneCh:
+		case ilCh <- &imageLine{err: err}:
+		}
 		return
 	}
 	defer dFile.Close()
@@ -107,12 +111,16 @@ func (g *Generator) parseDockerfile(dPath string,
 				gCtx = false
 				line := expandField(fields[1], gArgs, bArgs)
 				if !stages[line] {
-					ilCh <- &imageLine{line: line,
+					select {
+					case <-doneCh:
+						return
+					case ilCh <- &imageLine{line: line,
 						dPath:   dPath,
 						cPath:   cPath,
 						svcName: svcName,
-						pos:     pos}
-					pos++
+						pos:     pos}:
+						pos++
+					}
 				}
 				// FROM <image> AS <stage>
 				// FROM <stage> AS <another stage>
@@ -125,27 +133,33 @@ func (g *Generator) parseDockerfile(dPath string,
 	}
 }
 
-func (g *Generator) parseComposefiles(ilCh chan<- *imageLine) {
+func (g *Generator) parseComposefiles(ilCh chan<- *imageLine, doneCh <-chan struct{}) {
 	var wg sync.WaitGroup
 	for _, cPath := range g.ComposefilePaths {
 		wg.Add(1)
 		go func(cPath string) {
 			defer wg.Done()
-			g.parseComposefile(cPath, ilCh)
+			g.parseComposefile(cPath, ilCh, doneCh)
 		}(cPath)
 	}
 	wg.Wait()
 }
 
-func (g *Generator) parseComposefile(cPath string, ilCh chan<- *imageLine) {
+func (g *Generator) parseComposefile(cPath string, ilCh chan<- *imageLine, doneCh <-chan struct{}) {
 	ymlByt, err := ioutil.ReadFile(cPath)
 	if err != nil {
-		ilCh <- &imageLine{err: err}
+		select {
+		case <-doneCh:
+		case ilCh <- &imageLine{err: err}:
+		}
 		return
 	}
 	var comp parse.Compose
 	if err := yaml.Unmarshal(ymlByt, &comp); err != nil {
-		ilCh <- &imageLine{err: err}
+		select {
+		case <-doneCh:
+		case ilCh <- &imageLine{err: err}:
+		}
 		return
 	}
 	var wg sync.WaitGroup
@@ -153,16 +167,24 @@ func (g *Generator) parseComposefile(cPath string, ilCh chan<- *imageLine) {
 		wg.Add(1)
 		go func(svcName string, svc *parse.Service) {
 			defer wg.Done()
-			g.parseService(svcName, svc, cPath, ilCh)
+			g.parseService(svcName, svc, cPath, ilCh, doneCh)
 		}(svcName, svc)
 	}
 	wg.Wait()
 }
 
-func (g *Generator) parseService(svcName string, svc *parse.Service, cPath string, ilCh chan<- *imageLine) {
+func (g *Generator) parseService(svcName string,
+	svc *parse.Service,
+	cPath string,
+	ilCh chan<- *imageLine,
+	doneCh <-chan struct{}) {
+
 	if svc.BuildWrapper == nil {
 		line := os.ExpandEnv(svc.ImageName)
-		ilCh <- &imageLine{line: line, cPath: cPath, svcName: svcName}
+		select {
+		case <-doneCh:
+		case ilCh <- &imageLine{line: line, cPath: cPath, svcName: svcName}:
+		}
 		return
 	}
 	switch build := svc.BuildWrapper.Build.(type) {
@@ -171,10 +193,13 @@ func (g *Generator) parseService(svcName string, svc *parse.Service, cPath strin
 		dPath := filepath.ToSlash(filepath.Join(dDir, "Dockerfile"))
 		dPath, err := normalizeDPath(dPath, cPath)
 		if err != nil {
-			ilCh <- &imageLine{err: err}
+			select {
+			case <-doneCh:
+			case ilCh <- &imageLine{err: err}:
+			}
 			return
 		}
-		g.parseDockerfile(dPath, nil, cPath, svcName, ilCh)
+		g.parseDockerfile(dPath, nil, cPath, svcName, ilCh, doneCh)
 	case parse.Verbose:
 		ctx := filepath.ToSlash(os.ExpandEnv(build.Context))
 		dPath := filepath.ToSlash(os.ExpandEnv(build.DockerfilePath))
@@ -184,7 +209,10 @@ func (g *Generator) parseService(svcName string, svc *parse.Service, cPath strin
 		dPath = filepath.ToSlash(filepath.Join(ctx, dPath))
 		dPath, err := normalizeDPath(dPath, cPath)
 		if err != nil {
-			ilCh <- &imageLine{err: err}
+			select {
+			case <-doneCh:
+			case ilCh <- &imageLine{err: err}:
+			}
 			return
 		}
 		bArgs := map[string]string{}
@@ -192,7 +220,7 @@ func (g *Generator) parseService(svcName string, svc *parse.Service, cPath strin
 			av := strings.SplitN(argVal, "=", 2)
 			bArgs[os.ExpandEnv(av[0])] = os.ExpandEnv(av[1])
 		}
-		g.parseDockerfile(dPath, bArgs, cPath, svcName, ilCh)
+		g.parseDockerfile(dPath, bArgs, cPath, svcName, ilCh, doneCh)
 	}
 }
 

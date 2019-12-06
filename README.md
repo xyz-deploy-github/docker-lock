@@ -85,7 +85,7 @@ If using VSCode's [Remote Development Extension - Containers](https://marketplac
 * In the command palette type: "Go: Install/Update Tools" and select all
 * When all tools are finished installing, in the command palette type: "Developer: Reload Window"
 * SSH credentials are automatically mapped into the container
-* When committing, you will be prompted to configure git `user.name` and `user.email`
+* The docker daemon is mapped from the host into the dev container, so you can use docker and docker-compose commands from within the container as if they were run on the host
 
 Without VSCode:
 * Build the development container: `docker build -f .devcontainer/Dockerfile -t dev .`

@@ -11,7 +11,7 @@
 		"seccomp=unconfined",
 		// Enable SSH for git
 		"-v",
-		"${env:HOME}${env:USERPROFILE}/.ssh:/root/.ssh-localhost:ro"
+		"${env:HOME}${env:USERPROFILE}/.ssh:/root/.ssh-localhost:ro",
 		// Map docker daemon into container
 		"-v",
 		"/var/run/docker.sock:/var/run/docker.sock"

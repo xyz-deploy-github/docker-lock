@@ -7,7 +7,9 @@ import (
 
 func getDefaultConfigPath() string {
 	if homeDir, err := os.UserHomeDir(); err == nil {
-		cPath := filepath.ToSlash(filepath.Join(homeDir, ".docker", "config.json"))
+		cPath := filepath.ToSlash(
+			filepath.Join(homeDir, ".docker", "config.json"),
+		)
 		if _, err := os.Stat(cPath); err != nil {
 			return ""
 		}

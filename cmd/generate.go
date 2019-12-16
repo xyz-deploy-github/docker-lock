@@ -41,9 +41,11 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 				return err
 			}
 			wrapperManager := registry.NewWrapperManager(defaultWrapper)
-			wrappers := []registry.Wrapper{registry.NewElasticWrapper(client),
+			wrappers := []registry.Wrapper{
+				registry.NewElasticWrapper(client),
 				registry.NewMCRWrapper(client),
-				ACRWrapper}
+				ACRWrapper,
+			}
 			wrapperManager.Add(wrappers...)
 			generator, err := generate.NewGenerator(cmd)
 			if err != nil {
@@ -54,23 +56,70 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 				return err
 			}
 			defer oFile.Close()
-			if err := generator.GenerateLockfile(wrapperManager, oFile); err != nil {
+			if err := generator.GenerateLockfile(
+				wrapperManager,
+				oFile,
+			); err != nil {
 				return err
 			}
 			return nil
 		},
 	}
-	generateCmd.Flags().String("base-dir", ".", "Top level directory to collect files from")
-	generateCmd.Flags().StringSlice("dockerfiles", []string{}, "Path to Dockerfiles")
-	generateCmd.Flags().StringSlice("compose-files", []string{}, "Path to docker-compose files")
-	generateCmd.Flags().StringSlice("dockerfile-globs", []string{}, "Glob pattern to select Dockerfiles")
-	generateCmd.Flags().StringSlice("compose-file-globs", []string{}, "Glob pattern to select docker-compose files")
-	generateCmd.Flags().Bool("dockerfile-recursive", false, "Recursively collect Dockerfiles")
-	generateCmd.Flags().Bool("compose-file-recursive", false, "Recursively collect docker-compose files")
-	generateCmd.Flags().String("outpath", "docker-lock.json", "Path to save Lockfile")
-	generateCmd.Flags().String("config-file", getDefaultConfigPath(), "Path to config file for auth credentials")
-	generateCmd.Flags().String("env-file", ".env", "Path to .env file")
-	generateCmd.Flags().Bool("dockerfile-env-build-args", false, "Use environment vars as build args for Dockerfiles")
+	generateCmd.Flags().String(
+		"base-dir",
+		".",
+		"Top level directory to collect files from",
+	)
+	generateCmd.Flags().StringSlice(
+		"dockerfiles",
+		[]string{},
+		"Path to Dockerfiles",
+	)
+	generateCmd.Flags().StringSlice(
+		"compose-files",
+		[]string{},
+		"Path to docker-compose files",
+	)
+	generateCmd.Flags().StringSlice(
+		"dockerfile-globs",
+		[]string{},
+		"Glob pattern to select Dockerfiles",
+	)
+	generateCmd.Flags().StringSlice(
+		"compose-file-globs",
+		[]string{},
+		"Glob pattern to select docker-compose files",
+	)
+	generateCmd.Flags().Bool(
+		"dockerfile-recursive",
+		false,
+		"Recursively collect Dockerfiles",
+	)
+	generateCmd.Flags().Bool(
+		"compose-file-recursive",
+		false,
+		"Recursively collect docker-compose files",
+	)
+	generateCmd.Flags().String(
+		"outpath",
+		"docker-lock.json",
+		"Path to save Lockfile",
+	)
+	generateCmd.Flags().String(
+		"config-file",
+		getDefaultConfigPath(),
+		"Path to config file for auth credentials",
+	)
+	generateCmd.Flags().String(
+		"env-file",
+		".env",
+		"Path to .env file",
+	)
+	generateCmd.Flags().Bool(
+		"dockerfile-env-build-args",
+		false,
+		"Use environment vars as build args for Dockerfiles",
+	)
 	return generateCmd
 }
 
@@ -127,7 +176,9 @@ func validateBaseDir(bDir string) error {
 		return err
 	}
 	if mode := fi.Mode(); !mode.IsDir() {
-		return fmt.Errorf("base-dir is not a sub directory of the current working directory")
+		return fmt.Errorf(
+			"base-dir is not a sub directory of the current working directory",
+		)
 	}
 	return nil
 }
@@ -136,7 +187,11 @@ func validateInputPaths(bDir string, paths []string) error {
 	for _, p := range paths {
 		p = filepath.ToSlash(p)
 		if filepath.IsAbs(p) {
-			return fmt.Errorf("%s dockerfiles and compose-files do not support absolute paths", p)
+			return fmt.Errorf(
+				"%s dockerfiles and compose-files do not "+
+					"support absolute paths",
+				p,
+			)
 		}
 		p = filepath.ToSlash(filepath.Join(bDir, p))
 		if strings.HasPrefix(p, "..") {

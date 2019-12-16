@@ -32,7 +32,10 @@ func (w *MCRWrapper) GetDigest(name string, tag string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.v2+json")
+	req.Header.Add(
+		"Accept",
+		"application/vnd.docker.distribution.manifest.v2+json",
+	)
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {

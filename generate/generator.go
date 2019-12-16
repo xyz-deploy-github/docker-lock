@@ -2,7 +2,6 @@ package generate
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"path/filepath"
 	"sort"
@@ -23,9 +22,9 @@ type Generator struct {
 
 // Image contains information extracted from 'FROM' instructions in Dockerfiles
 // or 'image:' keys in docker-compose files. For instance,
-// FROM busybox:latest@sha256:dd97a3fe6d721c5cf03abac0f50e2848dc583f7c4e41bf39102ceb42edfd1808
+// FROM busybox:latest@sha256:dd97a3f...
 // could be represented as:
-// Image{Name: busybox, Tag: latest, Digest: dd97a3fe6d721c5cf03abac0f50e2848dc583f7c4e41bf39102ceb42edfd1808}.
+// Image{Name: busybox, Tag: latest, Digest: dd97a3f...}.
 type Image struct {
 	Name   string `json:"name"`
 	Tag    string `json:"tag"`
@@ -87,14 +86,20 @@ func NewGenerator(cmd *cobra.Command) (*Generator, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Generator{DockerfilePaths: dPaths,
+	return &Generator{
+		DockerfilePaths:        dPaths,
 		ComposefilePaths:       cPaths,
 		DockerfileEnvBuildArgs: dArgs,
-		OutPath:                oPath}, nil
+		OutPath:                oPath,
+	}, nil
 }
 
-// GenerateLockfile writes a Lockfile's bytes to an io.Writer.
-func (g *Generator) GenerateLockfile(wm *registry.WrapperManager, w io.Writer) error {
+// GenerateLockfile creates a Lockfile and writes its bytes to an io.Writer.
+func (g *Generator) GenerateLockfile(
+	wm *registry.WrapperManager,
+	w io.Writer,
+) error {
+
 	var (
 		doneCh = make(chan struct{})
 		ilCh   = g.parseFiles(doneCh)
@@ -104,17 +109,12 @@ func (g *Generator) GenerateLockfile(wm *registry.WrapperManager, w io.Writer) e
 		close(doneCh)
 		return err
 	}
-	g.sortImages(dIms, cIms)
-	lFile := &Lockfile{DockerfileImages: dIms, ComposefileImages: cIms}
-	lFileByt, err := g.formatLockfile(lFile)
-	if err != nil {
-		return err
-	}
-	w.Write(lFileByt)
-	return nil
+	lFile := NewLockfile(dIms, cIms)
+	return lFile.write(w)
 }
 
-func (g *Generator) queryRegistries(wm *registry.WrapperManager,
+func (g *Generator) queryRegistries(
+	wm *registry.WrapperManager,
 	ilCh <-chan *imageLine,
 	doneCh <-chan struct{},
 ) (map[string][]*DockerfileImage, map[string][]*ComposefileImage, error) {
@@ -141,12 +141,7 @@ func (g *Generator) queryRegistries(wm *registry.WrapperManager,
 		cIms = map[string][]*ComposefileImage{}
 	)
 	for i := 0; i < numReqs; i++ {
-		var res *queryResponse
-		select {
-		case <-doneCh:
-			return nil, nil, fmt.Errorf("goroutine cancelled")
-		case res = <-qResCh:
-		}
+		res := <-qResCh
 		if res.err != nil {
 			return nil, nil, res.err
 		}
@@ -156,10 +151,12 @@ func (g *Generator) queryRegistries(wm *registry.WrapperManager,
 				dPath := il.dPath
 				dIms[dPath] = append(dIms[dPath], dIm)
 			} else {
-				cIm := &ComposefileImage{Image: res.im,
+				cIm := &ComposefileImage{
+					Image:          res.im,
 					ServiceName:    il.svcName,
 					DockerfilePath: il.dPath,
-					pos:            il.pos}
+					pos:            il.pos,
+				}
 				cPath := il.cPath
 				cIms[cPath] = append(cIms[cPath], cIm)
 			}
@@ -169,10 +166,12 @@ func (g *Generator) queryRegistries(wm *registry.WrapperManager,
 	return dIms, cIms, nil
 }
 
-func (g *Generator) queryRegistry(il *imageLine,
+func (g *Generator) queryRegistry(
+	il *imageLine,
 	wm *registry.WrapperManager,
 	qResCh chan<- *queryResponse,
-	doneCh <-chan struct{}) {
+	doneCh <-chan struct{},
+) {
 
 	var (
 		tagSeparator    = -1
@@ -190,7 +189,7 @@ func (g *Generator) queryRegistry(il *imageLine,
 	var name, tag, digest string
 	// 4 valid cases
 	if tagSeparator != -1 && digestSeparator != -1 {
-		// ubuntu:18.04@sha256:9b1702dcfe32c873a770a32cfd306dd7fc1c4fd134adfb783db68defc8894b3c
+		// ubuntu:18.04@sha256:9b1702...
 		name = il.line[:tagSeparator]
 		tag = il.line[tagSeparator+1 : digestSeparator]
 		digest = il.line[digestSeparator+1+len("sha256:"):]
@@ -199,7 +198,7 @@ func (g *Generator) queryRegistry(il *imageLine,
 		name = il.line[:tagSeparator]
 		tag = il.line[tagSeparator+1:]
 	} else if tagSeparator == -1 && digestSeparator != -1 {
-		// ubuntu@sha256:9b1702dcfe32c873a770a32cfd306dd7fc1c4fd134adfb783db68defc8894b3c
+		// ubuntu@sha256:9b1702...
 		name = il.line[:digestSeparator]
 		digest = il.line[digestSeparator+1+len("sha256:"):]
 	} else {
@@ -221,28 +220,41 @@ func (g *Generator) queryRegistry(il *imageLine,
 	}
 	select {
 	case <-doneCh:
-	case qResCh <- &queryResponse{im: &Image{Name: name, Tag: tag, Digest: digest}, line: il.line}:
+	case qResCh <- &queryResponse{
+		im: &Image{
+			Name:   name,
+			Tag:    tag,
+			Digest: digest,
+		},
+		line: il.line,
+	}:
 	}
 }
 
-func (g *Generator) sortImages(dIms map[string][]*DockerfileImage, cIms map[string][]*ComposefileImage) {
+// NewLockfile creates a Lockfile with sorted DockerfileImages
+// and ComposefilesImages.
+func NewLockfile(
+	dIms map[string][]*DockerfileImage,
+	cIms map[string][]*ComposefileImage,
+) *Lockfile {
+
+	l := &Lockfile{DockerfileImages: dIms, ComposefileImages: cIms}
+	l.sortImages()
+	return l
+}
+
+func (l *Lockfile) sortImages() {
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		sortDockerfileImages(dIms)
-	}()
+	go l.sortDockerfileImages(&wg)
 	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		sortComposefileImages(cIms)
-	}()
+	go l.sortComposefileImages(&wg)
 	wg.Wait()
 }
 
-func sortDockerfileImages(dIms map[string][]*DockerfileImage) {
-	var wg sync.WaitGroup
-	for _, ims := range dIms {
+func (l *Lockfile) sortDockerfileImages(wg *sync.WaitGroup) {
+	defer wg.Done()
+	for _, ims := range l.DockerfileImages {
 		wg.Add(1)
 		go func(ims []*DockerfileImage) {
 			defer wg.Done()
@@ -251,12 +263,11 @@ func sortDockerfileImages(dIms map[string][]*DockerfileImage) {
 			})
 		}(ims)
 	}
-	wg.Wait()
 }
 
-func sortComposefileImages(cIms map[string][]*ComposefileImage) {
-	var wg sync.WaitGroup
-	for _, ims := range cIms {
+func (l *Lockfile) sortComposefileImages(wg *sync.WaitGroup) {
+	defer wg.Done()
+	for _, ims := range l.ComposefileImages {
 		wg.Add(1)
 		go func(ims []*ComposefileImage) {
 			defer wg.Done()
@@ -271,13 +282,15 @@ func sortComposefileImages(cIms map[string][]*ComposefileImage) {
 			})
 		}(ims)
 	}
-	wg.Wait()
 }
 
-func (g *Generator) formatLockfile(lFile *Lockfile) ([]byte, error) {
-	lFileByt, err := json.MarshalIndent(lFile, "", "\t")
+func (l *Lockfile) write(w io.Writer) error {
+	lByt, err := json.MarshalIndent(l, "", "\t")
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return lFileByt, nil
+	if _, err := w.Write(lByt); err != nil {
+		return err
+	}
+	return nil
 }

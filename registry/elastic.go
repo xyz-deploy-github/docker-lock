@@ -40,7 +40,10 @@ func (w *ElasticWrapper) GetDigest(name string, tag string) (string, error) {
 		return "", err
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
-	req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.v2+json")
+	req.Header.Add(
+		"Accept",
+		"application/vnd.docker.distribution.manifest.v2+json",
+	)
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -56,7 +59,11 @@ func (w *ElasticWrapper) GetDigest(name string, tag string) (string, error) {
 
 func (w *ElasticWrapper) getToken(name string) (string, error) {
 	// example name -> "elasticsearch/elasticsearch-oss"
-	url := fmt.Sprintf("%s?scope=repository:%s:pull&service=token-service", w.Client.BaseTokenURL, name)
+	url := fmt.Sprintf(
+		"%s?scope=repository:%s:pull&service=token-service",
+		w.Client.BaseTokenURL,
+		name,
+	)
 	resp, err := http.Get(url)
 	if err != nil {
 		return "", err
@@ -70,7 +77,8 @@ func (w *ElasticWrapper) getToken(name string) (string, error) {
 	return t.Token, nil
 }
 
-// Prefix returns the registry prefix that identifies the Elasticsearch registry.
+// Prefix returns the registry prefix that identifies
+// the Elasticsearch registry.
 func (w *ElasticWrapper) Prefix() string {
 	return "docker.elastic.co/"
 }

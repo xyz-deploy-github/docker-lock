@@ -40,13 +40,11 @@ func collectPaths(cmd *cobra.Command) ([]string, []string, error) {
 	var (
 		doneCh         = make(chan struct{})
 		dPaths, cPaths []string
-		dPathsCh       = collectDockerfilePaths(cmd, bDir, doneCh)
-		cPathsCh       = collectComposefilePaths(cmd, bDir, doneCh)
+		dPathsCh       = collectDockerfilePaths(bDir, cmd, doneCh)
+		cPathsCh       = collectComposefilePaths(bDir, cmd, doneCh)
 	)
 	for i := 0; i < 2; i++ {
 		select {
-		case <-doneCh:
-			return nil, nil, fmt.Errorf("goroutine cancelled")
 		case res := <-dPathsCh:
 			if res.err != nil {
 				close(doneCh)
@@ -65,7 +63,7 @@ func collectPaths(cmd *cobra.Command) ([]string, []string, error) {
 	}
 	if len(dPaths) == 0 && len(cPaths) == 0 {
 		var err error
-		dPaths, cPaths, err = collectDefaultPaths(cmd, bDir)
+		dPaths, cPaths, err = collectDefaultPaths(bDir)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -73,10 +71,20 @@ func collectPaths(cmd *cobra.Command) ([]string, []string, error) {
 	return dPaths, cPaths, nil
 }
 
-func collectDockerfilePaths(cmd *cobra.Command, bDir string, doneCh <-chan struct{}) <-chan *collectedPathsResult {
+func collectDockerfilePaths(
+	bDir string,
+	cmd *cobra.Command,
+	doneCh <-chan struct{},
+) <-chan *collectedPathsResult {
+
 	dPathCh := make(chan *collectedPathResult)
 	go func() {
-		cliArgs, err := getCliArgs(cmd, "dockerfiles", "dockerfile-globs", "dockerfile-recursive")
+		cliArgs, err := getCliArgs(
+			cmd,
+			"dockerfiles",
+			"dockerfile-globs",
+			"dockerfile-recursive",
+		)
 		if err != nil {
 			select {
 			case <-doneCh:
@@ -84,16 +92,38 @@ func collectDockerfilePaths(cmd *cobra.Command, bDir string, doneCh <-chan struc
 			}
 			return
 		}
-		collectPathsFromArgs(cliArgs, bDir, defaultDPaths, dPathCh, doneCh)
-		close(dPathCh)
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go collectPathsFromArgs(
+			bDir,
+			cliArgs,
+			defaultDPaths,
+			dPathCh,
+			&wg,
+			doneCh,
+		)
+		go func() {
+			wg.Wait()
+			close(dPathCh)
+		}()
 	}()
 	return dedupeAndValidatePaths(dPathCh, doneCh)
 }
 
-func collectComposefilePaths(cmd *cobra.Command, bDir string, doneCh <-chan struct{}) <-chan *collectedPathsResult {
+func collectComposefilePaths(
+	bDir string,
+	cmd *cobra.Command,
+	doneCh <-chan struct{},
+) <-chan *collectedPathsResult {
+
 	cPathCh := make(chan *collectedPathResult)
 	go func() {
-		cliArgs, err := getCliArgs(cmd, "compose-files", "compose-file-globs", "compose-file-recursive")
+		cliArgs, err := getCliArgs(
+			cmd,
+			"compose-files",
+			"compose-file-globs",
+			"compose-file-recursive",
+		)
 		if err != nil {
 			select {
 			case <-doneCh:
@@ -101,49 +131,66 @@ func collectComposefilePaths(cmd *cobra.Command, bDir string, doneCh <-chan stru
 			}
 			return
 		}
-		collectPathsFromArgs(cliArgs, bDir, defaultCPaths, cPathCh, doneCh)
-		close(cPathCh)
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go collectPathsFromArgs(
+			bDir,
+			cliArgs,
+			defaultCPaths,
+			cPathCh,
+			&wg,
+			doneCh,
+		)
+		go func() {
+			wg.Wait()
+			close(cPathCh)
+		}()
 	}()
 	return dedupeAndValidatePaths(cPathCh, doneCh)
 }
 
-func collectPathsFromArgs(cliArgs *collectedCliArgs,
+func collectPathsFromArgs(
 	bDir string,
+	cliArgs *collectedCliArgs,
 	defaultPaths []string,
 	pathCh chan<- *collectedPathResult,
-	doneCh <-chan struct{}) {
+	wg *sync.WaitGroup,
+	doneCh <-chan struct{},
+) {
 
-	var wg sync.WaitGroup
+	defer wg.Done()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		for _, p := range cliArgs.paths {
 			wg.Add(1)
-			go func(p string) {
-				defer wg.Done()
-				collectPathFromPath(p, bDir, pathCh, doneCh)
-			}(p)
+			go collectPathFromPath(bDir, p, pathCh, wg, doneCh)
 		}
 	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		if cliArgs.rec {
-			filepath.Walk(bDir, func(p string, info os.FileInfo, err error) error {
-				if err != nil {
-					select {
-					case <-doneCh:
-					case pathCh <- &collectedPathResult{err: err}:
+			filepath.Walk(bDir,
+				func(p string, info os.FileInfo, err error) error {
+					if err != nil {
+						select {
+						case <-doneCh:
+						case pathCh <- &collectedPathResult{err: err}:
+						}
+						return nil
 					}
+					wg.Add(1)
+					go collectRecursivePath(
+						p,
+						info,
+						defaultPaths,
+						pathCh,
+						wg,
+						doneCh,
+					)
 					return nil
-				}
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					collectRecursivePath(p, info, defaultPaths, pathCh, doneCh)
-				}()
-				return nil
-			})
+				})
 		}
 	}()
 	wg.Add(1)
@@ -151,16 +198,20 @@ func collectPathsFromArgs(cliArgs *collectedCliArgs,
 		defer wg.Done()
 		for _, p := range cliArgs.globs {
 			wg.Add(1)
-			go func(p string) {
-				defer wg.Done()
-				collectGlobPath(p, bDir, pathCh, doneCh)
-			}(p)
+			go collectGlobPath(bDir, p, pathCh, wg, doneCh)
 		}
 	}()
-	wg.Wait()
 }
 
-func collectPathFromPath(p string, bDir string, pathCh chan<- *collectedPathResult, doneCh <-chan struct{}) {
+func collectPathFromPath(
+	bDir string,
+	p string,
+	pathCh chan<- *collectedPathResult,
+	wg *sync.WaitGroup,
+	doneCh <-chan struct{},
+) {
+
+	defer wg.Done()
 	p = filepath.ToSlash(filepath.Join(bDir, p))
 	select {
 	case <-doneCh:
@@ -168,12 +219,16 @@ func collectPathFromPath(p string, bDir string, pathCh chan<- *collectedPathResu
 	}
 }
 
-func collectRecursivePath(p string,
+func collectRecursivePath(
+	p string,
 	info os.FileInfo,
 	defaultPaths []string,
 	pathCh chan<- *collectedPathResult,
-	doneCh <-chan struct{}) {
+	wg *sync.WaitGroup,
+	doneCh <-chan struct{},
+) {
 
+	defer wg.Done()
 	p = filepath.ToSlash(p)
 	if info.Mode().IsRegular() && isDefaultPath(p, defaultPaths) {
 		select {
@@ -183,7 +238,15 @@ func collectRecursivePath(p string,
 	}
 }
 
-func collectGlobPath(pattern string, bDir string, pathCh chan<- *collectedPathResult, doneCh <-chan struct{}) {
+func collectGlobPath(
+	bDir string,
+	pattern string,
+	pathCh chan<- *collectedPathResult,
+	wg *sync.WaitGroup,
+	doneCh <-chan struct{},
+) {
+
+	defer wg.Done()
 	pattern = filepath.ToSlash(filepath.Join(bDir, pattern))
 	paths, err := filepath.Glob(pattern)
 	if err != nil {
@@ -202,7 +265,7 @@ func collectGlobPath(pattern string, bDir string, pathCh chan<- *collectedPathRe
 	}
 }
 
-func collectDefaultPaths(cmd *cobra.Command, bDir string) ([]string, []string, error) {
+func collectDefaultPaths(bDir string) ([]string, []string, error) {
 	var (
 		dPaths []string
 		cPaths []string
@@ -230,10 +293,7 @@ func collectPathsFromDefaultPaths(bDir string, defaultPaths []string) []string {
 	)
 	for _, p := range defaultPaths {
 		wg.Add(1)
-		go func(p string) {
-			defer wg.Done()
-			collectPathFromDefaultPath(p, bDir, pathCh)
-		}(p)
+		go collectPathFromDefaultPath(bDir, p, pathCh, &wg)
 	}
 	go func() {
 		wg.Wait()
@@ -245,7 +305,14 @@ func collectPathsFromDefaultPaths(bDir string, defaultPaths []string) []string {
 	return paths
 }
 
-func collectPathFromDefaultPath(p string, bDir string, pathCh chan<- *collectedPathResult) {
+func collectPathFromDefaultPath(
+	bDir string,
+	p string,
+	pathCh chan<- *collectedPathResult,
+	wg *sync.WaitGroup,
+) {
+
+	defer wg.Done()
 	p = filepath.ToSlash(filepath.Join(bDir, p))
 	fi, err := os.Stat(p)
 	if err == nil {
@@ -255,7 +322,13 @@ func collectPathFromDefaultPath(p string, bDir string, pathCh chan<- *collectedP
 	}
 }
 
-func getCliArgs(cmd *cobra.Command, pathsKey string, globsKey string, recKey string) (*collectedCliArgs, error) {
+func getCliArgs(
+	cmd *cobra.Command,
+	pathsKey string,
+	globsKey string,
+	recKey string,
+) (*collectedCliArgs, error) {
+
 	paths, err := cmd.Flags().GetStringSlice(pathsKey)
 	if err != nil {
 		return nil, err
@@ -286,7 +359,11 @@ func isDefaultPath(pathToCheck string, defaultPaths []string) bool {
 	return false
 }
 
-func dedupeAndValidatePaths(pathCh <-chan *collectedPathResult, doneCh <-chan struct{}) <-chan *collectedPathsResult {
+func dedupeAndValidatePaths(
+	pathCh <-chan *collectedPathResult,
+	doneCh <-chan struct{},
+) <-chan *collectedPathsResult {
+
 	var (
 		pathsCh   = make(chan *collectedPathsResult)
 		uniqPaths []string
@@ -304,8 +381,12 @@ func dedupeAndValidatePaths(pathCh <-chan *collectedPathResult, doneCh <-chan st
 			if strings.HasPrefix(res.path, "..") {
 				select {
 				case <-doneCh:
-				case pathsCh <- &collectedPathsResult{err: fmt.Errorf("%s is outside the current working directory",
-					res.path)}:
+				case pathsCh <- &collectedPathsResult{
+					err: fmt.Errorf(
+						"%s is outside the current working directory",
+						res.path,
+					),
+				}:
 				}
 				return
 			}

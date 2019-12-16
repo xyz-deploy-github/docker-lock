@@ -61,7 +61,10 @@ func (w *ACRWrapper) GetDigest(name string, tag string) (string, error) {
 		return "", err
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
-	req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.v2+json")
+	req.Header.Add(
+		"Accept",
+		"application/vnd.docker.distribution.manifest.v2+json",
+	)
 	resp, err := w.Client.Client.Do(req)
 	if err != nil {
 		return "", err
@@ -75,7 +78,12 @@ func (w *ACRWrapper) GetDigest(name string, tag string) (string, error) {
 }
 
 func (w *ACRWrapper) getToken(name string) (string, error) {
-	url := fmt.Sprintf("%s?service=%s.azurecr.io&scope=repository:%s:pull", w.Client.BaseTokenURL, w.regName, name)
+	url := fmt.Sprintf(
+		"%s?service=%s.azurecr.io&scope=repository:%s:pull",
+		w.Client.BaseTokenURL,
+		w.regName,
+		name,
+	)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", err
@@ -139,7 +147,9 @@ func (w *ACRWrapper) getAuthCredentials() (*acrAuthCredentials, error) {
 	return &acrAuthCredentials{}, nil
 }
 
-func (w *ACRWrapper) getAuthCredentialsFromCredsStore(credsStore string) (authCreds *acrAuthCredentials, err error) {
+func (w *ACRWrapper) getAuthCredentialsFromCredsStore(
+	credsStore string,
+) (authCreds *acrAuthCredentials, err error) {
 	credsStore = fmt.Sprintf("%s-%s", "docker-credential", credsStore)
 	defer func() {
 		if err := recover(); err != nil {
@@ -152,7 +162,10 @@ func (w *ACRWrapper) getAuthCredentialsFromCredsStore(credsStore string) (authCr
 	if err != nil {
 		return authCreds, err
 	}
-	return &acrAuthCredentials{username: credResponse.Username, password: credResponse.Secret}, nil
+	return &acrAuthCredentials{
+		username: credResponse.Username,
+		password: credResponse.Secret,
+	}, nil
 }
 
 // Prefix returns the registry prefix that identifies ACR.

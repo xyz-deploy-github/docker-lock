@@ -28,7 +28,11 @@ type dockerAuthCredentials struct {
 }
 
 // NewDockerWrapper creates a DockerWrapper from docker's config.json.
-func NewDockerWrapper(configPath string, client *HTTPClient) (*DockerWrapper, error) {
+func NewDockerWrapper(
+	configPath string,
+	client *HTTPClient,
+) (*DockerWrapper, error) {
+
 	if client == nil {
 		client = &HTTPClient{
 			Client:        &http.Client{},
@@ -65,13 +69,21 @@ func (w *DockerWrapper) GetDigest(name string, tag string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		url := fmt.Sprintf("%s/%s/manifests/%s", w.Client.BaseDigestURL, name, tag)
+		url := fmt.Sprintf(
+			"%s/%s/manifests/%s",
+			w.Client.BaseDigestURL,
+			name,
+			tag,
+		)
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
 			return "", err
 		}
 		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
-		req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.v2+json")
+		req.Header.Add(
+			"Accept",
+			"application/vnd.docker.distribution.manifest.v2+json",
+		)
 		resp, err := w.Client.Client.Do(req)
 		if err != nil {
 			return "", err
@@ -86,7 +98,11 @@ func (w *DockerWrapper) GetDigest(name string, tag string) (string, error) {
 }
 
 func (w *DockerWrapper) getToken(name string) (string, error) {
-	url := fmt.Sprintf("%s?scope=repository:%s:pull&service=registry.docker.io", w.Client.BaseTokenURL, name)
+	url := fmt.Sprintf(
+		"%s?scope=repository:%s:pull&service=registry.docker.io",
+		w.Client.BaseTokenURL,
+		name,
+	)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", err
@@ -113,7 +129,10 @@ func (w *DockerWrapper) getAuthCredentials() (*dockerAuthCredentials, error) {
 		password = os.Getenv("DOCKER_PASSWORD")
 	)
 	if username != "" && password != "" {
-		return &dockerAuthCredentials{username: username, password: password}, nil
+		return &dockerAuthCredentials{
+			username: username,
+			password: password,
+		}, nil
 	}
 	if w.ConfigFile == "" {
 		return &dockerAuthCredentials{}, nil
@@ -144,7 +163,10 @@ func (w *DockerWrapper) getAuthCredentials() (*dockerAuthCredentials, error) {
 	return &dockerAuthCredentials{}, nil
 }
 
-func (w *DockerWrapper) getAuthCredentialsFromCredsStore(credsStore string) (authCreds *dockerAuthCredentials, err error) {
+func (w *DockerWrapper) getAuthCredentialsFromCredsStore(
+	credsStore string,
+) (authCreds *dockerAuthCredentials, err error) {
+
 	credsStore = fmt.Sprintf("%s-%s", "docker-credential", credsStore)
 	defer func() {
 		if err := recover(); err != nil {
@@ -157,7 +179,10 @@ func (w *DockerWrapper) getAuthCredentialsFromCredsStore(credsStore string) (aut
 	if err != nil {
 		return authCreds, err
 	}
-	return &dockerAuthCredentials{username: credResponse.Username, password: credResponse.Secret}, nil
+	return &dockerAuthCredentials{
+		username: credResponse.Username,
+		password: credResponse.Secret,
+	}, nil
 }
 
 // Prefix returns an empty string since images on Docker Hub do not use a

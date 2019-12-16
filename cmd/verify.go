@@ -35,9 +35,11 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 				return err
 			}
 			wrapperManager := registry.NewWrapperManager(defaultWrapper)
-			wrappers := []registry.Wrapper{registry.NewElasticWrapper(client),
+			wrappers := []registry.Wrapper{
+				registry.NewElasticWrapper(client),
 				registry.NewMCRWrapper(client),
-				ACRWrapper}
+				ACRWrapper,
+			}
 			wrapperManager.Add(wrappers...)
 			verifier, err := verify.NewVerifier(cmd)
 			if err != nil {
@@ -49,9 +51,25 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 			return nil
 		},
 	}
-	verifyCmd.Flags().String("outpath", "docker-lock.json", "Path to load Lockfile")
-	verifyCmd.Flags().String("config-file", getDefaultConfigPath(), "Path to config file for auth credentials")
-	verifyCmd.Flags().String("env-file", ".env", "Path to .env file")
-	verifyCmd.Flags().Bool("dockerfile-env-build-args", false, "Use environment vars as build args for Dockerfiles")
+	verifyCmd.Flags().String(
+		"outpath",
+		"docker-lock.json",
+		"Path to load Lockfile",
+	)
+	verifyCmd.Flags().String(
+		"config-file",
+		getDefaultConfigPath(),
+		"Path to config file for auth credentials",
+	)
+	verifyCmd.Flags().String(
+		"env-file",
+		".env",
+		"Path to .env file",
+	)
+	verifyCmd.Flags().Bool(
+		"dockerfile-env-build-args",
+		false,
+		"Use environment vars as build args for Dockerfiles",
+	)
 	return verifyCmd
 }

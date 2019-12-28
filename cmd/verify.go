@@ -21,26 +21,10 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 			}
 			envPath = filepath.ToSlash(envPath)
 			godotenv.Load(envPath)
-			configPath, err := cmd.Flags().GetString("config-file")
+			wrapperManager, err := getDefaultWrapperManager(cmd, client)
 			if err != nil {
 				return err
 			}
-			configPath = filepath.ToSlash(configPath)
-			defaultWrapper, err := registry.NewDockerWrapper(configPath, client)
-			if err != nil {
-				return err
-			}
-			ACRWrapper, err := registry.NewACRWrapper(configPath, client)
-			if err != nil {
-				return err
-			}
-			wrapperManager := registry.NewWrapperManager(defaultWrapper)
-			wrappers := []registry.Wrapper{
-				registry.NewElasticWrapper(client),
-				registry.NewMCRWrapper(client),
-				ACRWrapper,
-			}
-			wrapperManager.Add(wrappers...)
 			verifier, err := verify.NewVerifier(cmd)
 			if err != nil {
 				return err

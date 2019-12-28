@@ -27,26 +27,10 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 			}
 			envPath = filepath.ToSlash(envPath)
 			godotenv.Load(envPath)
-			configPath, err := cmd.Flags().GetString("config-file")
+			wrapperManager, err := getDefaultWrapperManager(cmd, client)
 			if err != nil {
 				return err
 			}
-			configPath = filepath.ToSlash(configPath)
-			defaultWrapper, err := registry.NewDockerWrapper(configPath, client)
-			if err != nil {
-				return err
-			}
-			ACRWrapper, err := registry.NewACRWrapper(configPath, client)
-			if err != nil {
-				return err
-			}
-			wrapperManager := registry.NewWrapperManager(defaultWrapper)
-			wrappers := []registry.Wrapper{
-				registry.NewElasticWrapper(client),
-				registry.NewMCRWrapper(client),
-				ACRWrapper,
-			}
-			wrapperManager.Add(wrappers...)
 			generator, err := generate.NewGenerator(cmd)
 			if err != nil {
 				return err
@@ -136,29 +120,27 @@ func validateGenerateCmdFlags(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	if err := validateInputPaths(bDir, dPaths); err != nil {
-		return err
-	}
 	cPaths, err := cmd.Flags().GetStringSlice("compose-files")
 	if err != nil {
 		return err
 	}
-	if err := validateInputPaths(bDir, cPaths); err != nil {
-		return err
+	for _, p := range [][]string{dPaths, cPaths} {
+		if err := validateInputPaths(bDir, p); err != nil {
+			return err
+		}
 	}
 	dGlobs, err := cmd.Flags().GetStringSlice("dockerfile-globs")
 	if err != nil {
-		return err
-	}
-	if err := validateGlobs(dGlobs); err != nil {
 		return err
 	}
 	cGlobs, err := cmd.Flags().GetStringSlice("compose-file-globs")
 	if err != nil {
 		return err
 	}
-	if err := validateGlobs(cGlobs); err != nil {
-		return err
+	for _, g := range [][]string{dGlobs, cGlobs} {
+		if err := validateGlobs(g); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -188,8 +170,7 @@ func validateInputPaths(bDir string, paths []string) error {
 		p = filepath.ToSlash(p)
 		if filepath.IsAbs(p) {
 			return fmt.Errorf(
-				"%s dockerfiles and compose-files do not "+
-					"support absolute paths",
+				"%s dockerfiles and compose-files don't support absolute paths",
 				p,
 			)
 		}

@@ -32,7 +32,6 @@ func NewDockerWrapper(
 	configPath string,
 	client *HTTPClient,
 ) (*DockerWrapper, error) {
-
 	if client == nil {
 		client = &HTTPClient{
 			Client:        &http.Client{},
@@ -70,10 +69,7 @@ func (w *DockerWrapper) GetDigest(name string, tag string) (string, error) {
 			return "", err
 		}
 		url := fmt.Sprintf(
-			"%s/%s/manifests/%s",
-			w.Client.BaseDigestURL,
-			name,
-			tag,
+			"%s/%s/manifests/%s", w.Client.BaseDigestURL, name, tag,
 		)
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
@@ -81,8 +77,7 @@ func (w *DockerWrapper) GetDigest(name string, tag string) (string, error) {
 		}
 		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 		req.Header.Add(
-			"Accept",
-			"application/vnd.docker.distribution.manifest.v2+json",
+			"Accept", "application/vnd.docker.distribution.manifest.v2+json",
 		)
 		resp, err := w.Client.Client.Do(req)
 		if err != nil {
@@ -94,7 +89,7 @@ func (w *DockerWrapper) GetDigest(name string, tag string) (string, error) {
 			return strings.TrimPrefix(digest, "sha256:"), nil
 		}
 	}
-	return "", errors.New("No digest found")
+	return "", errors.New("no digest found")
 }
 
 func (w *DockerWrapper) getToken(name string) (string, error) {
@@ -166,7 +161,6 @@ func (w *DockerWrapper) getAuthCredentials() (*dockerAuthCredentials, error) {
 func (w *DockerWrapper) getAuthCredentialsFromCredsStore(
 	credsStore string,
 ) (authCreds *dockerAuthCredentials, err error) {
-
 	credsStore = fmt.Sprintf("%s-%s", "docker-credential", credsStore)
 	defer func() {
 		if err := recover(); err != nil {

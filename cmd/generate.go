@@ -26,8 +26,8 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 				return err
 			}
 			envPath = filepath.ToSlash(envPath)
-			godotenv.Load(envPath)
-			wrapperManager, err := getDefaultWrapperManager(cmd, client)
+			_ = godotenv.Load(envPath)
+			wm, err := getDefaultWrapperManager(cmd, client)
 			if err != nil {
 				return err
 			}
@@ -40,68 +40,47 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 				return err
 			}
 			defer oFile.Close()
-			if err := generator.GenerateLockfile(
-				wrapperManager,
-				oFile,
-			); err != nil {
+			if err := generator.GenerateLockfile(wm, oFile); err != nil {
 				return err
 			}
 			return nil
 		},
 	}
 	generateCmd.Flags().String(
-		"base-dir",
-		".",
-		"Top level directory to collect files from",
+		"base-dir", ".", "Top level directory to collect files from",
 	)
 	generateCmd.Flags().StringSlice(
-		"dockerfiles",
-		[]string{},
-		"Path to Dockerfiles",
+		"dockerfiles", []string{}, "Path to Dockerfiles",
 	)
 	generateCmd.Flags().StringSlice(
-		"compose-files",
-		[]string{},
-		"Path to docker-compose files",
+		"compose-files", []string{}, "Path to docker-compose files",
 	)
 	generateCmd.Flags().StringSlice(
-		"dockerfile-globs",
-		[]string{},
-		"Glob pattern to select Dockerfiles",
+		"dockerfile-globs", []string{}, "Glob pattern to select Dockerfiles",
 	)
 	generateCmd.Flags().StringSlice(
-		"compose-file-globs",
-		[]string{},
+		"compose-file-globs", []string{},
 		"Glob pattern to select docker-compose files",
 	)
 	generateCmd.Flags().Bool(
-		"dockerfile-recursive",
-		false,
-		"Recursively collect Dockerfiles",
+		"dockerfile-recursive", false, "Recursively collect Dockerfiles",
 	)
 	generateCmd.Flags().Bool(
-		"compose-file-recursive",
-		false,
+		"compose-file-recursive", false,
 		"Recursively collect docker-compose files",
 	)
 	generateCmd.Flags().String(
-		"outpath",
-		"docker-lock.json",
-		"Path to save Lockfile",
+		"outpath", "docker-lock.json", "Path to save Lockfile",
 	)
 	generateCmd.Flags().String(
-		"config-file",
-		getDefaultConfigPath(),
+		"config-file", getDefaultConfigPath(),
 		"Path to config file for auth credentials",
 	)
 	generateCmd.Flags().String(
-		"env-file",
-		".env",
-		"Path to .env file",
+		"env-file", ".env", "Path to .env file",
 	)
 	generateCmd.Flags().Bool(
-		"dockerfile-env-build-args",
-		false,
+		"dockerfile-env-build-args", false,
 		"Use environment vars as build args for Dockerfiles",
 	)
 	return generateCmd
@@ -116,29 +95,23 @@ func validateGenerateCmdFlags(cmd *cobra.Command) error {
 	if err := validateBaseDir(bDir); err != nil {
 		return err
 	}
-	dPaths, err := cmd.Flags().GetStringSlice("dockerfiles")
-	if err != nil {
-		return err
+	defaults := [][]string{
+		{"dockerfiles", "dockerfile-globs"},
+		{"compose-files", "compose-file-globs"},
 	}
-	cPaths, err := cmd.Flags().GetStringSlice("compose-files")
-	if err != nil {
-		return err
-	}
-	for _, p := range [][]string{dPaths, cPaths} {
-		if err := validateInputPaths(bDir, p); err != nil {
+	for _, d := range defaults {
+		p, err := cmd.Flags().GetStringSlice(d[0])
+		if err != nil {
 			return err
 		}
-	}
-	dGlobs, err := cmd.Flags().GetStringSlice("dockerfile-globs")
-	if err != nil {
-		return err
-	}
-	cGlobs, err := cmd.Flags().GetStringSlice("compose-file-globs")
-	if err != nil {
-		return err
-	}
-	for _, g := range [][]string{dGlobs, cGlobs} {
-		if err := validateGlobs(g); err != nil {
+		if err = validateInputPaths(bDir, p); err != nil {
+			return err
+		}
+		g, err := cmd.Flags().GetStringSlice(d[1])
+		if err != nil {
+			return err
+		}
+		if err = validateGlobs(g); err != nil {
 			return err
 		}
 	}

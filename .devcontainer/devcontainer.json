@@ -21,6 +21,10 @@
 		"files.eol": "\n",
 		"terminal.integrated.shell.linux": "/bin/bash",
 		"go.useLanguageServer": true,
+		"go.lintTool": "golangci-lint",
+		"go.lintFlags": [
+			"--fast"
+		],
 		"go.autocompleteUnimportedPackages": true,
 		"go.gotoSymbol.includeImports": true,
 		"go.gotoSymbol.includeGoroot": true,

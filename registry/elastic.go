@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/michaelperel/docker-lock/registry/internal/elastic"
 	"net/http"
 	"strings"
+
+	"github.com/michaelperel/docker-lock/registry/internal/elastic"
 )
 
 // ElasticWrapper is a registry wrapper for the Elasticsearch repository.
@@ -41,8 +42,7 @@ func (w *ElasticWrapper) GetDigest(name string, tag string) (string, error) {
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 	req.Header.Add(
-		"Accept",
-		"application/vnd.docker.distribution.manifest.v2+json",
+		"Accept", "application/vnd.docker.distribution.manifest.v2+json",
 	)
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -52,7 +52,7 @@ func (w *ElasticWrapper) GetDigest(name string, tag string) (string, error) {
 	defer resp.Body.Close()
 	digest := resp.Header.Get("Docker-Content-Digest")
 	if digest == "" {
-		return "", errors.New("No digest found")
+		return "", errors.New("no digest found")
 	}
 	return strings.TrimPrefix(digest, "sha256:"), nil
 }
@@ -61,10 +61,9 @@ func (w *ElasticWrapper) getToken(name string) (string, error) {
 	// example name -> "elasticsearch/elasticsearch-oss"
 	url := fmt.Sprintf(
 		"%s?scope=repository:%s:pull&service=token-service",
-		w.Client.BaseTokenURL,
-		name,
+		w.Client.BaseTokenURL, name,
 	)
-	resp, err := http.Get(url)
+	resp, err := http.Get(url) // nolint: gosec
 	if err != nil {
 		return "", err
 	}

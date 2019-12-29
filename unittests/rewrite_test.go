@@ -194,7 +194,12 @@ func testRewrite(t *testing.T, outPath string, tOs []rewriteTestObject, shouldEr
 	rewriteCmd.SilenceUsage = true
 	rewriteCmd.SilenceErrors = true
 	tmpDir := filepath.Join("testdata", "rewrite", "tmp")
-	rewriteArgs := append([]string{"lock", "rewrite", fmt.Sprintf("--outpath=%s", outPath), fmt.Sprintf("--tempdir=%s", tmpDir), "--suffix=got"})
+	rewriteArgs := []string{
+		"lock",
+		"rewrite",
+		fmt.Sprintf("--outpath=%s", outPath),
+		fmt.Sprintf("--tempdir=%s", tmpDir), "--suffix=got",
+	}
 	rewriteCmd.SetArgs(rewriteArgs)
 	if err := rewriteCmd.Execute(); err != nil {
 		if shouldErr {
@@ -220,7 +225,7 @@ func checkRewriteDockerfile(t *testing.T, wantPaths []string, gotPaths []string)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if bytes.Compare(gotByt, wantByt) != 0 {
+		if !bytes.Equal(gotByt, wantByt) {
 			t.Fatalf("Files %s and %s differ.", gotPaths[i], wantPaths[i])
 		}
 		gotLines := strings.Split(string(gotByt), "\n")

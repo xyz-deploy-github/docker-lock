@@ -55,7 +55,6 @@ func collectPaths(cmd *cobra.Command) ([]string, []string, error) {
 		wg         sync.WaitGroup
 	)
 	for i, args := range defaults {
-		paths[i] = nil
 		args := args
 		wg.Add(1)
 		go func(i int) {
@@ -104,7 +103,6 @@ func collectPathsFromCliArgs(
 	defaultPaths []string,
 	doneCh <-chan struct{},
 ) ([]string, error) {
-
 	var wg sync.WaitGroup
 	pathCh := make(chan *collectedPathResult)
 	wg.Add(1)
@@ -142,7 +140,6 @@ func collectSuppliedPaths(
 	pathCh chan<- *collectedPathResult,
 	wg *sync.WaitGroup,
 	doneCh <-chan struct{}) {
-
 	defer wg.Done()
 	for _, p := range paths {
 		wg.Add(1)
@@ -165,9 +162,8 @@ func collectRecursivePaths(
 	wg *sync.WaitGroup,
 	doneCh <-chan struct{},
 ) {
-
 	defer wg.Done()
-	filepath.Walk(bDir, func(p string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(bDir, func(p string, info os.FileInfo, err error) error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -197,7 +193,6 @@ func collectGlobPaths(
 	wg *sync.WaitGroup,
 	doneCh <-chan struct{},
 ) {
-
 	defer wg.Done()
 	for _, g := range globs {
 		wg.Add(1)
@@ -229,14 +224,12 @@ func collectGlobPaths(
 }
 
 func collectDefaultPaths(bDir string, defaultPaths []string) []string {
-	var (
-		pathCh = make(chan *collectedPathResult)
-		paths  []string
-		wg     sync.WaitGroup
-	)
-	for i, p := range defaultPaths {
+	pathCh := make(chan *collectedPathResult)
+	var paths []string // nolint: prealloc
+	var wg sync.WaitGroup
+	for _, p := range defaultPaths {
 		wg.Add(1)
-		go func(p string, i int) {
+		go func(p string) {
 			defer wg.Done()
 			p = filepath.ToSlash(filepath.Join(bDir, p))
 			fi, err := os.Stat(p)
@@ -245,7 +238,7 @@ func collectDefaultPaths(bDir string, defaultPaths []string) []string {
 					pathCh <- &collectedPathResult{path: p}
 				}
 			}
-		}(p, i)
+		}(p)
 	}
 	go func() {
 		wg.Wait()
@@ -264,7 +257,6 @@ func getCliArgs(
 	recKey string,
 	doneCh <-chan struct{},
 ) chan *collectedCliArgs {
-
 	cliArgsCh := make(chan *collectedCliArgs)
 	go func() {
 		paths, err := cmd.Flags().GetStringSlice(pathsKey)
@@ -322,7 +314,6 @@ func isDefaultPath(pathToCheck string, defaultPaths []string) bool {
 func dedupeAndValidatePaths(
 	pathCh <-chan *collectedPathResult,
 ) ([]string, error) {
-
 	var (
 		uniqPaths []string
 		pathSet   = map[string]bool{}

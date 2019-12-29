@@ -49,7 +49,6 @@ func NewVerifier(cmd *cobra.Command) (*Verifier, error) {
 func (v *Verifier) VerifyLockfile(
 	wrapperManager *registry.WrapperManager,
 ) error {
-
 	var lByt bytes.Buffer
 	if err := v.Generator.GenerateLockfile(wrapperManager, &lByt); err != nil {
 		return err
@@ -70,8 +69,7 @@ func (v *Verifier) VerifyLockfile(
 func (v *Verifier) verifyNumFiles(lFile *generate.Lockfile) error {
 	if len(v.Lockfile.DockerfileImages) != len(lFile.DockerfileImages) {
 		return fmt.Errorf(
-			"got %d Dockerfiles, want %d",
-			len(lFile.DockerfileImages),
+			"got %d Dockerfiles, want %d", len(lFile.DockerfileImages),
 			len(v.Lockfile.DockerfileImages),
 		)
 	}
@@ -92,8 +90,7 @@ func (v *Verifier) verifyImages(lFile *generate.Lockfile) error {
 			return fmt.Errorf(
 				"got %d images in file %s, want %d",
 				len(lFile.DockerfileImages[dPath]),
-				dPath,
-				len(v.Lockfile.DockerfileImages[dPath]),
+				dPath, len(v.Lockfile.DockerfileImages[dPath]),
 			)
 		}
 		for i := range v.Lockfile.DockerfileImages[dPath] {
@@ -112,8 +109,7 @@ func (v *Verifier) verifyImages(lFile *generate.Lockfile) error {
 			len(lFile.ComposefileImages[cPath]) {
 			return fmt.Errorf(
 				"got %d images in file %s, want %d",
-				len(lFile.ComposefileImages[cPath]),
-				cPath,
+				len(lFile.ComposefileImages[cPath]), cPath,
 				len(v.Lockfile.ComposefileImages[cPath]),
 			)
 		}
@@ -132,7 +128,7 @@ func (v *Verifier) verifyImages(lFile *generate.Lockfile) error {
 }
 
 func readLockfile(oPath string) (*generate.Lockfile, error) {
-	lByt, err := ioutil.ReadFile(oPath)
+	lByt, err := ioutil.ReadFile(oPath) // nolint: gosec
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +143,6 @@ func makeGenerator(
 	cmd *cobra.Command,
 	lFile *generate.Lockfile,
 ) (*generate.Generator, error) {
-
 	var (
 		i      int
 		j      int

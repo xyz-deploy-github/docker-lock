@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"io"
 	"path/filepath"
-	"sort"
-	"sync"
 
 	"github.com/michaelperel/docker-lock/registry"
 	"github.com/spf13/cobra"
@@ -47,15 +45,7 @@ type ComposefileImage struct {
 	pos            int
 }
 
-// Lockfile contains DockerfileImages and ComposefileImages identified by
-// their filepaths. This data structure can be written to disk as the
-// output Lockfile.
-type Lockfile struct {
-	DockerfileImages  map[string][]*DockerfileImage  `json:"dockerfiles"`
-	ComposefileImages map[string][]*ComposefileImage `json:"composefiles"`
-}
-
-type queryResponse struct {
+type digestResponse struct {
 	im   *Image
 	line string
 	err  error
@@ -99,85 +89,80 @@ func (g *Generator) GenerateLockfile(
 	wm *registry.WrapperManager,
 	w io.Writer,
 ) error {
-
 	var (
 		doneCh = make(chan struct{})
-		ilCh   = g.parseFiles(doneCh)
+		pilCh  = g.parseFiles(doneCh)
 	)
-	dIms, cIms, err := g.queryRegistries(wm, ilCh, doneCh)
+	dIms, cIms, err := g.convertParsedImageLines(wm, pilCh, doneCh)
 	if err != nil {
 		close(doneCh)
 		return err
 	}
 	lFile := NewLockfile(dIms, cIms)
-	return lFile.write(w)
+	return lFile.Write(w)
 }
 
-func (g *Generator) queryRegistries(
+func (g *Generator) convertParsedImageLines(
 	wm *registry.WrapperManager,
-	ilCh <-chan *imageLine,
+	pilCh <-chan *parsedImageLine,
 	doneCh <-chan struct{},
 ) (map[string][]*DockerfileImage, map[string][]*ComposefileImage, error) {
-
 	var (
-		ilReqs  = map[string]bool{}
-		allIls  = map[string][]*imageLine{}
-		qResCh  = make(chan *queryResponse)
-		numReqs int
+		uniqLines  = map[string]bool{}
+		lineToPils = map[string][]*parsedImageLine{}
+		dResCh     = make(chan *digestResponse)
 	)
-	for il := range ilCh {
-		if il.err != nil {
-			return nil, nil, il.err
+	for pil := range pilCh {
+		if pil.err != nil {
+			return nil, nil, pil.err
 		}
-		allIls[il.line] = append(allIls[il.line], il)
-		if !ilReqs[il.line] {
-			ilReqs[il.line] = true
-			numReqs++
-			go g.queryRegistry(il, wm, qResCh, doneCh)
+		lineToPils[pil.line] = append(lineToPils[pil.line], pil)
+		if !uniqLines[pil.line] {
+			uniqLines[pil.line] = true
+			go g.getDigest(pil, wm, dResCh, doneCh)
 		}
 	}
 	var (
 		dIms = map[string][]*DockerfileImage{}
 		cIms = map[string][]*ComposefileImage{}
 	)
-	for i := 0; i < numReqs; i++ {
-		res := <-qResCh
+	for i := 0; i < len(uniqLines); i++ {
+		res := <-dResCh
 		if res.err != nil {
 			return nil, nil, res.err
 		}
-		for _, il := range allIls[res.line] {
-			if il.cPath == "" {
-				dIm := &DockerfileImage{Image: res.im, pos: il.pos}
-				dPath := il.dPath
+		for _, pil := range lineToPils[res.line] {
+			if pil.cPath == "" {
+				dIm := &DockerfileImage{Image: res.im, pos: pil.pos}
+				dPath := pil.dPath
 				dIms[dPath] = append(dIms[dPath], dIm)
 			} else {
 				cIm := &ComposefileImage{
 					Image:          res.im,
-					ServiceName:    il.svcName,
-					DockerfilePath: il.dPath,
-					pos:            il.pos,
+					ServiceName:    pil.svcName,
+					DockerfilePath: pil.dPath,
+					pos:            pil.pos,
 				}
-				cPath := il.cPath
+				cPath := pil.cPath
 				cIms[cPath] = append(cIms[cPath], cIm)
 			}
 		}
 	}
-	close(qResCh)
+	close(dResCh)
 	return dIms, cIms, nil
 }
 
-func (g *Generator) queryRegistry(
-	il *imageLine,
+func (g *Generator) getDigest(
+	pil *parsedImageLine,
 	wm *registry.WrapperManager,
-	qResCh chan<- *queryResponse,
+	qResCh chan<- *digestResponse,
 	doneCh <-chan struct{},
 ) {
-
 	var (
 		tagSeparator    = -1
 		digestSeparator = -1
 	)
-	for i, c := range il.line {
+	for i, c := range pil.line {
 		if c == ':' {
 			tagSeparator = i
 		}
@@ -188,22 +173,23 @@ func (g *Generator) queryRegistry(
 	}
 	var name, tag, digest string
 	// 4 valid cases
-	if tagSeparator != -1 && digestSeparator != -1 {
+	switch {
+	case tagSeparator != -1 && digestSeparator != -1:
 		// ubuntu:18.04@sha256:9b1702...
-		name = il.line[:tagSeparator]
-		tag = il.line[tagSeparator+1 : digestSeparator]
-		digest = il.line[digestSeparator+1+len("sha256:"):]
-	} else if tagSeparator != -1 && digestSeparator == -1 {
+		name = pil.line[:tagSeparator]
+		tag = pil.line[tagSeparator+1 : digestSeparator]
+		digest = pil.line[digestSeparator+1+len("sha256:"):]
+	case tagSeparator != -1 && digestSeparator == -1:
 		// ubuntu:18.04
-		name = il.line[:tagSeparator]
-		tag = il.line[tagSeparator+1:]
-	} else if tagSeparator == -1 && digestSeparator != -1 {
+		name = pil.line[:tagSeparator]
+		tag = pil.line[tagSeparator+1:]
+	case tagSeparator == -1 && digestSeparator != -1:
 		// ubuntu@sha256:9b1702...
-		name = il.line[:digestSeparator]
-		digest = il.line[digestSeparator+1+len("sha256:"):]
-	} else {
+		name = pil.line[:digestSeparator]
+		digest = pil.line[digestSeparator+1+len("sha256:"):]
+	default:
 		// ubuntu
-		name = il.line
+		name = pil.line
 		tag = "latest"
 	}
 	if digest == "" {
@@ -213,84 +199,20 @@ func (g *Generator) queryRegistry(
 		if err != nil {
 			select {
 			case <-doneCh:
-			case qResCh <- &queryResponse{err: err}:
+			case qResCh <- &digestResponse{err: err}:
 			}
 			return
 		}
 	}
 	select {
 	case <-doneCh:
-	case qResCh <- &queryResponse{
+	case qResCh <- &digestResponse{
 		im: &Image{
 			Name:   name,
 			Tag:    tag,
 			Digest: digest,
 		},
-		line: il.line,
+		line: pil.line,
 	}:
 	}
-}
-
-// NewLockfile creates a Lockfile with sorted DockerfileImages
-// and ComposefilesImages.
-func NewLockfile(
-	dIms map[string][]*DockerfileImage,
-	cIms map[string][]*ComposefileImage,
-) *Lockfile {
-
-	l := &Lockfile{DockerfileImages: dIms, ComposefileImages: cIms}
-	l.sortImages()
-	return l
-}
-
-func (l *Lockfile) sortImages() {
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go l.sortDockerfileImages(&wg)
-	wg.Add(1)
-	go l.sortComposefileImages(&wg)
-	wg.Wait()
-}
-
-func (l *Lockfile) sortDockerfileImages(wg *sync.WaitGroup) {
-	defer wg.Done()
-	for _, ims := range l.DockerfileImages {
-		wg.Add(1)
-		go func(ims []*DockerfileImage) {
-			defer wg.Done()
-			sort.Slice(ims, func(i, j int) bool {
-				return ims[i].pos < ims[j].pos
-			})
-		}(ims)
-	}
-}
-
-func (l *Lockfile) sortComposefileImages(wg *sync.WaitGroup) {
-	defer wg.Done()
-	for _, ims := range l.ComposefileImages {
-		wg.Add(1)
-		go func(ims []*ComposefileImage) {
-			defer wg.Done()
-			sort.Slice(ims, func(i, j int) bool {
-				if ims[i].ServiceName != ims[j].ServiceName {
-					return ims[i].ServiceName < ims[j].ServiceName
-				} else if ims[i].DockerfilePath != ims[i].DockerfilePath {
-					return ims[i].DockerfilePath < ims[j].DockerfilePath
-				} else {
-					return ims[i].pos < ims[j].pos
-				}
-			})
-		}(ims)
-	}
-}
-
-func (l *Lockfile) write(w io.Writer) error {
-	lByt, err := json.MarshalIndent(l, "", "\t")
-	if err != nil {
-		return err
-	}
-	if _, err := w.Write(lByt); err != nil {
-		return err
-	}
-	return nil
 }

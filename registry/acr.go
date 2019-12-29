@@ -55,6 +55,9 @@ func NewACRWrapper(configPath string, client *HTTPClient) (*ACRWrapper, error) {
 func (w *ACRWrapper) GetDigest(name string, tag string) (string, error) {
 	name = strings.Replace(name, w.Prefix(), "", 1)
 	token, err := w.getToken(name)
+	if err != nil {
+		return "", err
+	}
 	url := fmt.Sprintf("%s/%s/manifests/%s", w.Client.BaseDigestURL, name, tag)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -62,8 +65,7 @@ func (w *ACRWrapper) GetDigest(name string, tag string) (string, error) {
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 	req.Header.Add(
-		"Accept",
-		"application/vnd.docker.distribution.manifest.v2+json",
+		"Accept", "application/vnd.docker.distribution.manifest.v2+json",
 	)
 	resp, err := w.Client.Client.Do(req)
 	if err != nil {
@@ -72,7 +74,7 @@ func (w *ACRWrapper) GetDigest(name string, tag string) (string, error) {
 	defer resp.Body.Close()
 	digest := resp.Header.Get("Docker-Content-Digest")
 	if digest == "" {
-		return "", errors.New("No digest found")
+		return "", errors.New("no digest found")
 	}
 	return strings.TrimPrefix(digest, "sha256:"), nil
 }
@@ -80,9 +82,7 @@ func (w *ACRWrapper) GetDigest(name string, tag string) (string, error) {
 func (w *ACRWrapper) getToken(name string) (string, error) {
 	url := fmt.Sprintf(
 		"%s?service=%s.azurecr.io&scope=repository:%s:pull",
-		w.Client.BaseTokenURL,
-		w.regName,
-		name,
+		w.Client.BaseTokenURL, w.regName, name,
 	)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {

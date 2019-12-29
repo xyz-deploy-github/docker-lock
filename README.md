@@ -91,8 +91,10 @@ Without VSCode:
 * Build the development container: `docker build -f .devcontainer/Dockerfile -t dev .`
 * Mount the root directory into the container, and drop into a bash shell: `docker run -it -v ${PWD}:/workspaces/docker-lock dev`
 
-## Testing
+## CI
 * Unit tests, integration tests, and linting run in the [CI pipeline](https://dev.azure.com/michaelsethperel/docker-lock/_build?definitionId=4) on pull requests.
-* To run unit tests locally: `go test ./...`
-* To generate a coverage report: `go test ./... -cover -coverpkg ./... -coverprofile=coverage.out`
-* To view the coverage report in your browser: `go tool cover -html=coverage.out`
+* To format your code: `./tools/format.sh`
+* To lint your code: `./tools/lint.sh`
+* To run unit tests: `./tools/unittest.sh`
+* To generate a coverage report: `./tools/coverage.sh`
+* To view the coverage report on your browser, open a console, but not in docker, run `go tool cover -html=coverage.out`

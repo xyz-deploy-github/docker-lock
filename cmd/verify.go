@@ -20,8 +20,8 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 				return err
 			}
 			envPath = filepath.ToSlash(envPath)
-			godotenv.Load(envPath)
-			wrapperManager, err := getDefaultWrapperManager(cmd, client)
+			_ = godotenv.Load(envPath)
+			wm, err := getDefaultWrapperManager(cmd, client)
 			if err != nil {
 				return err
 			}
@@ -29,30 +29,24 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := verifier.VerifyLockfile(wrapperManager); err != nil {
+			if err := verifier.VerifyLockfile(wm); err != nil {
 				return err
 			}
 			return nil
 		},
 	}
 	verifyCmd.Flags().String(
-		"outpath",
-		"docker-lock.json",
-		"Path to load Lockfile",
+		"outpath", "docker-lock.json", "Path to load Lockfile",
 	)
 	verifyCmd.Flags().String(
-		"config-file",
-		getDefaultConfigPath(),
+		"config-file", getDefaultConfigPath(),
 		"Path to config file for auth credentials",
 	)
 	verifyCmd.Flags().String(
-		"env-file",
-		".env",
-		"Path to .env file",
+		"env-file", ".env", "Path to .env file",
 	)
 	verifyCmd.Flags().Bool(
-		"dockerfile-env-build-args",
-		false,
+		"dockerfile-env-build-args", false,
 		"Use environment vars as build args for Dockerfiles",
 	)
 	return verifyCmd

@@ -22,19 +22,15 @@ func NewRewriteCmd() *cobra.Command {
 		},
 	}
 	rewriteCmd.Flags().String(
-		"outpath",
-		"docker-lock.json",
-		"Path to load Lockfile",
+		"outpath", "docker-lock.json", "Path to load Lockfile",
 	)
 	rewriteCmd.Flags().String(
-		"suffix",
-		"",
+		"suffix", "",
 		"Create new Dockerfiles and docker-compose files "+
 			"with a suffix rather than overwrite existing files",
 	)
 	rewriteCmd.Flags().String(
-		"tempdir",
-		"",
+		"tempdir", "",
 		"Directory where a temporary directory will be created/deleted "+
 			"during a rewrite transaction",
 	)

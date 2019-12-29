@@ -28,7 +28,7 @@ func getMockServer() *httptest.Server {
 		// get token
 		case strings.Contains(url, "scope"):
 			byt := []byte(`{"token": "NOT_USED"}`)
-			rw.Write(byt)
+			_, _ = rw.Write(byt)
 		// get digest
 		case strings.Contains(url, "manifests"):
 			rw.Header().Set("Docker-Content-Digest", "sha256:NOT_USED")

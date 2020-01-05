@@ -47,9 +47,8 @@ At this point, the Dockerfile will contain all of the digest information from th
 ## Linux / Mac
 * Docker version >= 19.03
 * `mkdir -p ~/.docker/cli-plugins`
-* `wget  -O docker-lock https://github.com/michaelperel/docker-lock/releases/download/{VERSION}/docker-lock-{OS}`
-* `chmod +x docker-lock`
-* `mv docker-lock ~/.docker/cli-plugins`
+* `curl -fsSL https://github.com/michaelperel/docker-lock/releases/download/{VERSION}/docker-lock-{OS} -o ~/.docker/cli-plugins/docker-lock`
+* `chmod +x ~/.docker/cli-plugins/docker-lock`
 ## Windows
 * Docker version >= 19.03
 * Create the folder `%USERPROFILE%\.docker\cli-plugins`

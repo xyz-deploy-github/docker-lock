@@ -4,6 +4,7 @@ go 1.12
 
 require (
 	github.com/docker/docker-credential-helpers v0.6.3
+	github.com/google/uuid v1.1.1
 	github.com/joho/godotenv v1.3.0
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/spf13/cobra v0.0.5

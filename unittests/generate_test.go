@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/michaelperel/docker-lock/cmd"
 	"github.com/michaelperel/docker-lock/generate"
 )
@@ -611,18 +612,14 @@ func TestGenerateInvalidInput(t *testing.T) {
 }
 
 func testGenerate(t *testing.T, flags []string, tOs []generateTestObject, shouldFail bool) {
-	tmpFile, err := ioutil.TempFile("", "test-docker-lock-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(tmpFile.Name())
-	outPath := tmpFile.Name()
+	lName := uuid.New().String()
 	generateCmd := cmd.NewGenerateCmd(client)
 	generateCmd.SilenceUsage = true
 	generateCmd.SilenceErrors = true
-	args := append([]string{"lock", "generate", fmt.Sprintf("--outpath=%s", outPath)}, flags...)
+	args := append([]string{"lock", "generate", fmt.Sprintf("--lockfile-name=%s", lName)}, flags...)
 	generateCmd.SetArgs(args)
-	err = generateCmd.Execute()
+	err := generateCmd.Execute()
+	defer os.Remove(lName)
 	switch {
 	case shouldFail && err == nil:
 		t.Fatalf("Got pass. Want fail.")
@@ -631,7 +628,7 @@ func testGenerate(t *testing.T, flags []string, tOs []generateTestObject, should
 	case shouldFail && err != nil:
 		return
 	}
-	lByt, err := ioutil.ReadFile(outPath)
+	lByt, err := ioutil.ReadFile(lName)
 	if err != nil {
 		t.Fatal(err)
 	}

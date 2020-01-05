@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"path/filepath"
 	"sync"
 
 	"github.com/michaelperel/docker-lock/generate"
@@ -17,17 +16,15 @@ import (
 type Verifier struct {
 	Generator *generate.Generator
 	Lockfile  *generate.Lockfile
-	oPath     string
 }
 
 // NewVerifier creates a Verifier from command line flags.
 func NewVerifier(cmd *cobra.Command) (*Verifier, error) {
-	oPath, err := cmd.Flags().GetString("outpath")
+	lName, err := cmd.Flags().GetString("lockfile-path")
 	if err != nil {
 		return nil, err
 	}
-	oPath = filepath.ToSlash(oPath)
-	lFile, err := readLockfile(oPath)
+	lFile, err := readLockfile(lName)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +32,7 @@ func NewVerifier(cmd *cobra.Command) (*Verifier, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Verifier{Generator: g, Lockfile: lFile, oPath: oPath}, nil
+	return &Verifier{Generator: g, Lockfile: lFile}, nil
 }
 
 // VerifyLockfile generates bytes for a new Lockfile and ensures that
@@ -127,8 +124,8 @@ func (v *Verifier) verifyImages(lFile *generate.Lockfile) error {
 	return nil
 }
 
-func readLockfile(oPath string) (*generate.Lockfile, error) {
-	lByt, err := ioutil.ReadFile(oPath) // nolint: gosec
+func readLockfile(lName string) (*generate.Lockfile, error) {
+	lByt, err := ioutil.ReadFile(lName) // nolint: gosec
 	if err != nil {
 		return nil, err
 	}

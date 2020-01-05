@@ -538,12 +538,12 @@ func dedupeDockerfileImages(
 }
 
 func readLockfile(cmd *cobra.Command) (*generate.Lockfile, error) {
-	oPath, err := cmd.Flags().GetString("outpath")
+	lPath, err := cmd.Flags().GetString("lockfile-path")
 	if err != nil {
 		return nil, err
 	}
-	oPath = filepath.ToSlash(oPath)
-	lByt, err := ioutil.ReadFile(oPath) // nolint: gosec
+	lPath = filepath.ToSlash(lPath)
+	lByt, err := ioutil.ReadFile(lPath) // nolint: gosec
 	if err != nil {
 		return nil, err
 	}

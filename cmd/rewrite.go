@@ -22,7 +22,7 @@ func NewRewriteCmd() *cobra.Command {
 		},
 	}
 	rewriteCmd.Flags().String(
-		"outpath", "docker-lock.json", "Path to load Lockfile",
+		"lockfile-path", "docker-lock.json", "Path to Lockfile",
 	)
 	rewriteCmd.Flags().String(
 		"suffix", "",

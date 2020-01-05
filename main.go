@@ -22,6 +22,7 @@ func main() {
 	}
 	if err := cmd.Execute(nil); err != nil {
 		fmt.Fprint(os.Stderr, err)
+		fmt.Println()
 		os.Exit(1)
 	}
 }

@@ -3,7 +3,6 @@ package generate
 import (
 	"encoding/json"
 	"io"
-	"path/filepath"
 
 	"github.com/michaelperel/docker-lock/registry"
 	"github.com/spf13/cobra"
@@ -15,7 +14,7 @@ type Generator struct {
 	DockerfilePaths        []string
 	ComposefilePaths       []string
 	DockerfileEnvBuildArgs bool
-	OutPath                string
+	LockfileName           string
 }
 
 // Image contains information extracted from 'FROM' instructions in Dockerfiles
@@ -63,11 +62,10 @@ func (i *Image) String() string {
 // "docker-compose.yaml" will be used. If files are specified in
 // command line flags, only those files will be used.
 func NewGenerator(cmd *cobra.Command) (*Generator, error) {
-	oPath, err := cmd.Flags().GetString("outpath")
+	lName, err := cmd.Flags().GetString("lockfile-name")
 	if err != nil {
 		return nil, err
 	}
-	oPath = filepath.ToSlash(oPath)
 	dArgs, err := cmd.Flags().GetBool("dockerfile-env-build-args")
 	if err != nil {
 		return nil, err
@@ -80,7 +78,7 @@ func NewGenerator(cmd *cobra.Command) (*Generator, error) {
 		DockerfilePaths:        dPaths,
 		ComposefilePaths:       cPaths,
 		DockerfileEnvBuildArgs: dArgs,
-		OutPath:                oPath,
+		LockfileName:           lName,
 	}, nil
 }
 

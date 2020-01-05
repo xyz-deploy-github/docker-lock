@@ -29,7 +29,7 @@ var (
 // the FROM instruction with the image.
 func TestRewriteDockerfileArgsLocalArg(t *testing.T) {
 	baseDir := filepath.Join(rewriteDockerBaseDir, "args", "localarg")
-	outPath := filepath.Join(baseDir, "docker-lock.json")
+	lPath := filepath.Join(baseDir, "docker-lock.json")
 	tOs := []rewriteTestObject{
 		{
 			wantPaths: []string{filepath.Join(baseDir, "Dockerfile-want")},
@@ -37,7 +37,7 @@ func TestRewriteDockerfileArgsLocalArg(t *testing.T) {
 			testFn:    checkRewriteDockerfile,
 		},
 	}
-	testRewrite(t, outPath, tOs, false)
+	testRewrite(t, lPath, tOs, false)
 }
 
 // TestRewriteDockerfileArgsBuildStage replaces newly defined images
@@ -48,7 +48,7 @@ func TestRewriteDockerfileArgsLocalArg(t *testing.T) {
 // should only replace the first busybox.
 func TestRewriteDockerfileArgsBuildStage(t *testing.T) {
 	baseDir := filepath.Join(rewriteDockerBaseDir, "args", "buildstage")
-	outPath := filepath.Join(baseDir, "docker-lock.json")
+	lPath := filepath.Join(baseDir, "docker-lock.json")
 	tOs := []rewriteTestObject{
 		{
 			wantPaths: []string{filepath.Join(baseDir, "Dockerfile-want")},
@@ -56,14 +56,14 @@ func TestRewriteDockerfileArgsBuildStage(t *testing.T) {
 			testFn:    checkRewriteDockerfile,
 		},
 	}
-	testRewrite(t, outPath, tOs, false)
+	testRewrite(t, lPath, tOs, false)
 }
 
 // TestRewriteMoreDockerfileImages ensures that when there are
 // more images in a Dockerfile than in a Lockfile, an error occurs.
 func TestRewriteMoreDockerfileImages(t *testing.T) {
 	baseDir := filepath.Join(rewriteDockerBaseDir, "fail", "moreImagesDockerfile")
-	outPath := filepath.Join(baseDir, "docker-lock.json")
+	lPath := filepath.Join(baseDir, "docker-lock.json")
 	tOs := []rewriteTestObject{
 		{
 			wantPaths: []string{filepath.Join(baseDir, "Dockerfile-want")},
@@ -71,14 +71,14 @@ func TestRewriteMoreDockerfileImages(t *testing.T) {
 			testFn:    checkRewriteDockerfile,
 		},
 	}
-	testRewrite(t, outPath, tOs, true)
+	testRewrite(t, lPath, tOs, true)
 }
 
 // TestRewriteMoreLockfileImages ensures that when there are
 // more images in a Lockfile than in a Dockerfile, an error occurs.
 func TestRewriteMoreLockfileImages(t *testing.T) {
 	baseDir := filepath.Join(rewriteDockerBaseDir, "fail", "moreImagesLockfile")
-	outPath := filepath.Join(baseDir, "docker-lock.json")
+	lPath := filepath.Join(baseDir, "docker-lock.json")
 	tOs := []rewriteTestObject{
 		{
 			wantPaths: []string{filepath.Join(baseDir, "Dockerfile-want")},
@@ -86,13 +86,13 @@ func TestRewriteMoreLockfileImages(t *testing.T) {
 			testFn:    checkRewriteDockerfile,
 		},
 	}
-	testRewrite(t, outPath, tOs, true)
+	testRewrite(t, lPath, tOs, true)
 }
 
 // TestRewriteComposefileImage replaces the image line with the image.
 func TestRewriteComposefileImage(t *testing.T) {
 	baseDir := filepath.Join(rewriteComposeBaseDir, "image")
-	outPath := filepath.Join(baseDir, "docker-lock.json")
+	lPath := filepath.Join(baseDir, "docker-lock.json")
 	tOs := []rewriteTestObject{
 		{
 			wantPaths: []string{filepath.Join(baseDir, "docker-compose-want.yml")},
@@ -100,14 +100,14 @@ func TestRewriteComposefileImage(t *testing.T) {
 			testFn:    checkRewriteComposefile,
 		},
 	}
-	testRewrite(t, outPath, tOs, false)
+	testRewrite(t, lPath, tOs, false)
 }
 
 // TestRewriteComposefileEnv replaces the environment variable
 // referenced in the image line with the image.
 func TestRewriteComposefileEnv(t *testing.T) {
 	baseDir := filepath.Join(rewriteComposeBaseDir, "env")
-	outPath := filepath.Join(baseDir, "docker-lock.json")
+	lPath := filepath.Join(baseDir, "docker-lock.json")
 	tOs := []rewriteTestObject{
 		{
 			wantPaths: []string{filepath.Join(baseDir, "docker-compose-want.yml")},
@@ -115,14 +115,14 @@ func TestRewriteComposefileEnv(t *testing.T) {
 			testFn:    checkRewriteComposefile,
 		},
 	}
-	testRewrite(t, outPath, tOs, false)
+	testRewrite(t, lPath, tOs, false)
 }
 
 // TestRewriteDockerfilesReferencedByComposefiles ensures that Dockerfiles
 // referenced in docker-compose files are rewritten.
 func TestRewriteDockerfilesReferencedByComposefiles(t *testing.T) {
 	baseDir := filepath.Join(rewriteComposeBaseDir, "dockerfile")
-	outPath := filepath.Join(baseDir, "docker-lock.json")
+	lPath := filepath.Join(baseDir, "docker-lock.json")
 	tOs := []rewriteTestObject{
 		{
 			wantPaths: []string{filepath.Join(baseDir, "dockerfile", "Dockerfile-want")},
@@ -130,7 +130,7 @@ func TestRewriteDockerfilesReferencedByComposefiles(t *testing.T) {
 			testFn:    checkRewriteDockerfile,
 		},
 	}
-	testRewrite(t, outPath, tOs, false)
+	testRewrite(t, lPath, tOs, false)
 }
 
 // TestRewriteDockerfilesMultipleMultiStageReferencedByComposefiles ensures that
@@ -138,7 +138,7 @@ func TestRewriteDockerfilesReferencedByComposefiles(t *testing.T) {
 // files, are rewritten in the proper order.
 func TestRewriteDockerfilesMultipleMultiStageReferencedByComposefiles(t *testing.T) {
 	baseDir := filepath.Join(rewriteComposeBaseDir, "sort")
-	outPath := filepath.Join(baseDir, "docker-lock.json")
+	lPath := filepath.Join(baseDir, "docker-lock.json")
 	tOs := []rewriteTestObject{
 		{
 			wantPaths: []string{filepath.Join(baseDir, "sort", "Dockerfile-one-want")},
@@ -151,14 +151,14 @@ func TestRewriteDockerfilesMultipleMultiStageReferencedByComposefiles(t *testing
 			testFn:    checkRewriteDockerfile,
 		},
 	}
-	testRewrite(t, outPath, tOs, false)
+	testRewrite(t, lPath, tOs, false)
 }
 
 // TestRewriteAssortment tests rewrite for a collection of arbitrary
 // docker-compose files and Dockerfiles.
 func TestRewriteAssortment(t *testing.T) {
 	baseDir := filepath.Join(rewriteComposeBaseDir, "assortment")
-	outPath := filepath.Join(baseDir, "docker-lock.json")
+	lPath := filepath.Join(baseDir, "docker-lock.json")
 	tOs := []rewriteTestObject{
 		{
 			wantPaths: []string{filepath.Join(baseDir, "build", "Dockerfile-want")},
@@ -186,10 +186,10 @@ func TestRewriteAssortment(t *testing.T) {
 			testFn:    checkRewriteComposefile,
 		},
 	}
-	testRewrite(t, outPath, tOs, false)
+	testRewrite(t, lPath, tOs, false)
 }
 
-func testRewrite(t *testing.T, outPath string, tOs []rewriteTestObject, shouldErr bool) {
+func testRewrite(t *testing.T, lPath string, tOs []rewriteTestObject, shouldErr bool) {
 	rewriteCmd := cmd.NewRewriteCmd()
 	rewriteCmd.SilenceUsage = true
 	rewriteCmd.SilenceErrors = true
@@ -197,7 +197,7 @@ func testRewrite(t *testing.T, outPath string, tOs []rewriteTestObject, shouldEr
 	rewriteArgs := []string{
 		"lock",
 		"rewrite",
-		fmt.Sprintf("--outpath=%s", outPath),
+		fmt.Sprintf("--lockfile-path=%s", lPath),
 		fmt.Sprintf("--tempdir=%s", tmpDir), "--suffix=got",
 	}
 	rewriteCmd.SetArgs(rewriteArgs)

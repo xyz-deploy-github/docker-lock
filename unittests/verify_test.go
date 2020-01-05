@@ -18,8 +18,8 @@ var (
 // referenced in the Lockfile.
 func TestVerifyComposefileDiffNumImages(t *testing.T) {
 	t.Parallel()
-	outpath := filepath.Join(verifyComposeBaseDir, "diffnumimages", "docker-lock.json")
-	flags := []string{fmt.Sprintf("--outpath=%s", outpath)}
+	lPath := filepath.Join(verifyComposeBaseDir, "diffnumimages", "docker-lock.json")
+	flags := []string{fmt.Sprintf("--lockfile-path=%s", lPath)}
 	shouldFail := true
 	testVerify(t, flags, shouldFail)
 }
@@ -29,8 +29,8 @@ func TestVerifyComposefileDiffNumImages(t *testing.T) {
 // digest from the docker-compose file.
 func TestVerifyComposefileDiffDigests(t *testing.T) {
 	t.Parallel()
-	outpath := filepath.Join(verifyComposeBaseDir, "diffdigests", "docker-lock.json")
-	flags := []string{fmt.Sprintf("--outpath=%s", outpath)}
+	lPath := filepath.Join(verifyComposeBaseDir, "diffdigests", "docker-lock.json")
+	flags := []string{fmt.Sprintf("--lockfile-path=%s", lPath)}
 	shouldFail := true
 	testVerify(t, flags, shouldFail)
 }
@@ -40,8 +40,8 @@ func TestVerifyComposefileDiffDigests(t *testing.T) {
 // referenced in the Lockfile.
 func TestVerifyDockerfileDiffNumImages(t *testing.T) {
 	t.Parallel()
-	outpath := filepath.Join(verifyDockerBaseDir, "diffnumimages", "docker-lock.json")
-	flags := []string{fmt.Sprintf("--outpath=%s", outpath)}
+	lPath := filepath.Join(verifyDockerBaseDir, "diffnumimages", "docker-lock.json")
+	flags := []string{fmt.Sprintf("--lockfile-path=%s", lPath)}
 	shouldFail := true
 	testVerify(t, flags, shouldFail)
 }
@@ -51,8 +51,8 @@ func TestVerifyDockerfileDiffNumImages(t *testing.T) {
 // digest from the Dockerfile.
 func TestVerifyDockerfileDiffDigests(t *testing.T) {
 	t.Parallel()
-	outpath := filepath.Join(verifyDockerBaseDir, "diffdigests", "docker-lock.json")
-	flags := []string{fmt.Sprintf("--outpath=%s", outpath)}
+	lPath := filepath.Join(verifyDockerBaseDir, "diffdigests", "docker-lock.json")
+	flags := []string{fmt.Sprintf("--lockfile-path=%s", lPath)}
 	shouldFail := true
 	testVerify(t, flags, shouldFail)
 }
@@ -61,9 +61,9 @@ func TestVerifyDockerfileDiffDigests(t *testing.T) {
 // build args.
 func TestVerifyDockerfileEnvBuildArgs(t *testing.T) {
 	t.Parallel()
-	outpath := filepath.Join(verifyDockerBaseDir, "buildargs", "docker-lock.json")
+	lPath := filepath.Join(verifyDockerBaseDir, "buildargs", "docker-lock.json")
 	envPath := filepath.Join(verifyDockerBaseDir, "buildargs", ".env")
-	flags := []string{fmt.Sprintf("--env-file=%s", envPath), fmt.Sprintf("--dockerfile-env-build-args"), fmt.Sprintf("--outpath=%s", outpath)}
+	flags := []string{fmt.Sprintf("--env-file=%s", envPath), fmt.Sprintf("--dockerfile-env-build-args"), fmt.Sprintf("--lockfile-path=%s", lPath)}
 	var shouldFail bool
 	testVerify(t, flags, shouldFail)
 }

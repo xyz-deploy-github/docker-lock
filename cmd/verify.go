@@ -36,7 +36,7 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 		},
 	}
 	verifyCmd.Flags().String(
-		"outpath", "docker-lock.json", "Path to load Lockfile",
+		"lockfile-path", "docker-lock.json", "Path to Lockfile",
 	)
 	verifyCmd.Flags().String(
 		"config-file", getDefaultConfigPath(),

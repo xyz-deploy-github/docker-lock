@@ -35,12 +35,12 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			oFile, err := os.Create(generator.OutPath)
+			lFile, err := os.Create(generator.LockfileName)
 			if err != nil {
 				return err
 			}
-			defer oFile.Close()
-			if err := generator.GenerateLockfile(wm, oFile); err != nil {
+			defer lFile.Close()
+			if err := generator.GenerateLockfile(wm, lFile); err != nil {
 				return err
 			}
 			return nil
@@ -70,7 +70,8 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 		"Recursively collect docker-compose files",
 	)
 	generateCmd.Flags().String(
-		"outpath", "docker-lock.json", "Path to save Lockfile",
+		"lockfile-name", "docker-lock.json",
+		"Lockfile name to be output in the current working directory",
 	)
 	generateCmd.Flags().String(
 		"config-file", getDefaultConfigPath(),
@@ -92,7 +93,15 @@ func validateGenerateCmdFlags(cmd *cobra.Command) error {
 		return err
 	}
 	bDir = filepath.ToSlash(bDir)
-	if err := validateBaseDir(bDir); err != nil {
+	if err = validateBaseDir(bDir); err != nil {
+		return err
+	}
+	lName, err := cmd.Flags().GetString("lockfile-name")
+	if err != nil {
+		return err
+	}
+	lName = filepath.ToSlash(lName)
+	if err = validateLockfileName(lName); err != nil {
 		return err
 	}
 	defaults := [][]string{
@@ -114,6 +123,16 @@ func validateGenerateCmdFlags(cmd *cobra.Command) error {
 		if err = validateGlobs(g); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func validateLockfileName(lName string) error {
+	lName = filepath.Join(".", lName)
+	if strings.Contains(lName, "/") || strings.Contains(lName, "\\") {
+		return fmt.Errorf(
+			"lockfile-name must target the current working directory",
+		)
 	}
 	return nil
 }

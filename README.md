@@ -4,7 +4,7 @@
 
 `docker-lock` is a [cli-plugin](https://github.com/docker/cli/issues/1534) that uses Lockfiles (think `package-lock.json` or `Pipfile.lock`) to manage image digests. It allows developers to refer to images by their tags, yet receive the same immutability guarantees as if they were referred to by their digests.
 
-If you are unsure about the differences between tags and digests, refer to this [quick summary](#tags-vs.-digests).
+If you are unsure about the differences between tags and digests, refer to this [quick summary](#tags-vs-digests).
 
 # Demo
 Consider a project with a multi-stage build Dockerfile at its root:

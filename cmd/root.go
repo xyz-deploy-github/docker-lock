@@ -21,11 +21,14 @@ func Execute(client *registry.HTTPClient) error {
 	rootCmd.SilenceUsage = true
 	rootCmd.SilenceErrors = true
 	lockCmd := NewLockCmd()
+	versionCmd := NewVersionCmd()
 	generateCmd := NewGenerateCmd(client)
 	verifyCmd := NewVerifyCmd(client)
 	rewriteCmd := NewRewriteCmd()
 	rootCmd.AddCommand(lockCmd)
-	lockCmd.AddCommand([]*cobra.Command{generateCmd, verifyCmd, rewriteCmd}...)
+	lockCmd.AddCommand(
+		[]*cobra.Command{versionCmd, generateCmd, verifyCmd, rewriteCmd}...,
+	)
 	if err := rootCmd.Execute(); err != nil {
 		return err
 	}

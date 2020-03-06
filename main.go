@@ -13,7 +13,7 @@ func main() {
 		m := map[string]string{
 			"SchemaVersion":    "0.1.0",
 			"Vendor":           "https://github.com/michaelperel/docker-lock",
-			"Version":          "v0.1.0",
+			"Version":          cmd.Version,
 			"ShortDescription": "Manage Lockfiles",
 		}
 		j, _ := json.Marshal(m)

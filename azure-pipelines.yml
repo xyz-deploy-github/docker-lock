@@ -22,11 +22,20 @@ jobs:
   pool:
     vmImage: ubuntu-18.04
   steps:
-  - bash: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o docker-lock-linux
+  - bash: |
+      latest_git_tag="$(git tag -l | tail -n 1)"
+      latest_git_tag="${latest_git_tag:-v0.0.1}"
+      CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-w -s -X github.com/michaelperel/docker-lock/cmd.Version="${latest_git_tag}"" -o docker-lock-linux
     displayName: Build linux
-  - bash: CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="-w -s" -o docker-lock-mac
+  - bash: |
+      latest_git_tag="$(git tag -l | tail -n 1)"
+      latest_git_tag="${latest_git_tag:-v0.0.1}"
+      CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "-w -s -X github.com/michaelperel/docker-lock/cmd.Version="${latest_git_tag}"" -o docker-lock-mac
     displayName: Build mac
-  - bash: CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-w -s" -o docker-lock-windows.exe
+  - bash: |
+      latest_git_tag="$(git tag -l | tail -n 1)"
+      latest_git_tag="${latest_git_tag:-v0.0.1}"
+      CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-w -s -X github.com/michaelperel/docker-lock/cmd.Version="${latest_git_tag}"" -o docker-lock-windows.exe
     displayName: Build windows
   - publish: $(System.DefaultWorkingDirectory)/docker-lock-linux
     artifact: docker-lock-linux

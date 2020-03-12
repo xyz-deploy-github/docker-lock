@@ -46,14 +46,18 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 			return nil
 		},
 	}
-	generateCmd.Flags().String(
-		"base-dir", ".", "Top level directory to collect files from",
+	generateCmd.Flags().StringP(
+		"base-dir", "b", ".", "Top level directory to collect files from",
 	)
-	generateCmd.Flags().StringSlice(
-		"dockerfiles", []string{}, "Path to Dockerfiles",
+	generateCmd.Flags().StringSliceP(
+		"dockerfiles", "d", []string{}, "Path to Dockerfiles",
 	)
-	generateCmd.Flags().StringSlice(
-		"compose-files", []string{}, "Path to docker-compose files",
+	generateCmd.Flags().StringSliceP(
+		"compose-files", "c", []string{}, "Path to docker-compose files",
+	)
+	generateCmd.Flags().StringP(
+		"lockfile-name", "l", "docker-lock.json",
+		"Lockfile name to be output in the current working directory",
 	)
 	generateCmd.Flags().StringSlice(
 		"dockerfile-globs", []string{}, "Glob pattern to select Dockerfiles",
@@ -68,10 +72,6 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 	generateCmd.Flags().Bool(
 		"compose-file-recursive", false,
 		"Recursively collect docker-compose files",
-	)
-	generateCmd.Flags().String(
-		"lockfile-name", "docker-lock.json",
-		"Lockfile name to be output in the current working directory",
 	)
 	generateCmd.Flags().String(
 		"config-file", getDefaultConfigPath(),

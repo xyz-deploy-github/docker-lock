@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/michaelperel/docker-lock/generate/internal/parse"
 	"gopkg.in/yaml.v2"
 )
 
@@ -20,6 +19,54 @@ type parsedImageLine struct {
 	pos     int
 	svcName string
 	err     error
+}
+
+type compose struct {
+	Services map[string]*service `yaml:"services"`
+}
+
+type service struct {
+	ImageName    string        `yaml:"image"`
+	BuildWrapper *buildWrapper `yaml:"build"`
+}
+
+// buildWrapper describes the "build" section of a service. It is used
+// when unmarshalling to either contain Simple or Verbose build sections.
+type buildWrapper struct {
+	Build interface{}
+}
+
+// verbose represents a "build" section with build keys specified. For instance,
+// build:
+//     context: ./dirWithDockerfile
+//     dockerfile: Dockerfile
+type verbose struct {
+	Context        string   `yaml:"context"`
+	DockerfilePath string   `yaml:"dockerfile"`
+	Args           []string `yaml:"args"`
+}
+
+// simple represents a "build" section without build keys. For instance,
+// build: dirWithDockerfile
+type simple string
+
+// UnmarshalYAML unmarshals the "build" section of a service. It first
+// tries to unmarshal the bytes into a Verbose type. If that fails,
+// it tries to unmarshal the bytes into a Simple type. If neither succeeds,
+// it returns an error.
+func (b *buildWrapper) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*b = buildWrapper{}
+	var v verbose
+	if err := unmarshal(&v); err == nil {
+		b.Build = v
+		return nil
+	}
+	var s simple
+	if err := unmarshal(&s); err == nil {
+		b.Build = s
+		return nil
+	}
+	return fmt.Errorf("unable to unmarshal service")
 }
 
 func (g *Generator) parseFiles(doneCh <-chan struct{}) chan *parsedImageLine {
@@ -157,7 +204,7 @@ func (g *Generator) parseComposefile(
 		}
 		return
 	}
-	var comp parse.Compose
+	var comp compose
 	if err := yaml.Unmarshal(ymlByt, &comp); err != nil {
 		select {
 		case <-doneCh:
@@ -173,7 +220,7 @@ func (g *Generator) parseComposefile(
 
 func (g *Generator) parseService(
 	svcName string,
-	svc *parse.Service,
+	svc *service,
 	cPath string,
 	pilCh chan<- *parsedImageLine,
 	wg *sync.WaitGroup,
@@ -193,7 +240,7 @@ func (g *Generator) parseService(
 		return
 	}
 	switch build := svc.BuildWrapper.Build.(type) {
-	case parse.Simple:
+	case simple:
 		dDir := filepath.ToSlash(os.ExpandEnv(string(build)))
 		dPath := filepath.ToSlash(filepath.Join(dDir, "Dockerfile"))
 		dPath, err := normalizeDPath(dPath, cPath)
@@ -206,7 +253,7 @@ func (g *Generator) parseService(
 		}
 		wg.Add(1)
 		go g.parseDockerfile(dPath, nil, cPath, svcName, pilCh, wg, doneCh)
-	case parse.Verbose:
+	case verbose:
 		ctx := filepath.ToSlash(os.ExpandEnv(build.Context))
 		dPath := filepath.ToSlash(os.ExpandEnv(build.DockerfilePath))
 		if dPath == "" {

@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-
-	"github.com/michaelperel/docker-lock/registry/internal/elastic"
 )
 
 // ElasticWrapper is a registry wrapper for the Elasticsearch repository.
 type ElasticWrapper struct {
 	Client *HTTPClient
+}
+
+type elasticTokenResponse struct {
+	Token string `json:"token"`
 }
 
 // NewElasticWrapper creates an ElasticWrapper.
@@ -69,7 +71,7 @@ func (w *ElasticWrapper) getToken(name string) (string, error) {
 	}
 	defer resp.Body.Close()
 	decoder := json.NewDecoder(resp.Body)
-	var t elastic.TokenResponse
+	var t elasticTokenResponse
 	if err = decoder.Decode(&t); err != nil {
 		return "", err
 	}

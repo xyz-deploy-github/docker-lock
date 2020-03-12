@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	c "github.com/docker/docker-credential-helpers/client"
-	"github.com/michaelperel/docker-lock/registry/internal/acr"
 )
 
 // ACRWrapper is a registry wrapper for Azure Container Registry.
@@ -20,6 +19,15 @@ type ACRWrapper struct {
 	Client     *HTTPClient
 	authCreds  *acrAuthCredentials
 	regName    string
+}
+
+type acrTokenResponse struct {
+	Token string `json:"access_token"`
+}
+
+type acrConfig struct {
+	Auths      map[string]map[string]string `json:"auths"`
+	CredsStore string                       `json:"credsStore"`
 }
 
 type acrAuthCredentials struct {
@@ -49,9 +57,9 @@ func NewACRWrapper(configPath string, client *HTTPClient) (*ACRWrapper, error) {
 // GetDigest gets the digest from a name and tag. The workflow for
 // authenticating with private repositories:
 // (1) if "ACR_USERNAME" and "ACR_PASSWORD" are set, use them.
-// (2) Otherwise, try to get credentials from docker's config file. This method
-// requires the user to have logged in with the 'docker login' command
-// beforehand.
+// (2) Otherwise, try to get credentials from docker's config file.
+// This method requires the user to have logged in with the
+// 'docker login' command beforehand.
 func (w *ACRWrapper) GetDigest(name string, tag string) (string, error) {
 	name = strings.Replace(name, w.Prefix(), "", 1)
 	token, err := w.getToken(name)
@@ -97,7 +105,7 @@ func (w *ACRWrapper) getToken(name string) (string, error) {
 	}
 	defer resp.Body.Close()
 	decoder := json.NewDecoder(resp.Body)
-	var t acr.TokenResponse
+	var t acrTokenResponse
 	if err = decoder.Decode(&t); err != nil {
 		return "", err
 	}
@@ -119,7 +127,7 @@ func (w *ACRWrapper) getAuthCredentials() (*acrAuthCredentials, error) {
 	if err != nil {
 		return nil, err
 	}
-	var conf acr.Config
+	var conf acrConfig
 	if err = json.Unmarshal(confByt, &conf); err != nil {
 		return nil, err
 	}

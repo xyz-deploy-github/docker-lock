@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	c "github.com/docker/docker-credential-helpers/client"
-	"github.com/michaelperel/docker-lock/registry/internal/docker"
 )
 
 // DockerWrapper is a registry wrapper for Docker Hub. It supports public
@@ -20,6 +19,19 @@ type DockerWrapper struct {
 	ConfigFile string
 	Client     *HTTPClient
 	authCreds  *dockerAuthCredentials
+}
+
+type dockerTokenResponse struct {
+	Token string `json:"token"`
+}
+
+type dockerConfig struct {
+	Auths struct {
+		Index struct {
+			Auth string `json:"auth"`
+		} `json:"https://index.docker.io/v1/"`
+	} `json:"auths"`
+	CredsStore string `json:"credsStore"`
 }
 
 type dockerAuthCredentials struct {
@@ -111,7 +123,7 @@ func (w *DockerWrapper) getToken(name string) (string, error) {
 	}
 	defer resp.Body.Close()
 	decoder := json.NewDecoder(resp.Body)
-	var t docker.TokenResponse
+	var t dockerTokenResponse
 	if err = decoder.Decode(&t); err != nil {
 		return "", err
 	}
@@ -136,7 +148,7 @@ func (w *DockerWrapper) getAuthCredentials() (*dockerAuthCredentials, error) {
 	if err != nil {
 		return nil, err
 	}
-	var conf docker.Config
+	var conf dockerConfig
 	if err = json.Unmarshal(confByt, &conf); err != nil {
 		return nil, err
 	}

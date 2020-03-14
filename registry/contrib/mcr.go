@@ -1,22 +1,24 @@
-package registry
+package contrib
 
 import (
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/michaelperel/docker-lock/registry"
 )
 
 // MCRWrapper is a registry wrapper for Microsoft Container Registry.
 type MCRWrapper struct {
-	Client *HTTPClient
+	Client *registry.HTTPClient
 }
 
 // NewMCRWrapper creates an MCRWrapper.
-func NewMCRWrapper(client *HTTPClient) *MCRWrapper {
+func NewMCRWrapper(client *registry.HTTPClient) *MCRWrapper {
 	w := &MCRWrapper{}
 	if client == nil {
-		w.Client = &HTTPClient{
+		w.Client = &registry.HTTPClient{
 			Client:        &http.Client{},
 			BaseDigestURL: fmt.Sprintf("https://%sv2", w.Prefix()),
 		}

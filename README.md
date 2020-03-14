@@ -1,8 +1,15 @@
 # About
 [![Go Report Card](https://goreportcard.com/badge/github.com/michaelperel/docker-lock)](https://goreportcard.com/report/github.com/michaelperel/docker-lock)
 [![Build Status](https://dev.azure.com/michaelsethperel/docker-lock/_apis/build/status/michaelperel.docker-lock?branchName=master)](https://dev.azure.com/michaelsethperel/docker-lock/_build/latest?definitionId=4&branchName=master)
+[![Documentation](https://godoc.org/github.com/michaelperel/docker-lock?status.svg)](https://godoc.org/github.com/michaelperel/docker-lock)
 
-`docker-lock` is a [cli-plugin](https://github.com/docker/cli/issues/1534) that uses Lockfiles (think `package-lock.json` or `Pipfile.lock`) to manage image digests. It allows developers to refer to images by their tags, yet receive the same immutability guarantees as if they were referred to by their digests.
+`docker-lock` is a [cli-plugin](https://github.com/docker/cli/issues/1534) that uses Lockfiles (think `package-lock.json` or `Pipfile.lock`) to manage image digests. With `docker-lock`, you can refer to images in Dockerfiles or docker-compose files by mutable tags (as in `python:3.6`) yet receive the same benefits as if you had specified immutable digests (as in `python:3.6@sha256:25a189a536ae4d7c77dd5d0929da73057b85555d6b6f8a66bfbcc1a7a7de094b`).
+
+`docker-lock` ships with 3 commands that take you from development to production:
+
+* `docker lock generate` finds base images in your docker and docker-compose files and generates a lockfile containing digests that correspond to their tags.
+* `docker lock verify` lets you know if there are more recent digests than those last recorded in the lockfile.
+* `docker lock rewrite` rewrites Dockerfiles and docker-compose files to include digests.
 
 If you are unsure about the differences between tags and digests, refer to this [quick summary](#tags-vs-digests).
 
@@ -33,15 +40,6 @@ Finally, lets assume the Dockerfile is ready to be built and shared. Running `do
 ![Rewrite GIF](gifs/rewrite.gif)
 
 At this point, the Dockerfile will contain all of the digest information from the Lockfile, so it will always maintain the same, known behavior in the future.
-
-# Features
-* Supports Dockerfiles and docker-compose v3 files.
-* Integrates with docker as the top level command, `docker lock`.
-* Out of the box support for public and private repos on Dockerhub, Azure Container Registry, and others via the standard `docker login` command or environment variables.
-* Easily extensible to any registry compliant with  [Docker Registry HTTP API V2](https://docs.docker.com/registry/spec/api/).
-* Rich CLI flags with smart defaults that make selecting Dockerfiles and docker-compose files easy.
-* Installable by placing a single executable binary into docker's cli-plugins folder.
-* Written in Go.
 
 # Install
 ## Linux / Mac
@@ -97,3 +95,21 @@ Without VSCode:
 * To run unit tests: `./tools/unittest.sh`
 * To generate a coverage report: `./tools/coverage.sh`
 * To view the coverage report on your browser, open a console, but not in docker, run `go tool cover -html=coverage.out`
+
+# Quick Hints
+## Registries
+* `docker-lock`'s maintainers provide support for all registries in `registry/firstparty` (private and public images on `Docker Hub` and `Azure Container Registry`, etc.).
+* `docker-lock`'s community provides support for all registries in `registry/contrib`.
+* To use `docker-lock` with public images on `Docker Hub`, no special instructions are required. However, to use
+`docker-lock` with private images on `Docker Hub`, you can choose from the following options:
+    1. Login to docker and then use `docker-lock`.
+        * `docker-lock` will get your credentials from the default locations of your docker config file.
+        * If your config file is stored elsewhere, use the flag `--config-file`.
+        * If your config file references a credential store such as `osxkeychain`, `wincred` or `pass`, `docker-lock` will read from the store.
+    2. Export the environment variables `DOCKER_USERNAME` and `DOCKER_PASSWORD` and then use `docker-lock`.
+        * These variables can be set in an environment variable file and loaded with the flag `--env-file`.
+* To use `docker-lock` with `Azure Container Registry`, you can follow step 1 and then choose from steps 2 and 3:
+    1. (**REQUIRED**) Export the environment variable `ACR_REGISTRY_NAME`. For instance, if your image can be referenced by `myregistry.azurecr.io/myimage`, then `ACR_REGISTRY_NAME` must equal `myregistry`.
+        * `ACR_REGISTRY_NAME` can be set in an environment variable file and loaded with the flag `--env-file`.
+    2. Same as option 1 for `Docker Hub`.
+    3. Same as option 2 for `Docker Hub`, except use `ACR_USERNAME` and `ACR_PASSWORD` instead of `DOCKER_USERNAME` and `DOCKER_PASSWORD`.

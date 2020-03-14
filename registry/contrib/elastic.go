@@ -1,4 +1,4 @@
-package registry
+package contrib
 
 import (
 	"encoding/json"
@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/michaelperel/docker-lock/registry"
 )
 
 // ElasticWrapper is a registry wrapper for the Elasticsearch repository.
 type ElasticWrapper struct {
-	Client *HTTPClient
+	Client *registry.HTTPClient
 }
 
 type elasticTokenResponse struct {
@@ -18,10 +20,10 @@ type elasticTokenResponse struct {
 }
 
 // NewElasticWrapper creates an ElasticWrapper.
-func NewElasticWrapper(client *HTTPClient) *ElasticWrapper {
+func NewElasticWrapper(client *registry.HTTPClient) *ElasticWrapper {
 	w := &ElasticWrapper{}
 	if client == nil {
-		w.Client = &HTTPClient{
+		w.Client = &registry.HTTPClient{
 			Client:        &http.Client{},
 			BaseDigestURL: fmt.Sprintf("https://%sv2", w.Prefix()),
 			BaseTokenURL:  "https://docker-auth.elastic.co/auth",

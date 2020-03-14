@@ -5,7 +5,8 @@ import (
 	"path/filepath"
 
 	"github.com/michaelperel/docker-lock/registry"
-	"github.com/spf13/cobra"
+	"github.com/michaelperel/docker-lock/registry/contrib"
+	"github.com/michaelperel/docker-lock/registry/firstparty"
 )
 
 func getDefaultConfigPath() string {
@@ -22,28 +23,23 @@ func getDefaultConfigPath() string {
 }
 
 func getDefaultWrapperManager(
-	cmd *cobra.Command,
+	configPath string,
 	client *registry.HTTPClient,
 ) (*registry.WrapperManager, error) {
-	configPath, err := cmd.Flags().GetString("config-file")
-	if err != nil {
-		return nil, err
-	}
-	configPath = filepath.ToSlash(configPath)
-	defaultWrapper, err := registry.NewDockerWrapper(configPath, client)
-	if err != nil {
-		return nil, err
-	}
-	ACRWrapper, err := registry.NewACRWrapper(configPath, client)
+	defaultWrapper, err := firstparty.GetDefaultWrapper(configPath, client)
 	if err != nil {
 		return nil, err
 	}
 	wrapperManager := registry.NewWrapperManager(defaultWrapper)
-	wrappers := []registry.Wrapper{
-		registry.NewElasticWrapper(client),
-		registry.NewMCRWrapper(client),
-		ACRWrapper,
+	firstPartyWrappers, err := firstparty.GetAllWrappers(configPath, client)
+	if err != nil {
+		return nil, err
 	}
-	wrapperManager.Add(wrappers...)
+	contribWrappers, err := contrib.GetAllWrappers(client)
+	if err != nil {
+		return nil, err
+	}
+	wrapperManager.Add(firstPartyWrappers...)
+	wrapperManager.Add(contribWrappers...)
 	return wrapperManager, nil
 }

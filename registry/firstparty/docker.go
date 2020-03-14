@@ -1,4 +1,4 @@
-package registry
+package firstparty
 
 import (
 	"encoding/base64"
@@ -11,13 +11,14 @@ import (
 	"strings"
 
 	c "github.com/docker/docker-credential-helpers/client"
+	"github.com/michaelperel/docker-lock/registry"
 )
 
 // DockerWrapper is a registry wrapper for Docker Hub. It supports public
 // and private repositories.
 type DockerWrapper struct {
-	ConfigFile string
-	Client     *HTTPClient
+	ConfigPath string
+	Client     *registry.HTTPClient
 	authCreds  *dockerAuthCredentials
 }
 
@@ -42,16 +43,16 @@ type dockerAuthCredentials struct {
 // NewDockerWrapper creates a DockerWrapper from docker's config.json.
 func NewDockerWrapper(
 	configPath string,
-	client *HTTPClient,
+	client *registry.HTTPClient,
 ) (*DockerWrapper, error) {
 	if client == nil {
-		client = &HTTPClient{
+		client = &registry.HTTPClient{
 			Client:        &http.Client{},
 			BaseDigestURL: "https://registry-1.docker.io/v2",
 			BaseTokenURL:  "https://auth.docker.io/token",
 		}
 	}
-	w := &DockerWrapper{ConfigFile: configPath, Client: client}
+	w := &DockerWrapper{ConfigPath: configPath, Client: client}
 	authCreds, err := w.getAuthCredentials()
 	if err != nil {
 		return nil, err
@@ -141,10 +142,10 @@ func (w *DockerWrapper) getAuthCredentials() (*dockerAuthCredentials, error) {
 			password: password,
 		}, nil
 	}
-	if w.ConfigFile == "" {
+	if w.ConfigPath == "" {
 		return &dockerAuthCredentials{}, nil
 	}
-	confByt, err := ioutil.ReadFile(w.ConfigFile)
+	confByt, err := ioutil.ReadFile(w.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -157,10 +158,11 @@ func (w *DockerWrapper) getAuthCredentials() (*dockerAuthCredentials, error) {
 		return nil, err
 	}
 	authString := string(authByt)
-	if authString != "" {
+	switch {
+	case authString != "":
 		auth := strings.Split(authString, ":")
 		return &dockerAuthCredentials{username: auth[0], password: auth[1]}, nil
-	} else if conf.CredsStore != "" {
+	case conf.CredsStore != "":
 		authCreds, err := w.getAuthCredentialsFromCredsStore(conf.CredsStore)
 		if err != nil {
 			return &dockerAuthCredentials{}, nil
@@ -173,13 +175,13 @@ func (w *DockerWrapper) getAuthCredentials() (*dockerAuthCredentials, error) {
 func (w *DockerWrapper) getAuthCredentialsFromCredsStore(
 	credsStore string,
 ) (authCreds *dockerAuthCredentials, err error) {
-	credsStore = fmt.Sprintf("%s-%s", "docker-credential", credsStore)
 	defer func() {
 		if err := recover(); err != nil {
 			authCreds = &dockerAuthCredentials{}
 			return
 		}
 	}()
+	credsStore = fmt.Sprintf("%s-%s", "docker-credential", credsStore)
 	p := c.NewShellProgramFunc(credsStore)
 	credResponse, err := c.Get(p, "https://index.docker.io/v1/")
 	if err != nil {

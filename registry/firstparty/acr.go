@@ -1,4 +1,4 @@
-package registry
+package firstparty
 
 import (
 	"encoding/base64"
@@ -11,12 +11,13 @@ import (
 	"strings"
 
 	c "github.com/docker/docker-credential-helpers/client"
+	"github.com/michaelperel/docker-lock/registry"
 )
 
 // ACRWrapper is a registry wrapper for Azure Container Registry.
 type ACRWrapper struct {
-	ConfigFile string
-	Client     *HTTPClient
+	ConfigPath string
+	Client     *registry.HTTPClient
 	authCreds  *acrAuthCredentials
 	regName    string
 }
@@ -36,11 +37,18 @@ type acrAuthCredentials struct {
 }
 
 // NewACRWrapper creates an ACRWrapper from docker's config.json.
-func NewACRWrapper(configPath string, client *HTTPClient) (*ACRWrapper, error) {
-	w := &ACRWrapper{ConfigFile: configPath}
+// For ACRWrapper to be selected by the wrapper manager, the environment
+// variable ACR_REGISTRY_NAME must be set. For instance, if your image is
+// stored at myregistry.azurecr.io/myimage, then
+// ACR_REGISTRY_NAME=myregistry.
+func NewACRWrapper(
+	configPath string,
+	client *registry.HTTPClient,
+) (*ACRWrapper, error) {
+	w := &ACRWrapper{ConfigPath: configPath}
 	w.regName = os.Getenv("ACR_REGISTRY_NAME")
 	if client == nil {
-		w.Client = &HTTPClient{
+		w.Client = &registry.HTTPClient{
 			Client:        &http.Client{},
 			BaseDigestURL: fmt.Sprintf("https://%sv2", w.Prefix()),
 			BaseTokenURL:  fmt.Sprintf("https://%soauth2/token", w.Prefix()),
@@ -113,17 +121,15 @@ func (w *ACRWrapper) getToken(name string) (string, error) {
 }
 
 func (w *ACRWrapper) getAuthCredentials() (*acrAuthCredentials, error) {
-	var (
-		username = os.Getenv("ACR_USERNAME")
-		password = os.Getenv("ACR_PASSWORD")
-	)
+	username := os.Getenv("ACR_USERNAME")
+	password := os.Getenv("ACR_PASSWORD")
 	if username != "" && password != "" {
 		return &acrAuthCredentials{username: username, password: password}, nil
 	}
-	if w.ConfigFile == "" {
+	if w.ConfigPath == "" {
 		return &acrAuthCredentials{}, nil
 	}
-	confByt, err := ioutil.ReadFile(w.ConfigFile)
+	confByt, err := ioutil.ReadFile(w.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -142,10 +148,11 @@ func (w *ACRWrapper) getAuthCredentials() (*acrAuthCredentials, error) {
 		}
 	}
 	authString := string(authByt)
-	if authString != "" {
+	switch {
+	case authString != "":
 		auth := strings.Split(authString, ":")
 		return &acrAuthCredentials{username: auth[0], password: auth[1]}, nil
-	} else if conf.CredsStore != "" {
+	case conf.CredsStore != "":
 		authCreds, err := w.getAuthCredentialsFromCredsStore(conf.CredsStore)
 		if err != nil {
 			return &acrAuthCredentials{}, nil
@@ -158,13 +165,13 @@ func (w *ACRWrapper) getAuthCredentials() (*acrAuthCredentials, error) {
 func (w *ACRWrapper) getAuthCredentialsFromCredsStore(
 	credsStore string,
 ) (authCreds *acrAuthCredentials, err error) {
-	credsStore = fmt.Sprintf("%s-%s", "docker-credential", credsStore)
 	defer func() {
 		if err := recover(); err != nil {
 			authCreds = &acrAuthCredentials{}
 			return
 		}
 	}()
+	credsStore = fmt.Sprintf("%s-%s", "docker-credential", credsStore)
 	p := c.NewShellProgramFunc(credsStore)
 	credResponse, err := c.Get(p, fmt.Sprintf("%s.azurecr.io", w.regName))
 	if err != nil {

@@ -25,7 +25,8 @@ func (m *WrapperManager) Add(wrappers ...Wrapper) {
 // is used.
 func (m *WrapperManager) GetWrapper(imageName string) Wrapper {
 	for _, wrapper := range m.wrappers {
-		if strings.HasPrefix(imageName, wrapper.Prefix()) {
+		p := wrapper.Prefix()
+		if p != "" && strings.HasPrefix(imageName, p) {
 			return wrapper
 		}
 	}

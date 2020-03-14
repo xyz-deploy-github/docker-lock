@@ -27,7 +27,12 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 			}
 			envPath = filepath.ToSlash(envPath)
 			_ = godotenv.Load(envPath)
-			wm, err := getDefaultWrapperManager(cmd, client)
+			configPath, err := cmd.Flags().GetString("config-file")
+			if err != nil {
+				return err
+			}
+			configPath = filepath.ToSlash(configPath)
+			wm, err := getDefaultWrapperManager(configPath, client)
 			if err != nil {
 				return err
 			}

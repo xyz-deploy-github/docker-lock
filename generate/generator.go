@@ -3,6 +3,7 @@ package generate
 import (
 	"encoding/json"
 	"io"
+	"sync"
 
 	"github.com/michaelperel/docker-lock/registry"
 	"github.com/spf13/cobra"
@@ -44,9 +45,9 @@ type ComposefileImage struct {
 	pos            int
 }
 
-type digestResponse struct {
-	im   *Image
-	line string
+type registryResponse struct {
+	im   *Image // Contains a non-empty digest
+	line string // line that created the image, e.g. python:3.6@sha256:25a189...
 	err  error
 }
 
@@ -87,79 +88,70 @@ func (g *Generator) GenerateLockfile(
 	wm *registry.WrapperManager,
 	w io.Writer,
 ) error {
-	var (
-		doneCh = make(chan struct{})
-		pilCh  = g.parseFiles(doneCh)
+	doneCh := make(chan struct{})
+	pilCh := g.parseFiles(doneCh)
+	// Multiple parsedImageLines could contain the same line
+	// For instance, 3 parsedImageLines' lines could be:
+	// 		(1) ubuntu:latest
+	//	 	(2) ubuntu
+	// 		(3) ubuntu
+	// As the 3 lines are the same, only query the registry once
+	// for the digest, and apply the result to all parsedImageLines.
+	lineToFullImageCh, lineToAllPils, err := g.queryRegistryPerUniqueLine(
+		wm, pilCh, doneCh,
 	)
-	dIms, cIms, err := g.convertParsedImageLines(wm, pilCh, doneCh)
 	if err != nil {
 		close(doneCh)
+		return err
+	}
+	// Apply the registries' results to all parsedImageLines.
+	dIms, cIms, err := g.replaceAllImages(
+		lineToFullImageCh, lineToAllPils,
+	)
+	if err != nil {
 		return err
 	}
 	lFile := NewLockfile(dIms, cIms)
 	return lFile.Write(w)
 }
 
-func (g *Generator) convertParsedImageLines(
+func (g *Generator) queryRegistryPerUniqueLine(
 	wm *registry.WrapperManager,
 	pilCh <-chan *parsedImageLine,
 	doneCh <-chan struct{},
-) (map[string][]*DockerfileImage, map[string][]*ComposefileImage, error) {
-	var (
-		uniqLines  = map[string]bool{}
-		lineToPils = map[string][]*parsedImageLine{}
-		dResCh     = make(chan *digestResponse)
-	)
+) (<-chan *registryResponse, map[string][]*parsedImageLine, error) {
+	uniqLines := map[string]bool{}
+	lineToAllPils := map[string][]*parsedImageLine{}
+	lineToFullImageCh := make(chan *registryResponse)
+	var wg sync.WaitGroup
 	for pil := range pilCh {
 		if pil.err != nil {
 			return nil, nil, pil.err
 		}
-		lineToPils[pil.line] = append(lineToPils[pil.line], pil)
+		lineToAllPils[pil.line] = append(lineToAllPils[pil.line], pil)
 		if !uniqLines[pil.line] {
 			uniqLines[pil.line] = true
-			go g.getDigest(pil, wm, dResCh, doneCh)
+			wg.Add(1)
+			go g.queryRegistry(pil, wm, lineToFullImageCh, doneCh, &wg)
 		}
 	}
-	var (
-		dIms = map[string][]*DockerfileImage{}
-		cIms = map[string][]*ComposefileImage{}
-	)
-	for i := 0; i < len(uniqLines); i++ {
-		res := <-dResCh
-		if res.err != nil {
-			return nil, nil, res.err
-		}
-		for _, pil := range lineToPils[res.line] {
-			if pil.cPath == "" {
-				dIm := &DockerfileImage{Image: res.im, pos: pil.pos}
-				dPath := pil.dPath
-				dIms[dPath] = append(dIms[dPath], dIm)
-			} else {
-				cIm := &ComposefileImage{
-					Image:          res.im,
-					ServiceName:    pil.svcName,
-					DockerfilePath: pil.dPath,
-					pos:            pil.pos,
-				}
-				cPath := pil.cPath
-				cIms[cPath] = append(cIms[cPath], cIm)
-			}
-		}
-	}
-	close(dResCh)
-	return dIms, cIms, nil
+	go func() {
+		wg.Wait()
+		close(lineToFullImageCh)
+	}()
+	return lineToFullImageCh, lineToAllPils, nil
 }
 
-func (g *Generator) getDigest(
+func (g *Generator) queryRegistry(
 	pil *parsedImageLine,
 	wm *registry.WrapperManager,
-	qResCh chan<- *digestResponse,
+	lineToFullImageCh chan<- *registryResponse,
 	doneCh <-chan struct{},
+	wg *sync.WaitGroup,
 ) {
-	var (
-		tagSeparator    = -1
-		digestSeparator = -1
-	)
+	defer wg.Done()
+	tagSeparator := -1
+	digestSeparator := -1
 	for i, c := range pil.line {
 		if c == ':' {
 			tagSeparator = i
@@ -197,14 +189,14 @@ func (g *Generator) getDigest(
 		if err != nil {
 			select {
 			case <-doneCh:
-			case qResCh <- &digestResponse{err: err}:
+			case lineToFullImageCh <- &registryResponse{err: err}:
 			}
 			return
 		}
 	}
 	select {
 	case <-doneCh:
-	case qResCh <- &digestResponse{
+	case lineToFullImageCh <- &registryResponse{
 		im: &Image{
 			Name:   name,
 			Tag:    tag,
@@ -213,4 +205,95 @@ func (g *Generator) getDigest(
 		line: pil.line,
 	}:
 	}
+}
+
+func (g *Generator) replaceAllImages(
+	lineToFullImageCh <-chan *registryResponse,
+	lineToAllPils map[string][]*parsedImageLine,
+) (map[string][]*DockerfileImage, map[string][]*ComposefileImage, error) {
+	dImsCh := make(chan map[string][]*DockerfileImage)
+	cImsCh := make(chan map[string][]*ComposefileImage)
+	var wg sync.WaitGroup
+	for res := range lineToFullImageCh {
+		if res.err != nil {
+			return nil, nil, res.err
+		}
+		wg.Add(1)
+		go g.replaceImagesPerLine(
+			res.im, lineToAllPils[res.line], dImsCh, cImsCh, &wg,
+		)
+	}
+	go func() {
+		wg.Wait()
+		close(dImsCh)
+		close(cImsCh)
+	}()
+	dIms, cIms := g.convertImageChansToSlices(dImsCh, cImsCh)
+	return dIms, cIms, nil
+}
+
+func (g *Generator) replaceImagesPerLine(
+	im *Image,
+	pils []*parsedImageLine,
+	dImsCh chan<- map[string][]*DockerfileImage,
+	cImsCh chan<- map[string][]*ComposefileImage,
+	wg *sync.WaitGroup,
+) {
+	defer wg.Done()
+	dIms := map[string][]*DockerfileImage{}
+	cIms := map[string][]*ComposefileImage{}
+	for _, pil := range pils {
+		if pil.cPath == "" {
+			dIm := &DockerfileImage{Image: im, pos: pil.pos}
+			dPath := pil.dPath
+			dIms[dPath] = append(dIms[dPath], dIm)
+		} else {
+			cIm := &ComposefileImage{
+				Image:          im,
+				ServiceName:    pil.svcName,
+				DockerfilePath: pil.dPath,
+				pos:            pil.pos,
+			}
+			cPath := pil.cPath
+			cIms[cPath] = append(cIms[cPath], cIm)
+		}
+	}
+	if len(dIms) > 0 {
+		dImsCh <- dIms
+	}
+	if len(cIms) > 0 {
+		cImsCh <- cIms
+	}
+}
+
+func (g *Generator) convertImageChansToSlices(
+	dImsCh <-chan map[string][]*DockerfileImage,
+	cImsCh <-chan map[string][]*ComposefileImage,
+) (map[string][]*DockerfileImage, map[string][]*ComposefileImage) {
+	dIms := map[string][]*DockerfileImage{}
+	cIms := map[string][]*ComposefileImage{}
+	for {
+		select {
+		case dRes, ok := <-dImsCh:
+			if ok {
+				for p, ims := range dRes {
+					dIms[p] = append(dIms[p], ims...)
+				}
+			} else {
+				dImsCh = nil
+			}
+		case cRes, ok := <-cImsCh:
+			if ok {
+				for p, ims := range cRes {
+					cIms[p] = append(cIms[p], ims...)
+				}
+			} else {
+				cImsCh = nil
+			}
+		}
+		if dImsCh == nil && cImsCh == nil {
+			break
+		}
+	}
+	return dIms, cIms
 }

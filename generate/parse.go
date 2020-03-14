@@ -21,59 +21,9 @@ type parsedImageLine struct {
 	err     error
 }
 
-type compose struct {
-	Services map[string]*service `yaml:"services"`
-}
-
-type service struct {
-	ImageName    string        `yaml:"image"`
-	BuildWrapper *buildWrapper `yaml:"build"`
-}
-
-// buildWrapper describes the "build" section of a service. It is used
-// when unmarshalling to either contain Simple or Verbose build sections.
-type buildWrapper struct {
-	Build interface{}
-}
-
-// verbose represents a "build" section with build keys specified. For instance,
-// build:
-//     context: ./dirWithDockerfile
-//     dockerfile: Dockerfile
-type verbose struct {
-	Context        string   `yaml:"context"`
-	DockerfilePath string   `yaml:"dockerfile"`
-	Args           []string `yaml:"args"`
-}
-
-// simple represents a "build" section without build keys. For instance,
-// build: dirWithDockerfile
-type simple string
-
-// UnmarshalYAML unmarshals the "build" section of a service. It first
-// tries to unmarshal the bytes into a Verbose type. If that fails,
-// it tries to unmarshal the bytes into a Simple type. If neither succeeds,
-// it returns an error.
-func (b *buildWrapper) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	*b = buildWrapper{}
-	var v verbose
-	if err := unmarshal(&v); err == nil {
-		b.Build = v
-		return nil
-	}
-	var s simple
-	if err := unmarshal(&s); err == nil {
-		b.Build = s
-		return nil
-	}
-	return fmt.Errorf("unable to unmarshal service")
-}
-
 func (g *Generator) parseFiles(doneCh <-chan struct{}) chan *parsedImageLine {
-	var (
-		pilCh = make(chan *parsedImageLine)
-		wg    sync.WaitGroup
-	)
+	pilCh := make(chan *parsedImageLine)
+	var wg sync.WaitGroup
 	wg.Add(1)
 	go g.parseDockerfiles(pilCh, &wg, doneCh)
 	wg.Add(1)
@@ -123,13 +73,11 @@ func (g *Generator) parseDockerfile(
 		return
 	}
 	defer dFile.Close()
-	var (
-		pos    int                   // order of image line in Dockerfile
-		stages = map[string]bool{}   // FROM <image line> as <stage>
-		gArgs  = map[string]string{} // global ARGs before the first FROM
-		gCtx   = true                // true if before first FROM
-		scnr   = bufio.NewScanner(dFile)
-	)
+	var pos int                  // order of image line in Dockerfile
+	stages := map[string]bool{}  // FROM <image line> as <stage>
+	gArgs := map[string]string{} // global ARGs before the first FROM
+	gCtx := true                 // true if before first FROM
+	scnr := bufio.NewScanner(dFile)
 	scnr.Split(bufio.ScanLines)
 	for scnr.Scan() {
 		fields := strings.Fields(scnr.Text())

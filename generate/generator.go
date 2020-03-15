@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"github.com/michaelperel/docker-lock/registry"
-	"github.com/spf13/cobra"
 )
 
 // Generator generates Lockfiles. DockerfileEnvBuildArgs determines whether
@@ -62,24 +61,16 @@ func (i *Image) String() string {
 // files that match "Dockerfile", "docker-compose.yml", and
 // "docker-compose.yaml" will be used. If files are specified in
 // command line flags, only those files will be used.
-func NewGenerator(cmd *cobra.Command) (*Generator, error) {
-	lName, err := cmd.Flags().GetString("lockfile-name")
-	if err != nil {
-		return nil, err
-	}
-	dArgs, err := cmd.Flags().GetBool("dockerfile-env-build-args")
-	if err != nil {
-		return nil, err
-	}
-	dPaths, cPaths, err := collectPaths(cmd)
+func NewGenerator(flags *GeneratorFlags) (*Generator, error) {
+	dPaths, cPaths, err := collectDockerfileAndComposefilePaths(flags)
 	if err != nil {
 		return nil, err
 	}
 	return &Generator{
 		DockerfilePaths:        dPaths,
 		ComposefilePaths:       cPaths,
-		DockerfileEnvBuildArgs: dArgs,
-		LockfileName:           lName,
+		DockerfileEnvBuildArgs: flags.DockerfileEnvBuildArgs,
+		LockfileName:           flags.LockfileName,
 	}, nil
 }
 

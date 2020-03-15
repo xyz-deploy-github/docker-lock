@@ -6,332 +6,272 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-
-	"github.com/spf13/cobra"
 )
 
-type collectedPathResult struct {
+type pathResult struct {
 	path string
 	err  error
 }
-
-type collectedCliArgs struct {
+type pathsResult struct {
 	paths []string
-	globs []string
-	rec   bool
 	err   error
 }
 
-func collectPaths(cmd *cobra.Command) ([]string, []string, error) {
-	bDir, err := cmd.Flags().GetString("base-dir")
-	if err != nil {
-		return nil, nil, err
-	}
-	bDir = filepath.ToSlash(bDir)
-	var (
-		defaults = []struct {
-			pathsKey string
-			globsKey string
-			recKey   string
-			paths    []string
-		}{
-			{
-				pathsKey: "dockerfiles",
-				globsKey: "dockerfile-globs",
-				recKey:   "dockerfile-recursive",
-				paths:    []string{"Dockerfile"},
-			},
-			{
-				pathsKey: "compose-files",
-				globsKey: "compose-file-globs",
-				recKey:   "compose-file-recursive",
-				paths:    []string{"docker-compose.yml", "docker-compose.yaml"},
-			},
-		}
-		doneCh                = make(chan struct{})
-		errCh                 = make(chan error)
-		paths      [][]string = make([][]string, len(defaults))
-		pathsFound            = make(chan bool, len(defaults))
-		wg         sync.WaitGroup
-	)
-	for i, args := range defaults {
-		args := args
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			var err error
-			cliArgsCh := getCliArgs(
-				cmd, args.pathsKey, args.globsKey, args.recKey, doneCh,
-			)
-			if paths[i], err = collectPathsFromCliArgs(
-				bDir, cliArgsCh, args.paths, doneCh,
-			); paths[i] != nil {
-				pathsFound <- true
+func collectDockerfileAndComposefilePaths(
+	flags *GeneratorFlags,
+) ([]string, []string, error) {
+	doneCh := make(chan struct{})
+	dPathsCh := collectDockerfilePaths(flags, doneCh)
+	cPathsCh := collectComposefilePaths(flags, doneCh)
+	dPaths := []string{}
+	cPaths := []string{}
+	for {
+		select {
+		case pathsRes := <-dPathsCh:
+			if err := handlePathsResult(
+				&dPaths, pathsRes, &dPathsCh, doneCh,
+			); err != nil {
+				return nil, nil, err
 			}
-			if err != nil {
-				errCh <- err
-				return
+		case pathsRes := <-cPathsCh:
+			if err := handlePathsResult(
+				&cPaths, pathsRes, &cPathsCh, doneCh,
+			); err != nil {
+				return nil, nil, err
 			}
-		}(i)
-	}
-	go func() {
-		wg.Wait()
-		close(pathsFound)
-		close(errCh)
-	}()
-	for err := range errCh {
-		close(doneCh)
-		return nil, nil, err
-	}
-	if !<-pathsFound {
-		for i, args := range defaults {
-			args := args
-			wg.Add(1)
-			go func(i int) {
-				defer wg.Done()
-				paths[i] = collectDefaultPaths(bDir, args.paths)
-			}(i)
 		}
-		wg.Wait()
+		if dPathsCh == nil && cPathsCh == nil {
+			break
+		}
 	}
-	return paths[0], paths[1], nil
+	return dPaths, cPaths, nil
 }
 
-func collectPathsFromCliArgs(
-	bDir string,
-	cliArgsCh <-chan *collectedCliArgs,
-	defaultPaths []string,
+func collectDockerfilePaths(
+	flags *GeneratorFlags,
 	doneCh <-chan struct{},
-) ([]string, error) {
+) <-chan *pathsResult {
+	pathsCh := make(chan *pathsResult)
 	var wg sync.WaitGroup
-	pathCh := make(chan *collectedPathResult)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		cliArgs := <-cliArgsCh
-		if cliArgs.err != nil {
-			select {
-			case <-doneCh:
-			case pathCh <- &collectedPathResult{err: cliArgs.err}:
-			}
-			return
-		}
-		wg.Add(1)
-		go collectSuppliedPaths(bDir, cliArgs.paths, pathCh, &wg, doneCh)
-		if cliArgs.rec {
-			wg.Add(1)
-			go collectRecursivePaths(bDir, defaultPaths, pathCh, &wg, doneCh)
-		}
-		if len(cliArgs.globs) != 0 {
-			wg.Add(1)
-			go collectGlobPaths(bDir, cliArgs.globs, pathCh, &wg, doneCh)
-		}
+		baseSet := map[string]struct{}{"Dockerfile": {}}
+		paths, err := collectPaths(
+			flags.BaseDir, flags.Dockerfiles, baseSet,
+			flags.DockerfileGlobs, flags.DockerfileRecursive,
+		)
+		addPathsAndErrToPathsCh(paths, err, pathsCh, doneCh)
+		close(pathsCh)
 	}()
+	return pathsCh
+}
+
+func collectComposefilePaths(
+	flags *GeneratorFlags,
+	doneCh <-chan struct{},
+) <-chan *pathsResult {
+	pathsCh := make(chan *pathsResult)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		baseSet := map[string]struct{}{
+			"docker-compose.yml":  {},
+			"docker-compose.yaml": {},
+		}
+		paths, err := collectPaths(
+			flags.BaseDir, flags.Composefiles, baseSet,
+			flags.ComposefileGlobs, flags.ComposefileRecursive,
+		)
+		addPathsAndErrToPathsCh(paths, err, pathsCh, doneCh)
+		close(pathsCh)
+	}()
+	return pathsCh
+}
+
+func collectPaths(
+	bDir string,
+	suppliedPaths []string,
+	baseSet map[string]struct{},
+	globs []string,
+	recursive bool,
+) ([]string, error) {
+	pathCh := make(chan *pathResult)
+	doneCh := make(chan struct{})
+	var wg sync.WaitGroup
+	if len(suppliedPaths) != 0 {
+		wg.Add(1)
+		go collectSuppliedPaths(bDir, suppliedPaths, pathCh, doneCh, &wg)
+	}
+	if len(globs) != 0 {
+		wg.Add(1)
+		go collectGlobPaths(bDir, globs, pathCh, doneCh, &wg)
+	}
+	if recursive {
+		wg.Add(1)
+		go collectRecursivePaths(bDir, baseSet, pathCh, doneCh, &wg)
+	}
 	go func() {
 		wg.Wait()
 		close(pathCh)
+		close(doneCh)
 	}()
-	return dedupeAndValidatePaths(pathCh)
+	set := map[string]struct{}{}
+	for pathRes := range pathCh {
+		if pathRes.err != nil {
+			return nil, pathRes.err
+		}
+		set[pathRes.path] = struct{}{}
+	}
+	if len(set) == 0 {
+		collectDefaultPaths(bDir, baseSet, set)
+	}
+	if err := validatePaths(set); err != nil {
+		return nil, err
+	}
+	paths := make([]string, len(set))
+	var i int
+	for p := range set {
+		paths[i] = p
+		i++
+	}
+	return paths, nil
 }
 
 func collectSuppliedPaths(
 	bDir string,
 	paths []string,
-	pathCh chan<- *collectedPathResult,
-	wg *sync.WaitGroup,
-	doneCh <-chan struct{}) {
-	defer wg.Done()
-	for _, p := range paths {
-		wg.Add(1)
-		go func(p string) {
-			defer wg.Done()
-			select {
-			case <-doneCh:
-			case pathCh <- &collectedPathResult{
-				path: filepath.ToSlash(filepath.Join(bDir, p)),
-			}:
-			}
-		}(p)
-	}
-}
-
-func collectRecursivePaths(
-	bDir string,
-	defaultPaths []string,
-	pathCh chan<- *collectedPathResult,
-	wg *sync.WaitGroup,
+	pathCh chan<- *pathResult,
 	doneCh <-chan struct{},
+	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
-	_ = filepath.Walk(bDir, func(p string, info os.FileInfo, err error) error {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err != nil {
-				select {
-				case <-doneCh:
-				case pathCh <- &collectedPathResult{err: err}:
-				}
-				return
-			}
-			p = filepath.ToSlash(p)
-			if info.Mode().IsRegular() && isDefaultPath(p, defaultPaths) {
-				select {
-				case <-doneCh:
-				case pathCh <- &collectedPathResult{path: p}:
-				}
-			}
-		}()
-		return nil
-	})
+	for _, p := range paths {
+		p = filepath.ToSlash(filepath.Join(bDir, p))
+		addPathToPathCh(p, pathCh, doneCh)
+	}
 }
 
 func collectGlobPaths(
 	bDir string,
 	globs []string,
-	pathCh chan<- *collectedPathResult,
-	wg *sync.WaitGroup,
+	pathCh chan<- *pathResult,
 	doneCh <-chan struct{},
+	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
 	for _, g := range globs {
-		wg.Add(1)
-		go func(g string) {
-			defer wg.Done()
-			g = filepath.ToSlash(filepath.Join(bDir, g))
-			paths, err := filepath.Glob(g)
-			if err != nil {
-				select {
-				case <-doneCh:
-				case pathCh <- &collectedPathResult{err: err}:
-				}
-				return
-			}
-			for _, p := range paths {
-				wg.Add(1)
-				go func(p string) {
-					defer wg.Done()
-					select {
-					case <-doneCh:
-					case pathCh <- &collectedPathResult{
-						path: filepath.ToSlash(p),
-					}:
-					}
-				}(p)
-			}
-		}(g)
+		paths, err := filepath.Glob(g)
+		if err != nil {
+			addErrToPathCh(err, pathCh, doneCh)
+			return
+		}
+		for _, p := range paths {
+			p = filepath.ToSlash(filepath.Join(bDir, filepath.ToSlash(p)))
+			addPathToPathCh(p, pathCh, doneCh)
+		}
 	}
 }
 
-func collectDefaultPaths(bDir string, defaultPaths []string) []string {
-	pathCh := make(chan *collectedPathResult)
-	var paths []string // nolint: prealloc
-	var wg sync.WaitGroup
-	for _, p := range defaultPaths {
-		wg.Add(1)
-		go func(p string) {
-			defer wg.Done()
-			p = filepath.ToSlash(filepath.Join(bDir, p))
-			fi, err := os.Stat(p)
-			if err == nil {
-				if mode := fi.Mode(); mode.IsRegular() {
-					pathCh <- &collectedPathResult{path: p}
-				}
-			}
-		}(p)
-	}
-	go func() {
-		wg.Wait()
-		close(pathCh)
-	}()
-	for p := range pathCh {
-		paths = append(paths, p.path)
-	}
-	return paths
-}
-
-func getCliArgs(
-	cmd *cobra.Command,
-	pathsKey string,
-	globsKey string,
-	recKey string,
+func collectRecursivePaths(
+	bDir string,
+	defaultNames map[string]struct{},
+	pathCh chan<- *pathResult,
 	doneCh <-chan struct{},
-) chan *collectedCliArgs {
-	cliArgsCh := make(chan *collectedCliArgs)
-	go func() {
-		paths, err := cmd.Flags().GetStringSlice(pathsKey)
-		if err != nil {
-			select {
-			case <-doneCh:
-			case cliArgsCh <- &collectedCliArgs{err: err}:
+	wg *sync.WaitGroup,
+) {
+	defer wg.Done()
+	if err := filepath.Walk(
+		bDir, func(p string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
 			}
-			return
-		}
-		for i, p := range paths {
-			paths[i] = filepath.ToSlash(p)
-		}
-		globs, err := cmd.Flags().GetStringSlice(globsKey)
-		if err != nil {
-			select {
-			case <-doneCh:
-			case cliArgsCh <- &collectedCliArgs{err: err}:
+			p = filepath.ToSlash(p)
+			if _, ok := defaultNames[filepath.Base(p)]; ok {
+				addPathToPathCh(p, pathCh, doneCh)
 			}
-			return
-		}
-		for i, g := range globs {
-			globs[i] = filepath.ToSlash(g)
-		}
-		rec, err := cmd.Flags().GetBool(recKey)
-		if err != nil {
-			select {
-			case <-doneCh:
-			case cliArgsCh <- &collectedCliArgs{err: err}:
-			}
-			return
-		}
-		select {
-		case <-doneCh:
-		case cliArgsCh <- &collectedCliArgs{
-			paths: paths,
-			globs: globs,
-			rec:   rec,
-		}:
-		}
-		close(cliArgsCh)
-	}()
-	return cliArgsCh
+			return nil
+		}); err != nil {
+		addErrToPathCh(err, pathCh, doneCh)
+	}
 }
 
-func isDefaultPath(pathToCheck string, defaultPaths []string) bool {
-	for _, p := range defaultPaths {
-		if filepath.Base(pathToCheck) == p {
+func collectDefaultPaths(bDir string, baseSet, set map[string]struct{}) {
+	for p := range baseSet {
+		p = filepath.ToSlash(filepath.Join(bDir, p))
+		if fileIsRegular(p) {
+			set[p] = struct{}{}
+		}
+	}
+}
+
+func fileIsRegular(p string) bool {
+	fi, err := os.Stat(p)
+	if err == nil {
+		if mode := fi.Mode(); mode.IsRegular() {
 			return true
 		}
 	}
 	return false
 }
 
-func dedupeAndValidatePaths(
-	pathCh <-chan *collectedPathResult,
-) ([]string, error) {
-	var (
-		uniqPaths []string
-		pathSet   = map[string]bool{}
-	)
-	for res := range pathCh {
-		if res.err != nil {
-			return nil, res.err
+func addPathToPathCh(
+	p string,
+	pathCh chan<- *pathResult,
+	doneCh <-chan struct{},
+) {
+	if fileIsRegular(p) {
+		select {
+		case <-doneCh:
+		case pathCh <- &pathResult{path: p}:
 		}
-		if strings.HasPrefix(res.path, "..") {
-			return nil, fmt.Errorf(
-				"%s is outside the current working directory",
-				res.path,
-			)
-		}
-		if !pathSet[res.path] {
-			uniqPaths = append(uniqPaths, res.path)
-		}
-		pathSet[res.path] = true
 	}
-	return uniqPaths, nil
+}
+
+func addPathsAndErrToPathsCh(
+	paths []string,
+	err error,
+	pathsCh chan<- *pathsResult,
+	doneCh <-chan struct{},
+) {
+	select {
+	case <-doneCh:
+	case pathsCh <- &pathsResult{paths: paths, err: err}:
+	}
+}
+
+func addErrToPathCh(
+	err error,
+	pathCh chan<- *pathResult,
+	doneCh <-chan struct{},
+) {
+	select {
+	case <-doneCh:
+	case pathCh <- &pathResult{err: err}:
+	}
+}
+
+func validatePaths(set map[string]struct{}) error {
+	for p := range set {
+		if strings.HasPrefix(p, "..") {
+			return fmt.Errorf("%s is outside the current working directory", p)
+		}
+	}
+	return nil
+}
+
+func handlePathsResult(
+	paths *[]string,
+	pathsRes *pathsResult,
+	pathsCh *<-chan *pathsResult,
+	doneCh chan<- struct{},
+) error {
+	if pathsRes.err != nil {
+		close(doneCh)
+		return pathsRes.err
+	}
+	*paths = pathsRes.paths
+	*pathsCh = nil
+	return nil
 }

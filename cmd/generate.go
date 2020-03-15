@@ -1,10 +1,7 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/michaelperel/docker-lock/generate"
@@ -18,25 +15,16 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 		Use:   "generate",
 		Short: "Generate a Lockfile to track image digests",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := validateGenerateCmdFlags(cmd); err != nil {
-				return err
-			}
-			envPath, err := cmd.Flags().GetString("env-file")
+			flags, err := getFlags(cmd)
 			if err != nil {
 				return err
 			}
-			envPath = filepath.ToSlash(envPath)
-			_ = godotenv.Load(envPath)
-			configPath, err := cmd.Flags().GetString("config-file")
+			_ = godotenv.Load(flags.EnvFile)
+			wm, err := getDefaultWrapperManager(flags.ConfigFile, client)
 			if err != nil {
 				return err
 			}
-			configPath = filepath.ToSlash(configPath)
-			wm, err := getDefaultWrapperManager(configPath, client)
-			if err != nil {
-				return err
-			}
-			generator, err := generate.NewGenerator(cmd)
+			generator, err := generate.NewGenerator(flags)
 			if err != nil {
 				return err
 			}
@@ -92,98 +80,54 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 	return generateCmd
 }
 
-func validateGenerateCmdFlags(cmd *cobra.Command) error {
-	bDir, err := cmd.Flags().GetString("base-dir")
+func getFlags(cmd *cobra.Command) (*generate.GeneratorFlags, error) {
+	baseDir, err := cmd.Flags().GetString("base-dir")
 	if err != nil {
-		return err
+		return nil, err
 	}
-	bDir = filepath.ToSlash(bDir)
-	if err = validateBaseDir(bDir); err != nil {
-		return err
-	}
-	lName, err := cmd.Flags().GetString("lockfile-name")
+	lockfileName, err := cmd.Flags().GetString("lockfile-name")
 	if err != nil {
-		return err
+		return nil, err
 	}
-	lName = filepath.ToSlash(lName)
-	if err = validateLockfileName(lName); err != nil {
-		return err
-	}
-	defaults := [][]string{
-		{"dockerfiles", "dockerfile-globs"},
-		{"compose-files", "compose-file-globs"},
-	}
-	for _, d := range defaults {
-		p, err := cmd.Flags().GetStringSlice(d[0])
-		if err != nil {
-			return err
-		}
-		if err = validateInputPaths(bDir, p); err != nil {
-			return err
-		}
-		g, err := cmd.Flags().GetStringSlice(d[1])
-		if err != nil {
-			return err
-		}
-		if err = validateGlobs(g); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func validateLockfileName(lName string) error {
-	lName = filepath.Join(".", lName)
-	if strings.Contains(lName, "/") || strings.Contains(lName, "\\") {
-		return fmt.Errorf(
-			"lockfile-name must target the current working directory",
-		)
-	}
-	return nil
-}
-
-func validateBaseDir(bDir string) error {
-	if filepath.IsAbs(bDir) {
-		return fmt.Errorf("base-dir does not support absolute paths")
-	}
-	bDir = filepath.ToSlash(filepath.Join(".", bDir))
-	if strings.HasPrefix(bDir, "..") {
-		return fmt.Errorf("base-dir is outside the current working directory")
-	}
-	fi, err := os.Stat(bDir)
+	configFile, err := cmd.Flags().GetString("config-file")
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if mode := fi.Mode(); !mode.IsDir() {
-		return fmt.Errorf(
-			"base-dir is not a sub directory of the current working directory",
-		)
+	envFile, err := cmd.Flags().GetString("env-file")
+	if err != nil {
+		return nil, err
 	}
-	return nil
-}
-
-func validateInputPaths(bDir string, paths []string) error {
-	for _, p := range paths {
-		p = filepath.ToSlash(p)
-		if filepath.IsAbs(p) {
-			return fmt.Errorf(
-				"%s dockerfiles and compose-files don't support absolute paths",
-				p,
-			)
-		}
-		p = filepath.ToSlash(filepath.Join(bDir, p))
-		if strings.HasPrefix(p, "..") {
-			return fmt.Errorf("%s is outside the current working directory", p)
-		}
+	dockerfiles, err := cmd.Flags().GetStringSlice("dockerfiles")
+	if err != nil {
+		return nil, err
 	}
-	return nil
-}
-
-func validateGlobs(globs []string) error {
-	for _, g := range globs {
-		if filepath.IsAbs(g) {
-			return fmt.Errorf("%s globs do not support absolute paths", g)
-		}
+	composefiles, err := cmd.Flags().GetStringSlice("compose-files")
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	dockerfileGlobs, err := cmd.Flags().GetStringSlice("dockerfile-globs")
+	if err != nil {
+		return nil, err
+	}
+	composefileGlobs, err := cmd.Flags().GetStringSlice("compose-file-globs")
+	if err != nil {
+		return nil, err
+	}
+	dockerfileRecursive, err := cmd.Flags().GetBool("dockerfile-recursive")
+	if err != nil {
+		return nil, err
+	}
+	composefileRecursive, err := cmd.Flags().GetBool("compose-file-recursive")
+	if err != nil {
+		return nil, err
+	}
+	dockerfileEnvBuildArgs, err := cmd.Flags().GetBool("dockerfile-env-build-args")
+	if err != nil {
+		return nil, err
+	}
+	return generate.NewGeneratorFlags(
+		baseDir, lockfileName, configFile, envFile,
+		dockerfiles, composefiles, dockerfileGlobs, composefileGlobs,
+		dockerfileRecursive, composefileRecursive, dockerfileEnvBuildArgs,
+	)
 }

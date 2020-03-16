@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"path/filepath"
-
 	"github.com/joho/godotenv"
 	"github.com/michaelperel/docker-lock/registry"
 	"github.com/michaelperel/docker-lock/verify"
@@ -15,22 +13,16 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 		Use:   "verify",
 		Short: "Verify that a Lockfile is up-to-date",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			envPath, err := cmd.Flags().GetString("env-file")
+			flags, err := getVerfierFlags(cmd)
 			if err != nil {
 				return err
 			}
-			envPath = filepath.ToSlash(envPath)
-			_ = godotenv.Load(envPath)
-			configPath, err := cmd.Flags().GetString("config-file")
+			_ = godotenv.Load(flags.EnvFile)
+			wm, err := getDefaultWrapperManager(flags.ConfigFile, client)
 			if err != nil {
 				return err
 			}
-			configPath = filepath.ToSlash(configPath)
-			wm, err := getDefaultWrapperManager(configPath, client)
-			if err != nil {
-				return err
-			}
-			verifier, err := verify.NewVerifier(cmd)
+			verifier, err := verify.NewVerifier(flags)
 			if err != nil {
 				return err
 			}
@@ -55,4 +47,26 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 		"Use environment vars as build args for Dockerfiles",
 	)
 	return verifyCmd
+}
+
+func getVerfierFlags(cmd *cobra.Command) (*verify.VerifierFlags, error) {
+	lockfilePath, err := cmd.Flags().GetString("lockfile-path")
+	if err != nil {
+		return nil, err
+	}
+	configFile, err := cmd.Flags().GetString("config-file")
+	if err != nil {
+		return nil, err
+	}
+	envFile, err := cmd.Flags().GetString("env-file")
+	if err != nil {
+		return nil, err
+	}
+	dockerfileEnvBuildArgs, err := cmd.Flags().GetBool("dockerfile-env-build-args")
+	if err != nil {
+		return nil, err
+	}
+	return verify.NewVerifierFlags(
+		lockfilePath, configFile, envFile, dockerfileEnvBuildArgs,
+	)
 }

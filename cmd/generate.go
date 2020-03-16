@@ -15,7 +15,7 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 		Use:   "generate",
 		Short: "Generate a Lockfile to track image digests",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			flags, err := getFlags(cmd)
+			flags, err := getGeneratorFlags(cmd)
 			if err != nil {
 				return err
 			}
@@ -80,7 +80,7 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 	return generateCmd
 }
 
-func getFlags(cmd *cobra.Command) (*generate.GeneratorFlags, error) {
+func getGeneratorFlags(cmd *cobra.Command) (*generate.GeneratorFlags, error) {
 	baseDir, err := cmd.Flags().GetString("base-dir")
 	if err != nil {
 		return nil, err

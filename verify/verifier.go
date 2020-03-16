@@ -9,7 +9,6 @@ import (
 
 	"github.com/michaelperel/docker-lock/generate"
 	"github.com/michaelperel/docker-lock/registry"
-	"github.com/spf13/cobra"
 )
 
 // Verifier ensures that a Lockfile contains up-to-date information.
@@ -19,19 +18,12 @@ type Verifier struct {
 }
 
 // NewVerifier creates a Verifier from command line flags.
-func NewVerifier(cmd *cobra.Command) (*Verifier, error) {
-	lName, err := cmd.Flags().GetString("lockfile-path")
+func NewVerifier(flags *VerifierFlags) (*Verifier, error) {
+	lFile, err := readLockfile(flags.LockfilePath)
 	if err != nil {
 		return nil, err
 	}
-	lFile, err := readLockfile(lName)
-	if err != nil {
-		return nil, err
-	}
-	g, err := makeGenerator(cmd, lFile)
-	if err != nil {
-		return nil, err
-	}
+	g := makeGenerator(lFile, flags.DockerfileEnvBuildArgs)
 	return &Verifier{Generator: g, Lockfile: lFile}, nil
 }
 
@@ -137,9 +129,9 @@ func readLockfile(lName string) (*generate.Lockfile, error) {
 }
 
 func makeGenerator(
-	cmd *cobra.Command,
 	lFile *generate.Lockfile,
-) (*generate.Generator, error) {
+	dockerfileEnvBuildArgs bool,
+) *generate.Generator {
 	var (
 		i      int
 		j      int
@@ -163,14 +155,10 @@ func makeGenerator(
 			j++
 		}
 	}()
-	dArgs, err := cmd.Flags().GetBool("dockerfile-env-build-args")
-	if err != nil {
-		return nil, err
-	}
 	wg.Wait()
 	return &generate.Generator{
 		DockerfilePaths:        dPaths,
 		ComposefilePaths:       cPaths,
-		DockerfileEnvBuildArgs: dArgs,
-	}, nil
+		DockerfileEnvBuildArgs: dockerfileEnvBuildArgs,
+	}
 }

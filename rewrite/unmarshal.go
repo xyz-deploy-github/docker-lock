@@ -1,12 +1,12 @@
-package rewriter
+package rewrite
 
 // Compose represents the services section of a docker-compose file.
-type Compose struct {
-	Services map[string]*Service `yaml:"services"`
+type compose struct {
+	Services map[string]*service `yaml:"services"`
 }
 
 // Service represents a service in the service section of a docker-compose file.
-type Service struct {
+type service struct {
 	Image string      `yaml:"image"`
 	Build interface{} `yaml:"build"`
 }

@@ -10,8 +10,6 @@ import (
 	"sync"
 
 	"github.com/michaelperel/docker-lock/generate"
-	"github.com/michaelperel/docker-lock/rewrite/internal/rewriter"
-	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 )
 
@@ -47,22 +45,17 @@ type cImageLine struct {
 }
 
 // NewRewriter creates a Rewriter from command line flags.
-func NewRewriter(cmd *cobra.Command) (*Rewriter, error) {
-	suffix, err := cmd.Flags().GetString("suffix")
-	if err != nil {
-		return nil, err
-	}
-	tmpDir, err := cmd.Flags().GetString("tempdir")
-	if err != nil {
-		return nil, err
-	}
-	tmpDir = filepath.ToSlash(tmpDir)
-	lFile, err := readLockfile(cmd)
+func NewRewriter(flags *RewriterFlags) (*Rewriter, error) {
+	lFile, err := readLockfile(flags.LockfilePath)
 	if err != nil {
 		return nil, err
 	}
 	lFile.DockerfileImages = dedupeDockerfileImages(lFile)
-	return &Rewriter{Lockfile: lFile, Suffix: suffix, TempDir: tmpDir}, nil
+	return &Rewriter{
+		Lockfile: lFile,
+		Suffix:   flags.Suffix,
+		TempDir:  flags.TempDir,
+	}, nil
 }
 
 // Rewrite rewrites images referenced in a Lockfile to include digests.
@@ -247,7 +240,7 @@ func (r *Rewriter) writeComposefile(
 		}
 		return
 	}
-	var comp rewriter.Compose
+	var comp compose
 	if err := yaml.Unmarshal(cByt, &comp); err != nil {
 		select {
 		case <-doneCh:
@@ -281,7 +274,7 @@ func (r *Rewriter) writeComposefile(
 
 func (r *Rewriter) writeDockerfileOrGetCImageLine(
 	svcName string,
-	svc *rewriter.Service,
+	svc *service,
 	svcIms map[string][]*generate.ComposefileImage,
 	tmpDirPath string,
 	cilCh chan<- *cImageLine,
@@ -537,12 +530,7 @@ func dedupeDockerfileImages(
 	return dImsNotInCFiles
 }
 
-func readLockfile(cmd *cobra.Command) (*generate.Lockfile, error) {
-	lPath, err := cmd.Flags().GetString("lockfile-path")
-	if err != nil {
-		return nil, err
-	}
-	lPath = filepath.ToSlash(lPath)
+func readLockfile(lPath string) (*generate.Lockfile, error) {
 	lByt, err := ioutil.ReadFile(lPath) // nolint: gosec
 	if err != nil {
 		return nil, err

@@ -65,7 +65,7 @@ jobs:
     displayName: Configure wincred
   - bash: |
       # run without -race, because it requires gcc
-      go test ./unittests
+      go test ./...
     displayName: Run unit tests
   - download: current
     artifact: docker-lock-windows

@@ -2,5 +2,5 @@
 
 (
     cd "$(dirname "$0")/.." || exit
-    go test ./unittests -cover -coverpkg ./... -coverprofile=coverage.out
+    go test ./... -coverprofile=coverage.out
 )

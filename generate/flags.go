@@ -61,8 +61,10 @@ func convertStringToSlash(s string) string {
 }
 
 func convertStringSliceToSlash(s []string) {
-	for i := range s {
-		s[i] = filepath.ToSlash(s[i])
+	sl := make([]string, len(s))
+	copy(sl, s)
+	for i := range sl {
+		sl[i] = filepath.ToSlash(sl[i])
 	}
 }
 

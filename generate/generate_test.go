@@ -15,7 +15,7 @@ import (
 )
 
 type test struct {
-	flags *GeneratorFlags
+	flags *Flags
 	want  *Lockfile
 }
 
@@ -58,7 +58,7 @@ func dBuildStage() (*test, error) {
 	dockerfiles := []string{
 		filepath.Join(dTestDir, "buildstage", "Dockerfile"),
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
 		dockerfiles, []string{}, []string{}, []string{},
 		false, false, false,
@@ -85,7 +85,7 @@ func dLocalArg() (*test, error) {
 	dockerfiles := []string{
 		filepath.Join(dTestDir, "localarg", "Dockerfile"),
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
 		dockerfiles, []string{}, []string{}, []string{},
 		false, false, false,
@@ -111,7 +111,7 @@ func dMultiple() (*test, error) {
 		filepath.Join(dTestDir, "multiple", "DockerfileOne"),
 		filepath.Join(dTestDir, "multiple", "DockerfileTwo"),
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
 		dockerfiles, []string{}, []string{}, []string{},
 		false, false, false,
@@ -142,7 +142,7 @@ func dRecursive() (*test, error) {
 		filepath.Join(dTestDir, "recursive", "recursive", "Dockerfile"),
 	}
 	recursiveBaseDir := filepath.Join(dTestDir, "recursive")
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		recursiveBaseDir, "docker-lock.json", getDefaultConfigPath(), ".env",
 		[]string{}, []string{}, []string{}, []string{},
 		true, false, false,
@@ -175,7 +175,7 @@ func dGlobs() (*test, error) {
 		filepath.Join(dTestDir, "globs", "globs", "Dockerfile"),
 		filepath.Join(dTestDir, "globs", "Dockerfile"),
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
 		[]string{}, []string{}, globs, []string{},
 		false, false, false,
@@ -210,7 +210,7 @@ func dBuildArgs() (*test, error) {
 	if err != nil {
 		return nil, err
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), envPath,
 		dockerfiles, []string{}, []string{}, []string{},
 		false, false, true,
@@ -236,7 +236,7 @@ func dNoFile() (*test, error) {
 	dockerfiles := []string{
 		filepath.Join(baseDir, "Dockerfile"),
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		baseDir, "docker-lock.json", getDefaultConfigPath(), ".env",
 		[]string{}, []string{}, []string{}, []string{},
 		false, false, false,
@@ -263,7 +263,7 @@ func cImage() (*test, error) {
 	composefiles := []string{
 		filepath.Join(cTestDir, "image", "docker-compose.yml"),
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
 		[]string{}, composefiles, []string{}, []string{},
 		false, false, false,
@@ -293,7 +293,7 @@ func cBuild() (*test, error) {
 	composefiles := []string{
 		filepath.Join(cTestDir, "build", "docker-compose.yml"),
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
 		[]string{}, composefiles, []string{}, []string{},
 		false, false, false,
@@ -325,7 +325,7 @@ func cDockerfile() (*test, error) {
 	composefiles := []string{
 		filepath.Join(cTestDir, "dockerfile", "docker-compose.yml"),
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
 		[]string{}, composefiles, []string{}, []string{},
 		false, false, false,
@@ -359,7 +359,7 @@ func cContext() (*test, error) {
 	composefiles := []string{
 		filepath.Join(cTestDir, "context", "docker-compose.yml"),
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
 		[]string{}, composefiles, []string{}, []string{},
 		false, false, false,
@@ -398,7 +398,7 @@ func cEnv() (*test, error) {
 	if err != nil {
 		return nil, err
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), envPath,
 		[]string{}, composefiles, []string{}, []string{},
 		false, false, false,
@@ -432,7 +432,7 @@ func cArgsOverride() (*test, error) {
 	composefiles := []string{
 		filepath.Join(cTestDir, "args", "override", "docker-compose.yml"),
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
 		[]string{}, composefiles, []string{}, []string{},
 		false, false, false,
@@ -464,7 +464,7 @@ func cArgsEmpty() (*test, error) {
 	composefiles := []string{
 		filepath.Join(cTestDir, "args", "empty", "docker-compose.yml"),
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
 		[]string{}, composefiles, []string{}, []string{},
 		false, false, false,
@@ -497,7 +497,7 @@ func cArgsNoArg() (*test, error) {
 	composefiles := []string{
 		filepath.Join(cTestDir, "args", "noarg", "docker-compose.yml"),
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
 		[]string{}, composefiles, []string{}, []string{},
 		false, false, false,
@@ -540,7 +540,7 @@ func cMultiple() (*test, error) {
 			cTestDir, "multiple", "dockerfile", "Dockerfile"),
 		),
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
 		[]string{}, composefiles, []string{}, []string{},
 		false, false, false,
@@ -596,7 +596,7 @@ func cRecursive() (*test, error) {
 		cTestDir, "recursive", "build", "build", "Dockerfile"),
 	)
 	bDir := filepath.Join(cTestDir, "recursive")
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		bDir, "docker-lock.json", getDefaultConfigPath(), ".env",
 		[]string{}, []string{}, []string{}, []string{},
 		false, true, false,
@@ -635,7 +635,7 @@ func cNoFile() (*test, error) {
 		filepath.ToSlash(filepath.Join(bDir, "docker-compose.yml")),
 		filepath.ToSlash(filepath.Join(bDir, "docker-compose.yaml")),
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		bDir, "docker-lock.json", getDefaultConfigPath(), ".env",
 		[]string{}, []string{}, []string{}, []string{},
 		false, false, false,
@@ -686,7 +686,7 @@ func cGlobs() (*test, error) {
 			filepath.Join(cTestDir, "globs", "docker-compose.yml"),
 		),
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
 		[]string{}, []string{}, []string{}, globs,
 		false, false, false,
@@ -734,7 +734,7 @@ func cAssortment() (*test, error) {
 			filepath.Join(cTestDir, "assortment", "dockerfile", "Dockerfile"),
 		),
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
 		[]string{}, composefiles, []string{}, []string{},
 		false, false, false,
@@ -787,7 +787,7 @@ func cSort() (*test, error) {
 			cTestDir, "sort", "sort", "Dockerfile-two"),
 		),
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
 		[]string{}, composefiles, []string{}, []string{},
 		false, false, false,
@@ -838,7 +838,7 @@ func cAbsPathDockerfile() (*test, error) {
 			cTestDir, "abspath", "abspath", "Dockerfile"),
 		),
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
 		[]string{}, composefiles, []string{}, []string{},
 		false, false, false,
@@ -890,7 +890,7 @@ func bDuplicates() (*test, error) {
 		filepath.Join(bTestDir, "both", "Dockerfile"),
 		filepath.Join(bTestDir, "both", "Dockerfile"),
 	}
-	flags, err := NewGeneratorFlags(
+	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
 		dockerfiles, composefiles, []string{}, []string{},
 		false, false, false,

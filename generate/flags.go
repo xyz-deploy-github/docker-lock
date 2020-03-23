@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// GeneratorFlags are all possible flags to initialize a Generator.
-type GeneratorFlags struct {
+// Flags are all possible flags to initialize a Generator.
+type Flags struct {
 	BaseDir                string
 	LockfileName           string
 	ConfigFile             string
@@ -22,12 +22,12 @@ type GeneratorFlags struct {
 	DockerfileEnvBuildArgs bool
 }
 
-// NewGeneratorFlags create a Generator.
-func NewGeneratorFlags(
+// NewFlags creates flags for a Generator.
+func NewFlags(
 	baseDir, lockfileName, configFile, envFile string,
 	dockerfiles, composefiles, dockerfileGlobs, composefileGlobs []string,
 	dockerfileRecursive, composefileRecursive, dockerfileEnvBuildArgs bool,
-) (*GeneratorFlags, error) {
+) (*Flags, error) {
 	baseDir = convertStringToSlash(baseDir)
 	configFile = convertStringToSlash(configFile)
 	envFile = convertStringToSlash(envFile)
@@ -41,7 +41,7 @@ func NewGeneratorFlags(
 	); err != nil {
 		return nil, err
 	}
-	return &GeneratorFlags{
+	return &Flags{
 		BaseDir:                baseDir,
 		LockfileName:           lockfileName,
 		ConfigFile:             configFile,

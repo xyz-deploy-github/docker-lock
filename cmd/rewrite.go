@@ -41,7 +41,7 @@ func NewRewriteCmd() *cobra.Command {
 	return rewriteCmd
 }
 
-func getRewriterFlags(cmd *cobra.Command) (*rewrite.RewriterFlags, error) {
+func getRewriterFlags(cmd *cobra.Command) (*rewrite.Flags, error) {
 	lockfilePath, err := cmd.Flags().GetString("lockfile-path")
 	if err != nil {
 		return nil, err
@@ -54,5 +54,5 @@ func getRewriterFlags(cmd *cobra.Command) (*rewrite.RewriterFlags, error) {
 	if err != nil {
 		return nil, err
 	}
-	return rewrite.NewRewriterFlags(lockfilePath, suffix, tempDir)
+	return rewrite.NewFlags(lockfilePath, suffix, tempDir)
 }

@@ -2,18 +2,20 @@ package rewrite
 
 import "path/filepath"
 
-type RewriterFlags struct {
+// Flags are all possible flags to initialize a Rewriter.
+type Flags struct {
 	LockfilePath string
 	Suffix       string
 	TempDir      string
 }
 
-func NewRewriterFlags(
+// NewFlags creates flags for a Rewriter.
+func NewFlags(
 	lockfilePath, suffix, tempDir string,
-) (*RewriterFlags, error) {
+) (*Flags, error) {
 	lockfilePath = convertStringToSlash(lockfilePath)
 	tempDir = convertStringToSlash(tempDir)
-	return &RewriterFlags{
+	return &Flags{
 		LockfilePath: lockfilePath,
 		Suffix:       suffix,
 		TempDir:      tempDir,

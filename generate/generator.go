@@ -61,7 +61,7 @@ func (i *Image) String() string {
 // files that match "Dockerfile", "docker-compose.yml", and
 // "docker-compose.yaml" will be used. If files are specified in
 // command line flags, only those files will be used.
-func NewGenerator(flags *GeneratorFlags) (*Generator, error) {
+func NewGenerator(flags *Flags) (*Generator, error) {
 	dPaths, cPaths, err := collectDockerfileAndComposefilePaths(flags)
 	if err != nil {
 		return nil, err

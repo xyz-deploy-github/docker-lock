@@ -2,21 +2,23 @@ package verify
 
 import "path/filepath"
 
-type VerifierFlags struct {
+// Flags are all possible flags to initialize a Verifier.
+type Flags struct {
 	LockfilePath           string
 	ConfigFile             string
 	EnvFile                string
 	DockerfileEnvBuildArgs bool
 }
 
-func NewVerifierFlags(
+// NewFlags creates flags for a Verifier.
+func NewFlags(
 	lockfilePath, configFile, envFile string,
 	dockerfileEnvBuildArgs bool,
-) (*VerifierFlags, error) {
+) (*Flags, error) {
 	lockfilePath = convertStringToSlash(lockfilePath)
 	configFile = convertStringToSlash(configFile)
 	envFile = convertStringToSlash(envFile)
-	return &VerifierFlags{
+	return &Flags{
 		LockfilePath:           lockfilePath,
 		ConfigFile:             configFile,
 		EnvFile:                envFile,

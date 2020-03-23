@@ -45,7 +45,7 @@ type cImageLine struct {
 }
 
 // NewRewriter creates a Rewriter from command line flags.
-func NewRewriter(flags *RewriterFlags) (*Rewriter, error) {
+func NewRewriter(flags *Flags) (*Rewriter, error) {
 	lFile, err := readLockfile(flags.LockfilePath)
 	if err != nil {
 		return nil, err

@@ -13,7 +13,7 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 		Use:   "verify",
 		Short: "Verify that a Lockfile is up-to-date",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			flags, err := getVerfierFlags(cmd)
+			flags, err := getVerifierFlags(cmd)
 			if err != nil {
 				return err
 			}
@@ -49,7 +49,7 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 	return verifyCmd
 }
 
-func getVerfierFlags(cmd *cobra.Command) (*verify.VerifierFlags, error) {
+func getVerifierFlags(cmd *cobra.Command) (*verify.Flags, error) {
 	lockfilePath, err := cmd.Flags().GetString("lockfile-path")
 	if err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func getVerfierFlags(cmd *cobra.Command) (*verify.VerifierFlags, error) {
 	if err != nil {
 		return nil, err
 	}
-	return verify.NewVerifierFlags(
+	return verify.NewFlags(
 		lockfilePath, configFile, envFile, dockerfileEnvBuildArgs,
 	)
 }

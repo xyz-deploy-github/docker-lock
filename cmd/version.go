@@ -9,6 +9,7 @@ import (
 // Version is overridden in the CD pipeline to match the git tag
 var Version = "v0.0.1" //nolint: gochecknoglobals
 
+// NewVersionCmd creates the command 'version' used in 'docker lock version'.
 func NewVersionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",

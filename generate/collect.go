@@ -18,7 +18,7 @@ type pathsResult struct {
 }
 
 func collectDockerfileAndComposefilePaths(
-	flags *GeneratorFlags,
+	flags *Flags,
 ) ([]string, []string, error) {
 	doneCh := make(chan struct{})
 	dPathsCh := collectDockerfilePaths(flags, doneCh)
@@ -48,7 +48,7 @@ func collectDockerfileAndComposefilePaths(
 }
 
 func collectDockerfilePaths(
-	flags *GeneratorFlags,
+	flags *Flags,
 	doneCh <-chan struct{},
 ) <-chan *pathsResult {
 	pathsCh := make(chan *pathsResult)
@@ -68,7 +68,7 @@ func collectDockerfilePaths(
 }
 
 func collectComposefilePaths(
-	flags *GeneratorFlags,
+	flags *Flags,
 	doneCh <-chan struct{},
 ) <-chan *pathsResult {
 	pathsCh := make(chan *pathsResult)

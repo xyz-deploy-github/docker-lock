@@ -80,7 +80,7 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 	return generateCmd
 }
 
-func getGeneratorFlags(cmd *cobra.Command) (*generate.GeneratorFlags, error) {
+func getGeneratorFlags(cmd *cobra.Command) (*generate.Flags, error) {
 	baseDir, err := cmd.Flags().GetString("base-dir")
 	if err != nil {
 		return nil, err
@@ -125,7 +125,7 @@ func getGeneratorFlags(cmd *cobra.Command) (*generate.GeneratorFlags, error) {
 	if err != nil {
 		return nil, err
 	}
-	return generate.NewGeneratorFlags(
+	return generate.NewFlags(
 		baseDir, lockfileName, configFile, envFile,
 		dockerfiles, composefiles, dockerfileGlobs, composefileGlobs,
 		dockerfileRecursive, composefileRecursive, dockerfileEnvBuildArgs,

@@ -28,7 +28,7 @@ func TestRewriter(t *testing.T) {
 	for name, tc := range tests {
 		tc := tc
 		t.Run(name, func(t *testing.T) {
-			flags, err := NewRewriterFlags(tc.lPath, "got", tmpDir)
+			flags, err := NewFlags(tc.lPath, "got", tmpDir)
 			if err != nil {
 				t.Fatal(err)
 			}

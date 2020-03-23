@@ -15,7 +15,7 @@ var dTestDir = filepath.Join("testdata", "docker")  //nolint: gochecknoglobals
 var cTestDir = filepath.Join("testdata", "compose") //nolint: gochecknoglobals
 
 type test struct {
-	flags      *VerifierFlags
+	flags      *Flags
 	shouldFail bool
 }
 
@@ -45,7 +45,7 @@ func TestVerifier(t *testing.T) {
 // referenced in the Lockfile.
 func dDiffNumImages() (*test, error) {
 	lPath := filepath.Join(dTestDir, "diffnumimages", "docker-lock.json")
-	flags, err := NewVerifierFlags(lPath, getDefaultConfigPath(), ".env", false)
+	flags, err := NewFlags(lPath, getDefaultConfigPath(), ".env", false)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func dDiffNumImages() (*test, error) {
 // digest from the Dockerfile.
 func dDiffDigests() (*test, error) {
 	lPath := filepath.Join(dTestDir, "diffdigests", "docker-lock.json")
-	flags, err := NewVerifierFlags(lPath, getDefaultConfigPath(), ".env", false)
+	flags, err := NewFlags(lPath, getDefaultConfigPath(), ".env", false)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func dBuildArgs() (*test, error) {
 	if err := godotenv.Load(envPath); err != nil {
 		return nil, err
 	}
-	flags, err := NewVerifierFlags(lPath, getDefaultConfigPath(), envPath, true)
+	flags, err := NewFlags(lPath, getDefaultConfigPath(), envPath, true)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func dBuildArgs() (*test, error) {
 // referenced in the Lockfile.
 func cDiffNumImages() (*test, error) {
 	lPath := filepath.Join(cTestDir, "diffnumimages", "docker-lock.json")
-	flags, err := NewVerifierFlags(lPath, getDefaultConfigPath(), ".env", false)
+	flags, err := NewFlags(lPath, getDefaultConfigPath(), ".env", false)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +97,7 @@ func cDiffNumImages() (*test, error) {
 // digest from the docker-compose file.
 func cDiffDigests() (*test, error) {
 	lPath := filepath.Join(cTestDir, "diffdigests", "docker-lock.json")
-	flags, err := NewVerifierFlags(lPath, getDefaultConfigPath(), ".env", false)
+	flags, err := NewFlags(lPath, getDefaultConfigPath(), ".env", false)
 	if err != nil {
 		return nil, err
 	}

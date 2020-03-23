@@ -18,7 +18,7 @@ type Verifier struct {
 }
 
 // NewVerifier creates a Verifier from command line flags.
-func NewVerifier(flags *VerifierFlags) (*Verifier, error) {
+func NewVerifier(flags *Flags) (*Verifier, error) {
 	lFile, err := readLockfile(flags.LockfilePath)
 	if err != nil {
 		return nil, err

@@ -12,131 +12,78 @@ type pathResult struct {
 	path string
 	err  error
 }
-type pathsResult struct {
-	paths []string
-	err   error
-}
 
 func collectDockerfileAndComposefilePaths(
 	flags *Flags,
 ) ([]string, []string, error) {
 	doneCh := make(chan struct{})
-	dPathsCh := collectDockerfilePaths(flags, doneCh)
-	cPathsCh := collectComposefilePaths(flags, doneCh)
-	dPaths := []string{}
-	cPaths := []string{}
-	for {
-		select {
-		case pathsRes := <-dPathsCh:
-			if err := handlePathsResult(
-				&dPaths, pathsRes, &dPathsCh, doneCh,
-			); err != nil {
-				return nil, nil, err
-			}
-		case pathsRes := <-cPathsCh:
-			if err := handlePathsResult(
-				&cPaths, pathsRes, &cPathsCh, doneCh,
-			); err != nil {
-				return nil, nil, err
-			}
+	dBaseSet := map[string]struct{}{"Dockerfile": {}}
+	dPathCh := collectNonDefaultPaths(
+		flags.BaseDir, flags.Dockerfiles, dBaseSet,
+		flags.DockerfileGlobs, flags.DockerfileRecursive,
+		doneCh,
+	)
+	cBaseSet := map[string]struct{}{
+		"docker-compose.yml":  {},
+		"docker-compose.yaml": {},
+	}
+	cPathCh := collectNonDefaultPaths(
+		flags.BaseDir, flags.Composefiles, cBaseSet,
+		flags.ComposefileGlobs, flags.ComposefileRecursive,
+		doneCh,
+	)
+	dPaths, cPaths, err := convertPathChsToSlices(dPathCh, cPathCh)
+	if err != nil {
+		close(doneCh)
+		return nil, nil, err
+	}
+	if len(dPaths) == 0 && len(cPaths) == 0 {
+		doneCh = make(chan struct{})
+		dPathCh = collectDefaultPaths(flags.BaseDir, dBaseSet, doneCh)
+		cPathCh = collectDefaultPaths(flags.BaseDir, cBaseSet, doneCh)
+		dPaths, cPaths, err = convertPathChsToSlices(dPathCh, cPathCh)
+		if err != nil {
+			close(doneCh)
+			return nil, nil, err
 		}
-		if dPathsCh == nil && cPathsCh == nil {
-			break
-		}
+	}
+	if err := validatePaths(dPaths, cPaths); err != nil {
+		return nil, nil, err
 	}
 	return dPaths, cPaths, nil
 }
 
-func collectDockerfilePaths(
-	flags *Flags,
-	doneCh <-chan struct{},
-) <-chan *pathsResult {
-	pathsCh := make(chan *pathsResult)
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		baseSet := map[string]struct{}{"Dockerfile": {}}
-		paths, err := collectPaths(
-			flags.BaseDir, flags.Dockerfiles, baseSet,
-			flags.DockerfileGlobs, flags.DockerfileRecursive,
-		)
-		addPathsAndErrToPathsCh(paths, err, pathsCh, doneCh)
-		close(pathsCh)
-	}()
-	return pathsCh
-}
-
-func collectComposefilePaths(
-	flags *Flags,
-	doneCh <-chan struct{},
-) <-chan *pathsResult {
-	pathsCh := make(chan *pathsResult)
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		baseSet := map[string]struct{}{
-			"docker-compose.yml":  {},
-			"docker-compose.yaml": {},
-		}
-		paths, err := collectPaths(
-			flags.BaseDir, flags.Composefiles, baseSet,
-			flags.ComposefileGlobs, flags.ComposefileRecursive,
-		)
-		addPathsAndErrToPathsCh(paths, err, pathsCh, doneCh)
-		close(pathsCh)
-	}()
-	return pathsCh
-}
-
-func collectPaths(
+func collectNonDefaultPaths(
 	bDir string,
 	suppliedPaths []string,
 	baseSet map[string]struct{},
 	globs []string,
 	recursive bool,
-) ([]string, error) {
+	doneCh <-chan struct{},
+) chan *pathResult {
 	pathCh := make(chan *pathResult)
-	doneCh := make(chan struct{})
 	var wg sync.WaitGroup
-	if len(suppliedPaths) != 0 {
-		wg.Add(1)
-		go collectSuppliedPaths(bDir, suppliedPaths, pathCh, doneCh, &wg)
-	}
-	if len(globs) != 0 {
-		wg.Add(1)
-		go collectGlobPaths(bDir, globs, pathCh, doneCh, &wg)
-	}
-	if recursive {
-		wg.Add(1)
-		go collectRecursivePaths(bDir, baseSet, pathCh, doneCh, &wg)
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if len(suppliedPaths) != 0 {
+			wg.Add(1)
+			go collectSuppliedPaths(bDir, suppliedPaths, pathCh, doneCh, &wg)
+		}
+		if len(globs) != 0 {
+			wg.Add(1)
+			go collectGlobPaths(bDir, globs, pathCh, doneCh, &wg)
+		}
+		if recursive {
+			wg.Add(1)
+			go collectRecursivePaths(bDir, baseSet, pathCh, doneCh, &wg)
+		}
+	}()
 	go func() {
 		wg.Wait()
 		close(pathCh)
-		close(doneCh)
 	}()
-	set := map[string]struct{}{}
-	for pathRes := range pathCh {
-		if pathRes.err != nil {
-			return nil, pathRes.err
-		}
-		set[pathRes.path] = struct{}{}
-	}
-	if len(set) == 0 {
-		collectDefaultPaths(bDir, baseSet, set)
-	}
-	if err := validatePaths(set); err != nil {
-		return nil, err
-	}
-	paths := make([]string, len(set))
-	var i int
-	for p := range set {
-		paths[i] = p
-		i++
-	}
-	return paths, nil
+	return pathCh
 }
 
 func collectSuppliedPaths(
@@ -197,13 +144,26 @@ func collectRecursivePaths(
 	}
 }
 
-func collectDefaultPaths(bDir string, baseSet, set map[string]struct{}) {
-	for p := range baseSet {
-		p = filepath.ToSlash(filepath.Join(bDir, p))
-		if fileIsRegular(p) {
-			set[p] = struct{}{}
+func collectDefaultPaths(
+	bDir string,
+	baseSet map[string]struct{},
+	doneCh <-chan struct{},
+) chan *pathResult {
+	var wg sync.WaitGroup
+	pathCh := make(chan *pathResult)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for p := range baseSet {
+			p = filepath.ToSlash(filepath.Join(bDir, p))
+			addPathToPathCh(p, pathCh, doneCh)
 		}
-	}
+	}()
+	go func() {
+		wg.Wait()
+		close(pathCh)
+	}()
+	return pathCh
 }
 
 func fileIsRegular(p string) bool {
@@ -229,18 +189,6 @@ func addPathToPathCh(
 	}
 }
 
-func addPathsAndErrToPathsCh(
-	paths []string,
-	err error,
-	pathsCh chan<- *pathsResult,
-	doneCh <-chan struct{},
-) {
-	select {
-	case <-doneCh:
-	case pathsCh <- &pathsResult{paths: paths, err: err}:
-	}
-}
-
 func addErrToPathCh(
 	err error,
 	pathCh chan<- *pathResult,
@@ -252,26 +200,72 @@ func addErrToPathCh(
 	}
 }
 
-func validatePaths(set map[string]struct{}) error {
-	for p := range set {
-		if strings.HasPrefix(p, "..") {
-			return fmt.Errorf("%s is outside the current working directory", p)
+func validatePaths(dPaths, cPaths []string) error {
+	for _, paths := range [][]string{dPaths, cPaths} {
+		for _, p := range paths {
+			if strings.HasPrefix(p, "..") {
+				return fmt.Errorf(
+					"%s is outside the current working directory", p,
+				)
+			}
 		}
 	}
 	return nil
 }
 
-func handlePathsResult(
-	paths *[]string,
-	pathsRes *pathsResult,
-	pathsCh *<-chan *pathsResult,
-	doneCh chan<- struct{},
-) error {
-	if pathsRes.err != nil {
-		close(doneCh)
-		return pathsRes.err
+func convertPathChsToSlices(
+	dPathCh,
+	cPathCh <-chan *pathResult,
+) ([]string, []string, error) {
+	dPathSet := map[string]struct{}{}
+	cPathSet := map[string]struct{}{}
+	for {
+		select {
+		case pathRes, ok := <-dPathCh:
+			if err := handlePathResult(
+				&dPathCh, pathRes, dPathSet, ok,
+			); err != nil {
+				return nil, nil, err
+			}
+		case pathRes, ok := <-cPathCh:
+			if err := handlePathResult(
+				&cPathCh, pathRes, cPathSet, ok,
+			); err != nil {
+				return nil, nil, err
+			}
+		}
+		if dPathCh == nil && cPathCh == nil {
+			break
+		}
 	}
-	*paths = pathsRes.paths
-	*pathsCh = nil
+	dPaths := make([]string, len(dPathSet))
+	cPaths := make([]string, len(cPathSet))
+	var i int
+	for p := range dPathSet {
+		dPaths[i] = p
+		i++
+	}
+	i = 0
+	for p := range cPathSet {
+		cPaths[i] = p
+		i++
+	}
+	return dPaths, cPaths, nil
+}
+
+func handlePathResult(
+	pathCh *<-chan *pathResult,
+	pathRes *pathResult,
+	pathSet map[string]struct{},
+	ok bool,
+) error {
+	if !ok {
+		*pathCh = nil
+	} else {
+		if pathRes.err != nil {
+			return pathRes.err
+		}
+		pathSet[pathRes.path] = struct{}{}
+	}
 	return nil
 }

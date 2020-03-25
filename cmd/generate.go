@@ -121,7 +121,9 @@ func getGeneratorFlags(cmd *cobra.Command) (*generate.Flags, error) {
 	if err != nil {
 		return nil, err
 	}
-	dockerfileEnvBuildArgs, err := cmd.Flags().GetBool("dockerfile-env-build-args")
+	dockerfileEnvBuildArgs, err := cmd.Flags().GetBool(
+		"dockerfile-env-build-args",
+	)
 	if err != nil {
 		return nil, err
 	}

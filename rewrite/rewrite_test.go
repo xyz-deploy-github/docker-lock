@@ -140,8 +140,10 @@ func cDockerfile() *test {
 	baseDir := filepath.Join(cTestDir, "dockerfile")
 	lPath := filepath.Join(baseDir, "docker-lock.json")
 	return &test{
-		lPath:      lPath,
-		dPaths:     []string{filepath.Join(baseDir, "dockerfile", "Dockerfile")},
+		lPath: lPath,
+		dPaths: []string{
+			filepath.Join(baseDir, "dockerfile", "Dockerfile"),
+		},
 		cPaths:     []string{},
 		shouldFail: false,
 	}

@@ -81,12 +81,14 @@ If using VSCode's [Remote Development Extension - Containers](https://marketplac
 * In the command palette (ctrl+shift+p on Windows/Linux, command+shift+p on Mac), type "Reopen in Container"
 * In the command palette type: "Go: Install/Update Tools" and select all
 * When all tools are finished installing, in the command palette type: "Developer: Reload Window"
-* SSH credentials are automatically mapped into the container
 * The docker daemon is mapped from the host into the dev container, so you can use docker and docker-compose commands from within the container as if they were run on the host
 
-Without VSCode:
+If using vim:
+* The development container includes the [basic version of vim-awesome](https://github.com/amix/vimrc#how-to-install-the-basic-version), [vim-go](https://github.com/fatih/vim-go), and [NERDTree](https://github.com/preservim/nerdtree)
 * Build the development container: `docker build -f .devcontainer/Dockerfile -t dev .`
 * Mount the root directory into the container, and drop into a bash shell: `docker run -it -v ${PWD}:/workspaces/docker-lock dev`
+* Open vim and type `:GoInstallBinaries` to initialize `vim-go`
+* When all the tools have been installed, close and reopen vim
 
 ## CI
 * Unit tests, integration tests, and linting run in the [CI pipeline](https://dev.azure.com/michaelsethperel/docker-lock/_build?definitionId=4) on pull requests.

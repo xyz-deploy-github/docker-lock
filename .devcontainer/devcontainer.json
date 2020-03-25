@@ -8,31 +8,34 @@
 		// Enable go debugger
 		"--cap-add=SYS_PTRACE",
 		"--security-opt",
-		"seccomp=unconfined",
-		// Enable SSH for git
-		"-v",
-		"${env:HOME}${env:USERPROFILE}/.ssh:/root/.ssh-localhost:ro",
-		// Map docker daemon into container
-		"-v",
-		"/var/run/docker.sock:/var/run/docker.sock"
+		"seccomp=unconfined"
 	],
-	"postCreateCommand": "mkdir -p /root/.ssh && cp -r /root/.ssh-localhost/* /root/.ssh && chmod 700 /root/.ssh && chmod 600 /root/.ssh/*",
 	"settings": {
 		"files.eol": "\n",
 		"terminal.integrated.shell.linux": "/bin/bash",
+		// Go recommended settings with modules: https://github.com/golang/tools/blob/master/gopls/doc/vscode.md#vscode
 		"go.useLanguageServer": true,
 		"go.lintTool": "golangci-lint",
 		"go.lintFlags": [
 			"--fast"
 		],
-		"go.autocompleteUnimportedPackages": true,
-		"go.gotoSymbol.includeImports": true,
-		"go.gotoSymbol.includeGoroot": true,
 		"[go]": {
 			"editor.formatOnSave": true,
 			"editor.codeActionsOnSave": {
 				"source.organizeImports": true
+			},
+			// Optional: Disable snippets, as they conflict with completion ranking.
+			"editor.snippetSuggestions": "none"
+		},
+		"[go.mod]": {
+			"editor.formatOnSave": true,
+			"editor.codeActionsOnSave": {
+				"source.organizeImports": true
 			}
+		},
+		"gopls": {
+			// Add parameter placeholders when completing a function.
+			"usePlaceholders": true
 		}
 	},
 	"extensions": [

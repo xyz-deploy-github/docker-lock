@@ -50,7 +50,9 @@ func NewRewriter(flags *Flags) (*Rewriter, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	lFile.DockerfileImages = dedupeDockerfileImages(lFile)
+
 	return &Rewriter{
 		Lockfile: lFile,
 		Suffix:   flags.Suffix,
@@ -82,43 +84,51 @@ func (r *Rewriter) Rewrite() (err error) {
 		len(r.Lockfile.ComposefileImages) == 0 {
 		return nil
 	}
+
 	tmpDirPath, err := ioutil.TempDir(r.TempDir, "docker-lock-tmp")
 	if err != nil {
 		return err
 	}
+
 	tmpDirPath = filepath.ToSlash(tmpDirPath)
+
 	defer func() {
 		if rmErr := os.RemoveAll(tmpDirPath); rmErr != nil {
 			err = fmt.Errorf("%v: %v", rmErr, err)
 		}
 	}()
-	var (
-		doneCh = make(chan struct{})
-		rnCh   = r.writeFiles(tmpDirPath, doneCh)
-	)
-	err = r.renameFiles(rnCh)
-	if err != nil {
+
+	doneCh := make(chan struct{})
+	rnCh := r.writeFiles(tmpDirPath, doneCh)
+
+	if err := r.renameFiles(rnCh); err != nil {
 		close(doneCh)
+		return err
 	}
-	return err
+
+	return nil
 }
 
 func (r *Rewriter) writeFiles(
 	tmpDirPath string,
 	doneCh <-chan struct{},
 ) chan *renameInfo {
-	var (
-		rnCh = make(chan *renameInfo)
-		wg   sync.WaitGroup
-	)
+	rnCh := make(chan *renameInfo)
+	wg := sync.WaitGroup{}
+
 	wg.Add(1)
+
 	go r.writeComposefiles(tmpDirPath, rnCh, &wg, doneCh)
+
 	wg.Add(1)
+
 	go r.writeDockerfiles(tmpDirPath, rnCh, &wg, doneCh)
+
 	go func() {
 		wg.Wait()
 		close(rnCh)
 	}()
+
 	return rnCh
 }
 
@@ -129,8 +139,10 @@ func (r *Rewriter) writeDockerfiles(
 	doneCh <-chan struct{},
 ) {
 	defer wg.Done()
+
 	for dPath, ims := range r.Lockfile.DockerfileImages {
 		wg.Add(1)
+
 		go r.writeDockerfile(dPath, ims, tmpDirPath, rnCh, wg, doneCh)
 	}
 }
@@ -142,8 +154,10 @@ func (r *Rewriter) writeComposefiles(
 	doneCh <-chan struct{},
 ) {
 	defer wg.Done()
+
 	for cPath, ims := range r.Lockfile.ComposefileImages {
 		wg.Add(1)
+
 		go r.writeComposefile(cPath, ims, tmpDirPath, rnCh, wg, doneCh)
 	}
 }
@@ -157,21 +171,24 @@ func (r *Rewriter) writeDockerfile(
 	doneCh <-chan struct{},
 ) {
 	defer wg.Done()
+
 	dByt, err := ioutil.ReadFile(dPath) // nolint: gosec
 	if err != nil {
 		select {
 		case <-doneCh:
 		case rnCh <- &renameInfo{err: err}:
 		}
+
 		return
 	}
-	var (
-		stageNames = map[string]bool{}
-		lines      = strings.Split(string(dByt), "\n")
-		imIndex    int
-	)
+
+	stageNames := map[string]bool{}
+	lines := strings.Split(string(dByt), "\n")
+	imIndex := 0
+
 	for i, line := range lines {
 		fields := strings.Fields(line)
+
 		if len(fields) > 0 && strings.ToLower(fields[0]) == "from" {
 			// FROM <image>
 			// FROM <image> AS <stage>
@@ -187,21 +204,28 @@ func (r *Rewriter) writeDockerfile(
 						),
 					}:
 					}
+
 					return
 				}
+
 				fields[1] = fmt.Sprintf(
 					"%s:%s@sha256:%s", ims[imIndex].Image.Name,
 					ims[imIndex].Image.Tag, ims[imIndex].Image.Digest,
 				)
 				imIndex++
 			}
-			if len(fields) == 4 {
+			// FROM <image> AS <stage>
+			// FROM <stage> AS <another stage>
+			const maxNumFields = 4
+			if len(fields) == maxNumFields {
 				stageName := fields[3]
 				stageNames[stageName] = true
 			}
+
 			lines[i] = strings.Join(fields, " ")
 		}
 	}
+
 	if imIndex != len(ims) {
 		select {
 		case <-doneCh:
@@ -211,15 +235,18 @@ func (r *Rewriter) writeDockerfile(
 			),
 		}:
 		}
+
 		return
 	}
-	var (
-		oPath = dPath
-		rwByt = []byte(strings.Join(lines, "\n"))
-	)
+
+	rwByt := []byte(strings.Join(lines, "\n"))
+
+	oPath := dPath
+
 	if r.Suffix != "" {
 		oPath = fmt.Sprintf("%s-%s", dPath, r.Suffix)
 	}
+
 	writeTmpFile(oPath, rwByt, tmpDirPath, rnCh, doneCh)
 }
 
@@ -232,41 +259,50 @@ func (r *Rewriter) writeComposefile(
 	doneCh <-chan struct{},
 ) {
 	defer wg.Done()
+
 	cByt, err := ioutil.ReadFile(cPath) // nolint: gosec
 	if err != nil {
 		select {
 		case <-doneCh:
 		case rnCh <- &renameInfo{err: err}:
 		}
+
 		return
 	}
-	var comp compose
+
+	comp := compose{}
 	if err := yaml.Unmarshal(cByt, &comp); err != nil {
 		select {
 		case <-doneCh:
 		case rnCh <- &renameInfo{err: err}:
 		}
+
 		return
 	}
+
 	svcIms := map[string][]*generate.ComposefileImage{}
+
 	for _, im := range ims {
 		svcIms[im.ServiceName] = append(svcIms[im.ServiceName], im)
 	}
-	var (
-		cilCh = make(chan *cImageLine)
-		cwg   sync.WaitGroup
-	)
+
+	cilCh := make(chan *cImageLine)
+	cwg := sync.WaitGroup{}
+
 	for svcName, svc := range comp.Services {
 		cwg.Add(1)
 		wg.Add(1)
+
 		go r.writeDockerfileOrGetCImageLine(
 			svcName, svc, svcIms, tmpDirPath, cilCh, rnCh, &cwg, wg, doneCh,
 		)
 	}
+
 	go func() {
 		cwg.Wait()
 		close(cilCh)
 	}()
+
 	r.writeComposefileFromCImageLines(
 		cPath, cByt, tmpDirPath, cilCh, rnCh, doneCh,
 	)
@@ -285,7 +321,9 @@ func (r *Rewriter) writeDockerfileOrGetCImageLine(
 ) {
 	defer wg.Done()
 	defer cwg.Done()
-	var hasDFile bool
+
+	hasDFile := false
+
 	switch build := svc.Build.(type) {
 	case map[interface{}]interface{}:
 		if build["context"] != nil || build["dockerfile"] != nil {
@@ -294,16 +332,21 @@ func (r *Rewriter) writeDockerfileOrGetCImageLine(
 	case string:
 		hasDFile = true
 	}
+
 	if hasDFile {
 		dIms := make([]*generate.DockerfileImage, len(svcIms[svcName]))
 		dPath := svcIms[svcName][0].DockerfilePath
+
 		for i, cIm := range svcIms[svcName] {
 			dIms[i] = &generate.DockerfileImage{Image: cIm.Image}
 		}
+
 		wg.Add(1)
+
 		go r.writeDockerfile(dPath, dIms, tmpDirPath, rnCh, wg, doneCh)
 	} else {
 		im := svcIms[svcName][0]
+
 		select {
 		case <-doneCh:
 		case cilCh <- &cImageLine{
@@ -325,47 +368,53 @@ func (r *Rewriter) writeComposefileFromCImageLines(
 	doneCh <-chan struct{},
 ) {
 	svcNameToLine := map[string]string{}
+
 	for cil := range cilCh {
 		svcNameToLine[cil.svcName] = cil.line
 	}
+
 	if len(svcNameToLine) != 0 {
-		var (
-			svcName string
-			lines   = strings.Split(string(cByt), "\n")
-		)
+		svcName := ""
+		lines := strings.Split(string(cByt), "\n")
+
 		for i, line := range lines {
 			posSvcName := strings.Trim(line, " :")
+
 			if svcNameToLine[posSvcName] != "" {
 				svcName = posSvcName
 				continue
 			}
-			if svcName != "" {
-				if strings.HasPrefix(strings.TrimLeft(line, " "), "image:") {
-					imIndex := strings.Index(line, "image:")
-					lines[i] = fmt.Sprintf(
-						"%s %s", line[:imIndex+len("image:")],
-						svcNameToLine[svcName],
-					)
-					svcName = ""
-				}
+
+			if svcName != "" &&
+				strings.HasPrefix(strings.TrimLeft(line, " "), "image:") {
+				imIndex := strings.Index(line, "image:")
+				lines[i] = fmt.Sprintf(
+					"%s %s", line[:imIndex+len("image:")],
+					svcNameToLine[svcName],
+				)
+				svcName = ""
 			}
 		}
-		var (
-			oPath = cPath
-			rwByt = []byte(strings.Join(lines, "\n"))
-		)
+
+		rwByt := []byte(strings.Join(lines, "\n"))
+
+		oPath := cPath
+
 		if r.Suffix != "" {
-			var ymlSuffix string
+			ymlSuffix := ""
+
 			if strings.HasSuffix(cPath, ".yml") {
 				ymlSuffix = ".yml"
 			} else if strings.HasSuffix(cPath, ".yaml") {
 				ymlSuffix = ".yaml"
 			}
+
 			oPath = fmt.Sprintf(
 				"%s-%s%s", cPath[:len(cPath)-len(ymlSuffix)], r.Suffix,
 				ymlSuffix,
 			)
 		}
+
 		writeTmpFile(oPath, rwByt, tmpDirPath, rnCh, doneCh)
 	}
 }
@@ -378,29 +427,36 @@ func writeTmpFile(
 	doneCh <-chan struct{},
 ) {
 	tmpFile, err := ioutil.TempFile(tmpDirPath, "docker-lock-")
+
 	if err != nil {
 		select {
 		case <-doneCh:
 		case rnCh <- &renameInfo{err: err}:
 		}
+
 		return
 	}
 	defer tmpFile.Close()
+
 	if _, err = tmpFile.Write(rwByt); err != nil {
 		select {
 		case <-doneCh:
 		case rnCh <- &renameInfo{err: err}:
 		}
+
 		return
 	}
+
 	origByt, err := getOrigByt(oPath)
 	if err != nil {
 		select {
 		case <-doneCh:
 		case rnCh <- &renameInfo{err: err}:
 		}
+
 		return
 	}
+
 	select {
 	case <-doneCh:
 	case rnCh <- &renameInfo{
@@ -416,47 +472,58 @@ func getOrigByt(oPath string) ([]byte, error) {
 	if err != nil {
 		return nil, nil
 	}
+
 	if mode := fi.Mode(); !mode.IsRegular() {
 		return nil, fmt.Errorf("%s is not a regular file", oPath)
 	}
+
 	origByt, err := ioutil.ReadFile(oPath) // nolint: gosec
 	if err != nil {
 		return nil, err
 	}
+
 	return origByt, nil
 }
 
 func (r *Rewriter) renameFiles(rnCh <-chan *renameInfo) error {
 	allRnIs := []*renameInfo{}
+
 	for rnI := range rnCh {
 		if rnI.err != nil {
 			return rnI.err
 		}
+
 		allRnIs = append(allRnIs, rnI)
 	}
+
 	successRnIs := []*renameInfo{}
+
 	for _, rnI := range allRnIs {
 		if rnErr := os.Rename(rnI.tmpOPath, rnI.oPath); rnErr != nil {
 			if rvErr := revertRenamedFiles(successRnIs); rvErr != nil {
 				return fmt.Errorf("%v: %v", rvErr, rnErr)
 			}
+
 			return rnErr
 		}
+
 		successRnIs = append(successRnIs, rnI)
 	}
+
 	return nil
 }
 
 func revertRenamedFiles(rnIs []*renameInfo) error {
-	var (
-		failedOPaths   = []string{}
-		failedOPathsCh = make(chan string)
-		wg             sync.WaitGroup
-	)
+	failedOPaths := []string{}
+	failedOPathsCh := make(chan string)
+	wg := sync.WaitGroup{}
+
 	for _, rnI := range rnIs {
 		wg.Add(1)
+
 		go func(rnI *renameInfo) {
 			defer wg.Done()
+
 			if rnI.origByt != nil {
 				if err := ioutil.WriteFile(
 					rnI.oPath, rnI.origByt, 0644,
@@ -470,16 +537,20 @@ func revertRenamedFiles(rnIs []*renameInfo) error {
 			}
 		}(rnI)
 	}
+
 	go func() {
 		wg.Wait()
 		close(failedOPathsCh)
 	}()
+
 	for oPath := range failedOPathsCh {
 		failedOPaths = append(failedOPaths, oPath)
 	}
+
 	if len(failedOPaths) != 0 {
 		return fmt.Errorf("failed to revert %s", failedOPaths)
 	}
+
 	return nil
 }
 
@@ -487,10 +558,12 @@ func dedupeDockerfileImages(
 	lFile *generate.Lockfile,
 ) map[string][]*generate.DockerfileImage {
 	dPathsInCFiles := map[string]map[string]struct{}{}
+
 	for cPath, ims := range lFile.ComposefileImages {
 		for _, im := range ims {
 			if im.DockerfilePath != "" {
 				cPathSvc := fmt.Sprintf("%s/%s", cPath, im.ServiceName)
+
 				if dPathsInCFiles[im.DockerfilePath] == nil {
 					dPathsInCFiles[im.DockerfilePath] = map[string]struct{}{
 						cPathSvc: {},
@@ -501,16 +574,18 @@ func dedupeDockerfileImages(
 			}
 		}
 	}
+
 	for dPath, cPathSvcs := range dPathsInCFiles {
 		if len(cPathSvcs) > 1 {
-			var (
-				dupCPathSvcs = make([]string, len(cPathSvcs))
-				i            int
-			)
+			dupCPathSvcs := make([]string, len(cPathSvcs))
+
+			i := 0
+
 			for cPathSvc := range cPathSvcs {
 				dupCPathSvcs[i] = cPathSvc
 				i++
 			}
+
 			fmt.Fprintf(
 				os.Stderr,
 				"WARNING: '%s' referenced in multiple "+
@@ -521,12 +596,15 @@ func dedupeDockerfileImages(
 			)
 		}
 	}
+
 	dImsNotInCFiles := map[string][]*generate.DockerfileImage{}
+
 	for dPath, ims := range lFile.DockerfileImages {
 		if dPathsInCFiles[dPath] == nil {
 			dImsNotInCFiles[dPath] = ims
 		}
 	}
+
 	return dImsNotInCFiles
 }
 
@@ -535,9 +613,11 @@ func readLockfile(lPath string) (*generate.Lockfile, error) {
 	if err != nil {
 		return nil, err
 	}
-	var lFile generate.Lockfile
+
+	lFile := generate.Lockfile{}
 	if err = json.Unmarshal(lByt, &lFile); err != nil {
 		return nil, err
 	}
+
 	return &lFile, err
 }

@@ -19,23 +19,29 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			_ = godotenv.Load(flags.EnvFile)
+
 			wm, err := getDefaultWrapperManager(flags.ConfigFile, client)
 			if err != nil {
 				return err
 			}
+
 			generator, err := generate.NewGenerator(flags)
 			if err != nil {
 				return err
 			}
+
 			lFile, err := os.Create(generator.LockfileName)
 			if err != nil {
 				return err
 			}
 			defer lFile.Close()
+
 			if err := generator.GenerateLockfile(wm, lFile); err != nil {
 				return err
 			}
+
 			return nil
 		},
 	}
@@ -77,6 +83,7 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 		"dockerfile-env-build-args", false,
 		"Use environment vars as build args for Dockerfiles",
 	)
+
 	return generateCmd
 }
 
@@ -85,48 +92,59 @@ func getGeneratorFlags(cmd *cobra.Command) (*generate.Flags, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	lockfileName, err := cmd.Flags().GetString("lockfile-name")
 	if err != nil {
 		return nil, err
 	}
+
 	configFile, err := cmd.Flags().GetString("config-file")
 	if err != nil {
 		return nil, err
 	}
+
 	envFile, err := cmd.Flags().GetString("env-file")
 	if err != nil {
 		return nil, err
 	}
+
 	dockerfiles, err := cmd.Flags().GetStringSlice("dockerfiles")
 	if err != nil {
 		return nil, err
 	}
+
 	composefiles, err := cmd.Flags().GetStringSlice("compose-files")
 	if err != nil {
 		return nil, err
 	}
+
 	dockerfileGlobs, err := cmd.Flags().GetStringSlice("dockerfile-globs")
 	if err != nil {
 		return nil, err
 	}
+
 	composefileGlobs, err := cmd.Flags().GetStringSlice("compose-file-globs")
 	if err != nil {
 		return nil, err
 	}
+
 	dockerfileRecursive, err := cmd.Flags().GetBool("dockerfile-recursive")
 	if err != nil {
 		return nil, err
 	}
+
 	composefileRecursive, err := cmd.Flags().GetBool("compose-file-recursive")
 	if err != nil {
 		return nil, err
 	}
+
 	dockerfileEnvBuildArgs, err := cmd.Flags().GetBool(
 		"dockerfile-env-build-args",
 	)
 	if err != nil {
 		return nil, err
 	}
+
 	return generate.NewFlags(
 		baseDir, lockfileName, configFile, envFile,
 		dockerfiles, composefiles, dockerfileGlobs, composefileGlobs,

@@ -47,6 +47,7 @@ func NewACRWrapper(
 ) (*ACRWrapper, error) {
 	w := &ACRWrapper{ConfigPath: configPath}
 	w.regName = os.Getenv("ACR_REGISTRY_NAME")
+
 	if client == nil {
 		w.Client = &registry.HTTPClient{
 			Client:        &http.Client{},
@@ -54,11 +55,14 @@ func NewACRWrapper(
 			BaseTokenURL:  fmt.Sprintf("https://%soauth2/token", w.Prefix()),
 		}
 	}
+
 	authCreds, err := w.getAuthCredentials()
 	if err != nil {
 		return nil, err
 	}
+
 	w.authCreds = authCreds
+
 	return w, nil
 }
 
@@ -70,28 +74,36 @@ func NewACRWrapper(
 // 'docker login' command beforehand.
 func (w *ACRWrapper) GetDigest(name string, tag string) (string, error) {
 	name = strings.Replace(name, w.Prefix(), "", 1)
+
 	token, err := w.getToken(name)
 	if err != nil {
 		return "", err
 	}
+
 	url := fmt.Sprintf("%s/%s/manifests/%s", w.Client.BaseDigestURL, name, tag)
+
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", err
 	}
+
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 	req.Header.Add(
 		"Accept", "application/vnd.docker.distribution.manifest.v2+json",
 	)
+
 	resp, err := w.Client.Client.Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
+
 	digest := resp.Header.Get("Docker-Content-Digest")
+
 	if digest == "" {
 		return "", errors.New("no digest found")
 	}
+
 	return strings.TrimPrefix(digest, "sha256:"), nil
 }
 
@@ -100,54 +112,69 @@ func (w *ACRWrapper) getToken(name string) (string, error) {
 		"%s?service=%s.azurecr.io&scope=repository:%s:pull",
 		w.Client.BaseTokenURL, w.regName, name,
 	)
+
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", err
 	}
+
 	if w.authCreds.username != "" && w.authCreds.password != "" {
 		req.SetBasicAuth(w.authCreds.username, w.authCreds.password)
 	}
+
 	resp, err := w.Client.Client.Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
+
 	decoder := json.NewDecoder(resp.Body)
-	var t acrTokenResponse
+
+	t := acrTokenResponse{}
 	if err = decoder.Decode(&t); err != nil {
 		return "", err
 	}
+
 	return t.Token, nil
 }
 
 func (w *ACRWrapper) getAuthCredentials() (*acrAuthCredentials, error) {
 	username := os.Getenv("ACR_USERNAME")
 	password := os.Getenv("ACR_PASSWORD")
+
 	if username != "" && password != "" {
 		return &acrAuthCredentials{username: username, password: password}, nil
 	}
+
 	if w.ConfigPath == "" {
 		return &acrAuthCredentials{}, nil
 	}
+
 	confByt, err := ioutil.ReadFile(w.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
-	var conf acrConfig
+
+	conf := acrConfig{}
 	if err = json.Unmarshal(confByt, &conf); err != nil {
 		return nil, err
 	}
+
 	var authByt []byte
+
 	for serverName, authInfo := range conf.Auths {
 		if serverName == fmt.Sprintf("%s.azurecr.io", w.regName) {
 			authByt, err = base64.StdEncoding.DecodeString(authInfo["auth"])
 			if err != nil {
 				return nil, err
 			}
+
 			break
 		}
 	}
+
 	authString := string(authByt)
+
 	switch {
 	case authString != "":
 		auth := strings.Split(authString, ":")
@@ -157,8 +184,10 @@ func (w *ACRWrapper) getAuthCredentials() (*acrAuthCredentials, error) {
 		if err != nil {
 			return &acrAuthCredentials{}, nil
 		}
+
 		return authCreds, nil
 	}
+
 	return &acrAuthCredentials{}, nil
 }
 
@@ -171,12 +200,15 @@ func (w *ACRWrapper) getAuthCredentialsFromCredsStore(
 			return
 		}
 	}()
+
 	credsStore = fmt.Sprintf("%s-%s", "docker-credential", credsStore)
 	p := c.NewShellProgramFunc(credsStore)
+
 	credResponse, err := c.Get(p, fmt.Sprintf("%s.azurecr.io", w.regName))
 	if err != nil {
 		return authCreds, err
 	}
+
 	return &acrAuthCredentials{
 		username: credResponse.Username,
 		password: credResponse.Secret,

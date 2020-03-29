@@ -23,7 +23,9 @@ func NewVerifier(flags *Flags) (*Verifier, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	g := makeGenerator(lFile, flags.DockerfileEnvBuildArgs)
+
 	return &Verifier{Generator: g, Lockfile: lFile}, nil
 }
 
@@ -38,20 +40,24 @@ func NewVerifier(flags *Flags) (*Verifier, error) {
 func (v *Verifier) VerifyLockfile(
 	wrapperManager *registry.WrapperManager,
 ) error {
-	var lByt bytes.Buffer
+	lByt := bytes.Buffer{}
 	if err := v.Generator.GenerateLockfile(wrapperManager, &lByt); err != nil {
 		return err
 	}
-	var lFile generate.Lockfile
+
+	lFile := generate.Lockfile{}
 	if err := json.Unmarshal(lByt.Bytes(), &lFile); err != nil {
 		return err
 	}
+
 	if err := v.verifyNumFiles(&lFile); err != nil {
 		return err
 	}
+
 	if err := v.verifyImages(&lFile); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -62,6 +68,7 @@ func (v *Verifier) verifyNumFiles(lFile *generate.Lockfile) error {
 			len(v.Lockfile.DockerfileImages),
 		)
 	}
+
 	if len(v.Lockfile.ComposefileImages) != len(lFile.ComposefileImages) {
 		return fmt.Errorf(
 			"got %d docker-compose files, want %d",
@@ -69,6 +76,7 @@ func (v *Verifier) verifyNumFiles(lFile *generate.Lockfile) error {
 			len(v.Lockfile.ComposefileImages),
 		)
 	}
+
 	return nil
 }
 
@@ -82,6 +90,7 @@ func (v *Verifier) verifyImages(lFile *generate.Lockfile) error {
 				dPath, len(v.Lockfile.DockerfileImages[dPath]),
 			)
 		}
+
 		for i := range v.Lockfile.DockerfileImages[dPath] {
 			if *v.Lockfile.DockerfileImages[dPath][i].Image !=
 				*lFile.DockerfileImages[dPath][i].Image {
@@ -93,6 +102,7 @@ func (v *Verifier) verifyImages(lFile *generate.Lockfile) error {
 			}
 		}
 	}
+
 	for cPath := range v.Lockfile.ComposefileImages {
 		if len(v.Lockfile.ComposefileImages[cPath]) !=
 			len(lFile.ComposefileImages[cPath]) {
@@ -102,6 +112,7 @@ func (v *Verifier) verifyImages(lFile *generate.Lockfile) error {
 				len(v.Lockfile.ComposefileImages[cPath]),
 			)
 		}
+
 		for i := range v.Lockfile.ComposefileImages[cPath] {
 			if *v.Lockfile.ComposefileImages[cPath][i].Image !=
 				*lFile.ComposefileImages[cPath][i].Image {
@@ -113,6 +124,7 @@ func (v *Verifier) verifyImages(lFile *generate.Lockfile) error {
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -121,10 +133,12 @@ func readLockfile(lName string) (*generate.Lockfile, error) {
 	if err != nil {
 		return nil, err
 	}
-	var lFile generate.Lockfile
+
+	lFile := generate.Lockfile{}
 	if err := json.Unmarshal(lByt, &lFile); err != nil {
 		return nil, err
 	}
+
 	return &lFile, nil
 }
 
@@ -132,30 +146,37 @@ func makeGenerator(
 	lFile *generate.Lockfile,
 	dockerfileEnvBuildArgs bool,
 ) *generate.Generator {
-	var (
-		i      int
-		j      int
-		dPaths = make([]string, len(lFile.DockerfileImages))
-		cPaths = make([]string, len(lFile.ComposefileImages))
-		wg     sync.WaitGroup
-	)
+	dPaths := make([]string, len(lFile.DockerfileImages))
+	cPaths := make([]string, len(lFile.ComposefileImages))
+
+	var i, j int
+
+	wg := sync.WaitGroup{}
+
 	wg.Add(1)
+
 	go func() {
 		defer wg.Done()
+
 		for p := range lFile.DockerfileImages {
 			dPaths[i] = p
 			i++
 		}
 	}()
+
 	wg.Add(1)
+
 	go func() {
 		defer wg.Done()
+
 		for p := range lFile.ComposefileImages {
 			cPaths[j] = p
 			j++
 		}
 	}()
+
 	wg.Wait()
+
 	return &generate.Generator{
 		DockerfilePaths:        dPaths,
 		ComposefilePaths:       cPaths,

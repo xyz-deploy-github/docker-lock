@@ -52,12 +52,16 @@ func NewDockerWrapper(
 			BaseTokenURL:  "https://auth.docker.io/token",
 		}
 	}
+
 	w := &DockerWrapper{ConfigPath: configPath, Client: client}
+
 	authCreds, err := w.getAuthCredentials()
 	if err != nil {
 		return nil, err
 	}
+
 	w.authCreds = authCreds
+
 	return w, nil
 }
 
@@ -71,37 +75,46 @@ func (w *DockerWrapper) GetDigest(name string, tag string) (string, error) {
 	// Docker-Content-Digest is the root of the hash chain
 	// https://github.com/docker/distribution/issues/1662
 	var names []string
+
 	if strings.Contains(name, "/") {
 		names = []string{name, "library/" + name}
 	} else {
 		names = []string{"library/" + name, name}
 	}
+
 	for _, name := range names {
 		token, err := w.getToken(name)
 		if err != nil {
 			return "", err
 		}
+
 		url := fmt.Sprintf(
 			"%s/%s/manifests/%s", w.Client.BaseDigestURL, name, tag,
 		)
+
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
 			return "", err
 		}
+
 		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 		req.Header.Add(
 			"Accept", "application/vnd.docker.distribution.manifest.v2+json",
 		)
+
 		resp, err := w.Client.Client.Do(req)
 		if err != nil {
 			return "", err
 		}
 		defer resp.Body.Close()
+
 		digest := resp.Header.Get("Docker-Content-Digest")
+
 		if digest != "" {
 			return strings.TrimPrefix(digest, "sha256:"), nil
 		}
 	}
+
 	return "", errors.New("no digest found")
 }
 
@@ -111,53 +124,64 @@ func (w *DockerWrapper) getToken(name string) (string, error) {
 		w.Client.BaseTokenURL,
 		name,
 	)
+
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", err
 	}
+
 	if w.authCreds.username != "" && w.authCreds.password != "" {
 		req.SetBasicAuth(w.authCreds.username, w.authCreds.password)
 	}
+
 	resp, err := w.Client.Client.Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
+
 	decoder := json.NewDecoder(resp.Body)
-	var t dockerTokenResponse
+
+	t := dockerTokenResponse{}
 	if err = decoder.Decode(&t); err != nil {
 		return "", err
 	}
+
 	return t.Token, nil
 }
 
 func (w *DockerWrapper) getAuthCredentials() (*dockerAuthCredentials, error) {
-	var (
-		username = os.Getenv("DOCKER_USERNAME")
-		password = os.Getenv("DOCKER_PASSWORD")
-	)
+	username := os.Getenv("DOCKER_USERNAME")
+	password := os.Getenv("DOCKER_PASSWORD")
+
 	if username != "" && password != "" {
 		return &dockerAuthCredentials{
 			username: username,
 			password: password,
 		}, nil
 	}
+
 	if w.ConfigPath == "" {
 		return &dockerAuthCredentials{}, nil
 	}
+
 	confByt, err := ioutil.ReadFile(w.ConfigPath)
 	if err != nil {
 		return nil, err
 	}
-	var conf dockerConfig
+
+	conf := dockerConfig{}
 	if err = json.Unmarshal(confByt, &conf); err != nil {
 		return nil, err
 	}
+
 	authByt, err := base64.StdEncoding.DecodeString(conf.Auths.Index.Auth)
 	if err != nil {
 		return nil, err
 	}
+
 	authString := string(authByt)
+
 	switch {
 	case authString != "":
 		auth := strings.Split(authString, ":")
@@ -167,8 +191,10 @@ func (w *DockerWrapper) getAuthCredentials() (*dockerAuthCredentials, error) {
 		if err != nil {
 			return &dockerAuthCredentials{}, nil
 		}
+
 		return authCreds, nil
 	}
+
 	return &dockerAuthCredentials{}, nil
 }
 
@@ -181,12 +207,15 @@ func (w *DockerWrapper) getAuthCredentialsFromCredsStore(
 			return
 		}
 	}()
+
 	credsStore = fmt.Sprintf("%s-%s", "docker-credential", credsStore)
 	p := c.NewShellProgramFunc(credsStore)
+
 	credResponse, err := c.Get(p, "https://index.docker.io/v1/")
 	if err != nil {
 		return authCreds, err
 	}
+
 	return &dockerAuthCredentials{
 		username: credResponse.Username,
 		password: credResponse.Secret,

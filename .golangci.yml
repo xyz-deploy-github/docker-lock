@@ -1,20 +1,18 @@
-# Every linter as of v1.21.0
 linters:
   disable-all: true
   enable:
-    # Enabled by default (for more info, run -> golangci-lint help linters)
+    # for more info, run -> golangci-lint help linters
+    # to enable all, run -> golangci-lint run --enable-all
     - deadcode
     - errcheck
     - gosimple
     - govet
-    - ineffassign 
+    - ineffassign
     - staticcheck
     - structcheck
     - typecheck
     - unused
     - varcheck
-
-    # Disabled by default (for more info, run -> golangci-lint help linters)
     - bodyclose
     - depguard
     - dogsled
@@ -28,6 +26,8 @@ linters:
     - gofmt
     - goimports
     - golint
+    - gomnd
+    - goprintffuncname
     - gosec
     - interfacer
     - lll
@@ -35,17 +35,18 @@ linters:
     - misspell
     - nakedret
     - prealloc
+    - rowserrcheck
     - scopelint
     - stylecheck
     - unconvert
     - unparam
     - whitespace
+    - wsl
 
-    # Potentially enable in the future
+    # potentially enable in the future
     # - gocognit
 
-    # Not useful
-    # - wsl
+    # useless
     # - funlen
 
 run:
@@ -58,16 +59,15 @@ linters-settings:
     check-shadowing: true
   lll:
     # max line length, lines longer will be reported. Default is 120.
-    # '\t' is counted as 1 character by default, and can be changed with the tab-width option
+    # '\t' is counted as 1 character by default, 
+    # and can be changed with the tab-width option
     line-length: 80
     tab-width: 4
 
 output:
-  # print lines of code with issue, default is true
+  # print lines of code with issue
   print-issued-lines: false
 
-  # print linter name in the end of issue text, default is true
-  print-linter-name: true
-
 service:
-  golangci-lint-version: 1.24.0 # use the fixed version to not introduce new linters unexpectedly
+  # use the fixed version to not introduce new linters unexpectedly
+  golangci-lint-version: 1.24.0

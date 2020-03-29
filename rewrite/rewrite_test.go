@@ -27,24 +27,30 @@ func TestRewriter(t *testing.T) {
 	tests := getTests()
 	for name, tc := range tests {
 		tc := tc
+
 		t.Run(name, func(t *testing.T) {
 			flags, err := NewFlags(tc.lPath, "got", tmpDir)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			r, err := NewRewriter(flags)
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			if err := r.Rewrite(); err != nil && !tc.shouldFail {
 				t.Fatal(err)
 			}
+
 			if tc.shouldFail {
 				return
 			}
+
 			if err := compareRewrites(tc.dPaths, tc.cPaths); err != nil {
 				t.Fatal(err)
 			}
+
 			if err := removeGotPaths(tc.dPaths, tc.cPaths); err != nil {
 				t.Fatal(err)
 			}
@@ -58,6 +64,7 @@ func TestRewriter(t *testing.T) {
 func dLocalArg() *test {
 	baseDir := filepath.Join(dTestDir, "localarg")
 	lPath := filepath.Join(baseDir, "docker-lock.json")
+
 	return &test{
 		lPath:      lPath,
 		dPaths:     []string{filepath.Join(baseDir, "Dockerfile")},
@@ -75,6 +82,7 @@ func dLocalArg() *test {
 func dBuildStage() *test {
 	baseDir := filepath.Join(dTestDir, "buildstage")
 	lPath := filepath.Join(baseDir, "docker-lock.json")
+
 	return &test{
 		lPath:      lPath,
 		dPaths:     []string{filepath.Join(baseDir, "Dockerfile")},
@@ -88,6 +96,7 @@ func dBuildStage() *test {
 func dMoreImagesDockerfile() *test {
 	baseDir := filepath.Join(dTestDir, "moreimagesdockerfile")
 	lPath := filepath.Join(baseDir, "docker-lock.json")
+
 	return &test{
 		lPath:      lPath,
 		dPaths:     []string{filepath.Join(baseDir, "Dockerfile")},
@@ -101,6 +110,7 @@ func dMoreImagesDockerfile() *test {
 func dMoreImagesLockfile() *test {
 	baseDir := filepath.Join(dTestDir, "moreimageslockfile")
 	lPath := filepath.Join(baseDir, "docker-lock.json")
+
 	return &test{
 		lPath:      lPath,
 		dPaths:     []string{filepath.Join(baseDir, "Dockerfile")},
@@ -113,6 +123,7 @@ func dMoreImagesLockfile() *test {
 func cImage() *test {
 	baseDir := filepath.Join(cTestDir, "image")
 	lPath := filepath.Join(baseDir, "docker-lock.json")
+
 	return &test{
 		lPath:      lPath,
 		dPaths:     []string{},
@@ -126,6 +137,7 @@ func cImage() *test {
 func cEnv() *test {
 	baseDir := filepath.Join(cTestDir, "env")
 	lPath := filepath.Join(baseDir, "docker-lock.json")
+
 	return &test{
 		lPath:      lPath,
 		dPaths:     []string{},
@@ -139,6 +151,7 @@ func cEnv() *test {
 func cDockerfile() *test {
 	baseDir := filepath.Join(cTestDir, "dockerfile")
 	lPath := filepath.Join(baseDir, "docker-lock.json")
+
 	return &test{
 		lPath: lPath,
 		dPaths: []string{
@@ -155,6 +168,7 @@ func cDockerfile() *test {
 func cSort() *test {
 	baseDir := filepath.Join(cTestDir, "sort")
 	lPath := filepath.Join(baseDir, "docker-lock.json")
+
 	return &test{
 		lPath: lPath,
 		dPaths: []string{
@@ -171,6 +185,7 @@ func cSort() *test {
 func cAssortment() *test {
 	baseDir := filepath.Join(cTestDir, "assortment")
 	lPath := filepath.Join(baseDir, "docker-lock.json")
+
 	return &test{
 		lPath: lPath,
 		dPaths: []string{
@@ -200,6 +215,7 @@ func getTests() map[string]*test {
 		"cSort":                 cSort(),
 		"cAssortment":           cAssortment(),
 	}
+
 	return tests
 }
 
@@ -207,40 +223,50 @@ func compareRewrites(dPaths, cPaths []string) error {
 	if err := compareDockerfileRewrites(dPaths); err != nil {
 		return err
 	}
+
 	if err := compareComposefileRewrites(cPaths); err != nil {
 		return err
 	}
+
 	return nil
 }
 
 func compareDockerfileRewrites(paths []string) error {
 	for _, p := range paths {
 		gotPath := getSuffixPath(p, "got")
+
 		gotByt, err := ioutil.ReadFile(gotPath)
 		if err != nil {
 			return err
 		}
+
 		wantPath := getSuffixPath(p, "want")
+
 		wantByt, err := ioutil.ReadFile(wantPath)
 		if err != nil {
 			return err
 		}
+
 		if !bytes.Equal(gotByt, wantByt) {
 			return fmt.Errorf("files %s and %s differ", gotPath, wantPath)
 		}
+
 		gotLines := strings.Split(string(gotByt), "\n")
 		wantLines := strings.Split(string(wantByt), "\n")
+
 		if len(gotLines) != len(wantLines) {
 			return fmt.Errorf(
 				"%s and %s have a different number of lines", gotPath, wantPath,
 			)
 		}
+
 		for j := range gotLines {
 			if gotLines[j] != wantLines[j] {
 				return fmt.Errorf("got %s, want %s", gotLines[j], wantLines[j])
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -248,36 +274,44 @@ func compareComposefileRewrites(paths []string) error {
 	for _, p := range paths {
 		gotPath := getSuffixPath(p, "got")
 		wantPath := getSuffixPath(p, "want")
+
 		gotByt, err := ioutil.ReadFile(gotPath)
 		if err != nil {
 			return err
 		}
+
 		wantByt, err := ioutil.ReadFile(wantPath)
 		if err != nil {
 			return err
 		}
-		var gotComp compose
+
+		gotComp := compose{}
 		if err := yaml.Unmarshal(gotByt, &gotComp); err != nil {
 			return err
 		}
-		var wantComp compose
+
+		wantComp := compose{}
 		if err := yaml.Unmarshal(wantByt, &wantComp); err != nil {
 			return err
 		}
+
 		if len(wantComp.Services) != len(gotComp.Services) {
 			return fmt.Errorf(
 				"%s and %s have a different number of services",
 				gotPath, wantPath,
 			)
 		}
+
 		for serviceName := range gotComp.Services {
 			gotImage := gotComp.Services[serviceName].Image
 			wantImage := wantComp.Services[serviceName].Image
+
 			if gotImage != wantImage {
 				return fmt.Errorf("got %s, want %s", gotImage, wantImage)
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -289,6 +323,7 @@ func removeGotPaths(dPaths, cPaths []string) error {
 			}
 		}
 	}
+
 	return nil
 }
 

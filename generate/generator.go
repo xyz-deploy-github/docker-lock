@@ -66,6 +66,7 @@ func NewGenerator(flags *Flags) (*Generator, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &Generator{
 		DockerfilePaths:        dPaths,
 		ComposefilePaths:       cPaths,
@@ -81,6 +82,7 @@ func (g *Generator) GenerateLockfile(
 ) error {
 	doneCh := make(chan struct{})
 	pilCh := g.parseFiles(doneCh)
+
 	// Multiple parsedImageLines could contain the same line
 	// For instance, 3 parsedImageLines' lines could be:
 	// 		(1) ubuntu:latest
@@ -95,6 +97,7 @@ func (g *Generator) GenerateLockfile(
 		close(doneCh)
 		return err
 	}
+
 	// Apply the registries' results to all parsedImageLines.
 	dIms, cIms, err := g.replaceAllImages(
 		lineToFullImageCh, lineToAllPils,
@@ -102,7 +105,9 @@ func (g *Generator) GenerateLockfile(
 	if err != nil {
 		return err
 	}
+
 	lFile := NewLockfile(dIms, cIms)
+
 	return lFile.Write(w)
 }
 
@@ -114,22 +119,29 @@ func (g *Generator) queryRegistryPerUniqueLine(
 	uniqLines := map[string]bool{}
 	lineToAllPils := map[string][]*parsedImageLine{}
 	lineToFullImageCh := make(chan *registryResponse)
-	var wg sync.WaitGroup
+	wg := sync.WaitGroup{}
+
 	for pil := range pilCh {
 		if pil.err != nil {
 			return nil, nil, pil.err
 		}
+
 		lineToAllPils[pil.line] = append(lineToAllPils[pil.line], pil)
+
 		if !uniqLines[pil.line] {
 			uniqLines[pil.line] = true
+
 			wg.Add(1)
+
 			go g.queryRegistry(pil, wm, lineToFullImageCh, doneCh, &wg)
 		}
 	}
+
 	go func() {
 		wg.Wait()
 		close(lineToFullImageCh)
 	}()
+
 	return lineToFullImageCh, lineToAllPils, nil
 }
 
@@ -141,18 +153,23 @@ func (g *Generator) queryRegistry(
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
+
 	tagSeparator := -1
 	digestSeparator := -1
+
+loop:
 	for i, c := range pil.line {
-		if c == ':' {
+		switch c {
+		case ':':
 			tagSeparator = i
-		}
-		if c == '@' {
+		case '@':
 			digestSeparator = i
-			break
+			break loop
 		}
 	}
+
 	var name, tag, digest string
+
 	// 4 valid cases
 	switch {
 	case tagSeparator != -1 && digestSeparator != -1:
@@ -173,18 +190,23 @@ func (g *Generator) queryRegistry(
 		name = pil.line
 		tag = "latest"
 	}
+
 	if digest == "" {
 		wrapper := wm.GetWrapper(name)
+
 		var err error
+
 		digest, err = wrapper.GetDigest(name, tag)
 		if err != nil {
 			select {
 			case <-doneCh:
 			case lineToFullImageCh <- &registryResponse{err: err}:
 			}
+
 			return
 		}
 	}
+
 	select {
 	case <-doneCh:
 	case lineToFullImageCh <- &registryResponse{
@@ -204,22 +226,28 @@ func (g *Generator) replaceAllImages(
 ) (map[string][]*DockerfileImage, map[string][]*ComposefileImage, error) {
 	dImsCh := make(chan map[string][]*DockerfileImage)
 	cImsCh := make(chan map[string][]*ComposefileImage)
-	var wg sync.WaitGroup
+	wg := sync.WaitGroup{}
+
 	for res := range lineToFullImageCh {
 		if res.err != nil {
 			return nil, nil, res.err
 		}
+
 		wg.Add(1)
+
 		go g.replaceImagesPerLine(
 			res.im, lineToAllPils[res.line], dImsCh, cImsCh, &wg,
 		)
 	}
+
 	go func() {
 		wg.Wait()
 		close(dImsCh)
 		close(cImsCh)
 	}()
+
 	dIms, cIms := g.convertImageChansToSlices(dImsCh, cImsCh)
+
 	return dIms, cIms, nil
 }
 
@@ -231,8 +259,10 @@ func (g *Generator) replaceImagesPerLine(
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
+
 	dIms := map[string][]*DockerfileImage{}
 	cIms := map[string][]*ComposefileImage{}
+
 	for _, pil := range pils {
 		if pil.cPath == "" {
 			dIm := &DockerfileImage{Image: im, pos: pil.pos}
@@ -249,9 +279,11 @@ func (g *Generator) replaceImagesPerLine(
 			cIms[cPath] = append(cIms[cPath], cIm)
 		}
 	}
+
 	if len(dIms) > 0 {
 		dImsCh <- dIms
 	}
+
 	if len(cIms) > 0 {
 		cImsCh <- cIms
 	}
@@ -263,6 +295,7 @@ func (g *Generator) convertImageChansToSlices(
 ) (map[string][]*DockerfileImage, map[string][]*ComposefileImage) {
 	dIms := map[string][]*DockerfileImage{}
 	cIms := map[string][]*ComposefileImage{}
+
 	for {
 		select {
 		case dRes, ok := <-dImsCh:
@@ -282,9 +315,11 @@ func (g *Generator) convertImageChansToSlices(
 				cImsCh = nil
 			}
 		}
+
 		if dImsCh == nil && cImsCh == nil {
 			break
 		}
 	}
+
 	return dIms, cIms
 }

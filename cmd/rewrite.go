@@ -15,13 +15,16 @@ func NewRewriteCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			rewriter, err := rewrite.NewRewriter(flags)
 			if err != nil {
 				return err
 			}
+
 			if err := rewriter.Rewrite(); err != nil {
 				return err
 			}
+
 			return nil
 		},
 	}
@@ -38,6 +41,7 @@ func NewRewriteCmd() *cobra.Command {
 		"Directory where a temporary directory will be created/deleted "+
 			"during a rewrite transaction",
 	)
+
 	return rewriteCmd
 }
 
@@ -46,13 +50,16 @@ func getRewriterFlags(cmd *cobra.Command) (*rewrite.Flags, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	suffix, err := cmd.Flags().GetString("suffix")
 	if err != nil {
 		return nil, err
 	}
+
 	tempDir, err := cmd.Flags().GetString("tempdir")
 	if err != nil {
 		return nil, err
 	}
+
 	return rewrite.NewFlags(lockfilePath, suffix, tempDir)
 }

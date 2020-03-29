@@ -15,6 +15,7 @@ func NewFlags(
 ) (*Flags, error) {
 	lockfilePath = convertStringToSlash(lockfilePath)
 	tempDir = convertStringToSlash(tempDir)
+
 	return &Flags{
 		LockfilePath: lockfilePath,
 		Suffix:       suffix,

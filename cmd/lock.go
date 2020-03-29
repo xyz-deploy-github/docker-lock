@@ -10,5 +10,6 @@ func NewLockCmd() *cobra.Command {
 		Use:   "lock",
 		Short: "Manage image digests with Lockfiles",
 	}
+
 	return lockCmd
 }

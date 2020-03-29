@@ -31,16 +31,19 @@ func NewFlags(
 	baseDir = convertStringToSlash(baseDir)
 	configFile = convertStringToSlash(configFile)
 	envFile = convertStringToSlash(envFile)
+
 	convertStringSliceToSlash(dockerfiles)
 	convertStringSliceToSlash(composefiles)
 	convertStringSliceToSlash(dockerfileGlobs)
 	convertStringSliceToSlash(composefileGlobs)
+
 	if err := validateFlags(
 		baseDir, lockfileName,
 		dockerfiles, composefiles, dockerfileGlobs, composefileGlobs,
 	); err != nil {
 		return nil, err
 	}
+
 	return &Flags{
 		BaseDir:                baseDir,
 		LockfileName:           lockfileName,
@@ -62,7 +65,9 @@ func convertStringToSlash(s string) string {
 
 func convertStringSliceToSlash(s []string) {
 	sl := make([]string, len(s))
+
 	copy(sl, s)
+
 	for i := range sl {
 		sl[i] = filepath.ToSlash(sl[i])
 	}
@@ -75,19 +80,23 @@ func validateFlags(
 	if err := validateBaseDir(baseDir); err != nil {
 		return err
 	}
+
 	if err := validateLockfileName(lockfileName); err != nil {
 		return err
 	}
+
 	for _, ps := range [][]string{dockerfiles, composefiles} {
 		if err := validateInputPaths(baseDir, ps); err != nil {
 			return err
 		}
 	}
+
 	for _, gs := range [][]string{dockerfileGlobs, composefileGlobs} {
 		if err := validateGlobs(gs); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -97,15 +106,18 @@ func validateBaseDir(baseDir string) error {
 			"'%s' base-dir does not support absolute paths", baseDir,
 		)
 	}
+
 	if strings.HasPrefix(filepath.Join(".", baseDir), "..") {
 		return fmt.Errorf(
 			"'%s' base-dir is outside the current working directory", baseDir,
 		)
 	}
+
 	fi, err := os.Stat(baseDir)
 	if err != nil {
 		return err
 	}
+
 	if mode := fi.Mode(); !mode.IsDir() {
 		return fmt.Errorf(
 			"'%s' base-dir is not sub directory "+
@@ -113,6 +125,7 @@ func validateBaseDir(baseDir string) error {
 			baseDir,
 		)
 	}
+
 	return nil
 }
 
@@ -122,6 +135,7 @@ func validateLockfileName(lName string) error {
 			"'%s' lockfile-name cannot contain slashes", lName,
 		)
 	}
+
 	return nil
 }
 
@@ -132,13 +146,16 @@ func validateInputPaths(bDir string, inputPaths []string) error {
 				"'%s' input paths do not support absolute paths", p,
 			)
 		}
+
 		p = filepath.Join(bDir, p)
+
 		if strings.HasPrefix(p, "..") {
 			return fmt.Errorf(
 				"'%s' is outside the current working directory", p,
 			)
 		}
 	}
+
 	return nil
 }
 
@@ -148,5 +165,6 @@ func validateGlobs(globs []string) error {
 			return fmt.Errorf("'%s' globs do not support absolute paths", g)
 		}
 	}
+
 	return nil
 }

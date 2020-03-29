@@ -18,17 +18,21 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 				return err
 			}
 			_ = godotenv.Load(flags.EnvFile)
+
 			wm, err := getDefaultWrapperManager(flags.ConfigFile, client)
 			if err != nil {
 				return err
 			}
+
 			verifier, err := verify.NewVerifier(flags)
 			if err != nil {
 				return err
 			}
+
 			if err := verifier.VerifyLockfile(wm); err != nil {
 				return err
 			}
+
 			return nil
 		},
 	}
@@ -46,6 +50,7 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 		"dockerfile-env-build-args", false,
 		"Use environment vars as build args for Dockerfiles",
 	)
+
 	return verifyCmd
 }
 
@@ -54,20 +59,24 @@ func getVerifierFlags(cmd *cobra.Command) (*verify.Flags, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	configFile, err := cmd.Flags().GetString("config-file")
 	if err != nil {
 		return nil, err
 	}
+
 	envFile, err := cmd.Flags().GetString("env-file")
 	if err != nil {
 		return nil, err
 	}
+
 	dockerfileEnvBuildArgs, err := cmd.Flags().GetBool(
 		"dockerfile-env-build-args",
 	)
 	if err != nil {
 		return nil, err
 	}
+
 	return verify.NewFlags(
 		lockfilePath, configFile, envFile, dockerfileEnvBuildArgs,
 	)

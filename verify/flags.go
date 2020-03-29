@@ -18,6 +18,7 @@ func NewFlags(
 	lockfilePath = convertStringToSlash(lockfilePath)
 	configFile = convertStringToSlash(configFile)
 	envFile = convertStringToSlash(envFile)
+
 	return &Flags{
 		LockfilePath:           lockfilePath,
 		ConfigFile:             configFile,

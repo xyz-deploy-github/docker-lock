@@ -17,8 +17,10 @@ func getDefaultConfigPath() string {
 		if _, err := os.Stat(cPath); err != nil {
 			return ""
 		}
+
 		return cPath
 	}
+
 	return ""
 }
 
@@ -30,16 +32,21 @@ func getDefaultWrapperManager(
 	if err != nil {
 		return nil, err
 	}
+
 	wrapperManager := registry.NewWrapperManager(defaultWrapper)
+
 	firstPartyWrappers, err := firstparty.GetAllWrappers(configPath, client)
 	if err != nil {
 		return nil, err
 	}
+
 	contribWrappers, err := contrib.GetAllWrappers(client)
 	if err != nil {
 		return nil, err
 	}
+
 	wrapperManager.Add(firstPartyWrappers...)
 	wrapperManager.Add(contribWrappers...)
+
 	return wrapperManager, nil
 }

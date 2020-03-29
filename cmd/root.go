@@ -11,6 +11,7 @@ func NewRootCmd() *cobra.Command {
 		Use:   "docker",
 		Short: "Root command for docker lock",
 	}
+
 	return rootCmd
 }
 
@@ -18,19 +19,24 @@ func NewRootCmd() *cobra.Command {
 // to each other, and executes the root command.
 func Execute(client *registry.HTTPClient) error {
 	rootCmd := NewRootCmd()
+
 	rootCmd.SilenceUsage = true
 	rootCmd.SilenceErrors = true
+
 	lockCmd := NewLockCmd()
 	versionCmd := NewVersionCmd()
 	generateCmd := NewGenerateCmd(client)
 	verifyCmd := NewVerifyCmd(client)
 	rewriteCmd := NewRewriteCmd()
+
 	rootCmd.AddCommand(lockCmd)
 	lockCmd.AddCommand(
 		[]*cobra.Command{versionCmd, generateCmd, verifyCmd, rewriteCmd}...,
 	)
+
 	if err := rootCmd.Execute(); err != nil {
 		return err
 	}
+
 	return nil
 }

@@ -30,5 +30,6 @@ func (m *WrapperManager) GetWrapper(imageName string) Wrapper {
 			return wrapper
 		}
 	}
+
 	return m.defaultWrapper
 }

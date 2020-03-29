@@ -37,15 +37,18 @@ type simple string
 // it returns an error.
 func (b *buildWrapper) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*b = buildWrapper{}
+
 	var v verbose
 	if err := unmarshal(&v); err == nil {
 		b.Build = v
 		return nil
 	}
+
 	var s simple
 	if err := unmarshal(&s); err == nil {
 		b.Build = s
 		return nil
 	}
+
 	return fmt.Errorf("unable to unmarshal service")
 }

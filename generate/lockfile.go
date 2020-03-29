@@ -23,24 +23,33 @@ func NewLockfile(
 ) *Lockfile {
 	l := &Lockfile{DockerfileImages: dIms, ComposefileImages: cIms}
 	l.sortImages()
+
 	return l
 }
 
 func (l *Lockfile) sortImages() {
-	var wg sync.WaitGroup
+	wg := sync.WaitGroup{}
+
 	wg.Add(1)
+
 	go l.sortDockerfileImages(&wg)
+
 	wg.Add(1)
+
 	go l.sortComposefileImages(&wg)
+
 	wg.Wait()
 }
 
 func (l *Lockfile) sortDockerfileImages(wg *sync.WaitGroup) {
 	defer wg.Done()
+
 	for _, ims := range l.DockerfileImages {
 		wg.Add(1)
+
 		go func(ims []*DockerfileImage) {
 			defer wg.Done()
+
 			sort.Slice(ims, func(i, j int) bool {
 				return ims[i].pos < ims[j].pos
 			})
@@ -50,10 +59,13 @@ func (l *Lockfile) sortDockerfileImages(wg *sync.WaitGroup) {
 
 func (l *Lockfile) sortComposefileImages(wg *sync.WaitGroup) {
 	defer wg.Done()
+
 	for _, ims := range l.ComposefileImages {
 		wg.Add(1)
+
 		go func(ims []*ComposefileImage) {
 			defer wg.Done()
+
 			sort.Slice(ims, func(i, j int) bool {
 				switch {
 				case ims[i].ServiceName != ims[j].ServiceName:
@@ -73,8 +85,10 @@ func (l *Lockfile) Write(w io.Writer) error {
 	if err != nil {
 		return err
 	}
+
 	if _, err := w.Write(lByt); err != nil {
 		return err
 	}
+
 	return nil
 }

@@ -20,9 +20,11 @@ func GetAllWrappers(
 	if err != nil {
 		return nil, err
 	}
+
 	aw, err := NewACRWrapper(configPath, client)
 	if err != nil {
 		return nil, err
 	}
+
 	return []registry.Wrapper{dw, aw}, nil
 }

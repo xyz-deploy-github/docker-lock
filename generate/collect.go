@@ -17,12 +17,14 @@ func collectDockerfileAndComposefilePaths(
 	flags *Flags,
 ) ([]string, []string, error) {
 	doneCh := make(chan struct{})
+
 	dBaseSet := map[string]struct{}{"Dockerfile": {}}
 	dPathCh := collectNonDefaultPaths(
 		flags.BaseDir, flags.Dockerfiles, dBaseSet,
 		flags.DockerfileGlobs, flags.DockerfileRecursive,
 		doneCh,
 	)
+
 	cBaseSet := map[string]struct{}{
 		"docker-compose.yml":  {},
 		"docker-compose.yaml": {},
@@ -32,24 +34,30 @@ func collectDockerfileAndComposefilePaths(
 		flags.ComposefileGlobs, flags.ComposefileRecursive,
 		doneCh,
 	)
+
 	dPaths, cPaths, err := convertPathChsToSlices(dPathCh, cPathCh)
 	if err != nil {
 		close(doneCh)
 		return nil, nil, err
 	}
+
 	if len(dPaths) == 0 && len(cPaths) == 0 {
 		doneCh = make(chan struct{})
+
 		dPathCh = collectDefaultPaths(flags.BaseDir, dBaseSet, doneCh)
 		cPathCh = collectDefaultPaths(flags.BaseDir, cBaseSet, doneCh)
+
 		dPaths, cPaths, err = convertPathChsToSlices(dPathCh, cPathCh)
 		if err != nil {
 			close(doneCh)
 			return nil, nil, err
 		}
 	}
+
 	if err := validatePaths(dPaths, cPaths); err != nil {
 		return nil, nil, err
 	}
+
 	return dPaths, cPaths, nil
 }
 
@@ -62,27 +70,37 @@ func collectNonDefaultPaths(
 	doneCh <-chan struct{},
 ) chan *pathResult {
 	pathCh := make(chan *pathResult)
-	var wg sync.WaitGroup
+	wg := sync.WaitGroup{}
+
 	wg.Add(1)
+
 	go func() {
 		defer wg.Done()
+
 		if len(suppliedPaths) != 0 {
 			wg.Add(1)
+
 			go collectSuppliedPaths(bDir, suppliedPaths, pathCh, doneCh, &wg)
 		}
+
 		if len(globs) != 0 {
 			wg.Add(1)
+
 			go collectGlobPaths(bDir, globs, pathCh, doneCh, &wg)
 		}
+
 		if recursive {
 			wg.Add(1)
+
 			go collectRecursivePaths(bDir, baseSet, pathCh, doneCh, &wg)
 		}
 	}()
+
 	go func() {
 		wg.Wait()
 		close(pathCh)
 	}()
+
 	return pathCh
 }
 
@@ -94,6 +112,7 @@ func collectSuppliedPaths(
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
+
 	for _, p := range paths {
 		p = filepath.ToSlash(filepath.Join(bDir, p))
 		addPathToPathCh(p, pathCh, doneCh)
@@ -108,12 +127,14 @@ func collectGlobPaths(
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
+
 	for _, g := range globs {
 		paths, err := filepath.Glob(g)
 		if err != nil {
 			addErrToPathCh(err, pathCh, doneCh)
 			return
 		}
+
 		for _, p := range paths {
 			p = filepath.ToSlash(filepath.Join(bDir, filepath.ToSlash(p)))
 			addPathToPathCh(p, pathCh, doneCh)
@@ -129,17 +150,21 @@ func collectRecursivePaths(
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
+
 	if err := filepath.Walk(
 		bDir, func(p string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
+
 			p = filepath.ToSlash(p)
 			if _, ok := defaultNames[filepath.Base(p)]; ok {
 				addPathToPathCh(p, pathCh, doneCh)
 			}
+
 			return nil
-		}); err != nil {
+		},
+	); err != nil {
 		addErrToPathCh(err, pathCh, doneCh)
 	}
 }
@@ -149,20 +174,25 @@ func collectDefaultPaths(
 	baseSet map[string]struct{},
 	doneCh <-chan struct{},
 ) chan *pathResult {
-	var wg sync.WaitGroup
+	wg := sync.WaitGroup{}
 	pathCh := make(chan *pathResult)
+
 	wg.Add(1)
+
 	go func() {
 		defer wg.Done()
+
 		for p := range baseSet {
 			p = filepath.ToSlash(filepath.Join(bDir, p))
 			addPathToPathCh(p, pathCh, doneCh)
 		}
 	}()
+
 	go func() {
 		wg.Wait()
 		close(pathCh)
 	}()
+
 	return pathCh
 }
 
@@ -173,6 +203,7 @@ func fileIsRegular(p string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -210,6 +241,7 @@ func validatePaths(dPaths, cPaths []string) error {
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -219,6 +251,7 @@ func convertPathChsToSlices(
 ) ([]string, []string, error) {
 	dPathSet := map[string]struct{}{}
 	cPathSet := map[string]struct{}{}
+
 	for {
 		select {
 		case pathRes, ok := <-dPathCh:
@@ -234,22 +267,29 @@ func convertPathChsToSlices(
 				return nil, nil, err
 			}
 		}
+
 		if dPathCh == nil && cPathCh == nil {
 			break
 		}
 	}
+
 	dPaths := make([]string, len(dPathSet))
 	cPaths := make([]string, len(cPathSet))
-	var i int
+
+	i := 0
+
 	for p := range dPathSet {
 		dPaths[i] = p
 		i++
 	}
+
 	i = 0
+
 	for p := range cPathSet {
 		cPaths[i] = p
 		i++
 	}
+
 	return dPaths, cPaths, nil
 }
 
@@ -259,13 +299,16 @@ func handlePathResult(
 	pathSet map[string]struct{},
 	ok bool,
 ) error {
-	if !ok {
+	switch ok {
+	case false:
 		*pathCh = nil
-	} else {
+	default:
 		if pathRes.err != nil {
 			return pathRes.err
 		}
+
 		pathSet[pathRes.path] = struct{}{}
 	}
+
 	return nil
 }

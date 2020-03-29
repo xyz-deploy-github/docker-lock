@@ -20,7 +20,9 @@ var client = &registry.HTTPClient{ //nolint: gochecknoglobals
 // TestMain executes code before the tests for the package is run and after.
 func TestMain(m *testing.M) {
 	retCode := m.Run()
+
 	server.Close()
+
 	os.Exit(retCode)
 }
 
@@ -37,5 +39,6 @@ func getMockServer() *httptest.Server {
 				rw.Header().Set("Docker-Content-Digest", "sha256:NOT_USED")
 			}
 		}))
+
 	return server
 }

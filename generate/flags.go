@@ -24,46 +24,45 @@ type Flags struct {
 
 // NewFlags creates flags for a Generator.
 func NewFlags(
-	baseDir, lockfileName, configFile, envFile string,
-	dockerfiles, composefiles, dockerfileGlobs, composefileGlobs []string,
-	dockerfileRecursive, composefileRecursive, dockerfileEnvBuildArgs bool,
+	bDir, lName, configFile, envFile string,
+	dfiles, cfiles, dGlobs, cGlobs []string,
+	dRecursive, cRecursive, dfileEnvBuildArgs bool,
 ) (*Flags, error) {
-	baseDir = convertStringToSlash(baseDir)
-	configFile = convertStringToSlash(configFile)
-	envFile = convertStringToSlash(envFile)
+	bDir = convertStrToSlash(bDir)
+	configFile = convertStrToSlash(configFile)
+	envFile = convertStrToSlash(envFile)
 
-	convertStringSliceToSlash(dockerfiles)
-	convertStringSliceToSlash(composefiles)
-	convertStringSliceToSlash(dockerfileGlobs)
-	convertStringSliceToSlash(composefileGlobs)
+	dfiles = convertStrSlToSlash(dfiles)
+	cfiles = convertStrSlToSlash(cfiles)
+	dGlobs = convertStrSlToSlash(dGlobs)
+	cGlobs = convertStrSlToSlash(cGlobs)
 
 	if err := validateFlags(
-		baseDir, lockfileName,
-		dockerfiles, composefiles, dockerfileGlobs, composefileGlobs,
+		bDir, lName, dfiles, cfiles, dGlobs, cGlobs,
 	); err != nil {
 		return nil, err
 	}
 
 	return &Flags{
-		BaseDir:                baseDir,
-		LockfileName:           lockfileName,
+		BaseDir:                bDir,
+		LockfileName:           lName,
 		ConfigFile:             configFile,
 		EnvFile:                envFile,
-		Dockerfiles:            dockerfiles,
-		Composefiles:           composefiles,
-		DockerfileGlobs:        dockerfileGlobs,
-		ComposefileGlobs:       composefileGlobs,
-		DockerfileRecursive:    dockerfileRecursive,
-		ComposefileRecursive:   composefileRecursive,
-		DockerfileEnvBuildArgs: dockerfileEnvBuildArgs,
+		Dockerfiles:            dfiles,
+		Composefiles:           cfiles,
+		DockerfileGlobs:        dGlobs,
+		ComposefileGlobs:       cGlobs,
+		DockerfileRecursive:    dRecursive,
+		ComposefileRecursive:   cRecursive,
+		DockerfileEnvBuildArgs: dfileEnvBuildArgs,
 	}, nil
 }
 
-func convertStringToSlash(s string) string {
+func convertStrToSlash(s string) string {
 	return filepath.ToSlash(s)
 }
 
-func convertStringSliceToSlash(s []string) {
+func convertStrSlToSlash(s []string) []string {
 	sl := make([]string, len(s))
 
 	copy(sl, s)
@@ -71,27 +70,29 @@ func convertStringSliceToSlash(s []string) {
 	for i := range sl {
 		sl[i] = filepath.ToSlash(sl[i])
 	}
+
+	return sl
 }
 
 func validateFlags(
-	baseDir, lockfileName string,
-	dockerfiles, composefiles, dockerfileGlobs, composefileGlobs []string,
+	bDir, lName string,
+	dfiles, cfiles, dGlobs, cGlobs []string,
 ) error {
-	if err := validateBaseDir(baseDir); err != nil {
+	if err := validateBDir(bDir); err != nil {
 		return err
 	}
 
-	if err := validateLockfileName(lockfileName); err != nil {
+	if err := validateLName(lName); err != nil {
 		return err
 	}
 
-	for _, ps := range [][]string{dockerfiles, composefiles} {
-		if err := validateInputPaths(baseDir, ps); err != nil {
+	for _, ps := range [][]string{dfiles, cfiles} {
+		if err := validateInputPaths(bDir, ps); err != nil {
 			return err
 		}
 	}
 
-	for _, gs := range [][]string{dockerfileGlobs, composefileGlobs} {
+	for _, gs := range [][]string{dGlobs, cGlobs} {
 		if err := validateGlobs(gs); err != nil {
 			return err
 		}
@@ -100,20 +101,20 @@ func validateFlags(
 	return nil
 }
 
-func validateBaseDir(baseDir string) error {
-	if filepath.IsAbs(baseDir) {
+func validateBDir(bDir string) error {
+	if filepath.IsAbs(bDir) {
 		return fmt.Errorf(
-			"'%s' base-dir does not support absolute paths", baseDir,
+			"'%s' base-dir does not support absolute paths", bDir,
 		)
 	}
 
-	if strings.HasPrefix(filepath.Join(".", baseDir), "..") {
+	if strings.HasPrefix(filepath.Join(".", bDir), "..") {
 		return fmt.Errorf(
-			"'%s' base-dir is outside the current working directory", baseDir,
+			"'%s' base-dir is outside the current working directory", bDir,
 		)
 	}
 
-	fi, err := os.Stat(baseDir)
+	fi, err := os.Stat(bDir)
 	if err != nil {
 		return err
 	}
@@ -122,14 +123,14 @@ func validateBaseDir(baseDir string) error {
 		return fmt.Errorf(
 			"'%s' base-dir is not sub directory "+
 				"of the current working directory",
-			baseDir,
+			bDir,
 		)
 	}
 
 	return nil
 }
 
-func validateLockfileName(lName string) error {
+func validateLName(lName string) error {
 	if strings.Contains(lName, "/") {
 		return fmt.Errorf(
 			"'%s' lockfile-name cannot contain slashes", lName,

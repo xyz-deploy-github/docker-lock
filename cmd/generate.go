@@ -27,18 +27,18 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 				return err
 			}
 
-			generator, err := generate.NewGenerator(flags)
+			g, err := generate.NewGenerator(flags)
 			if err != nil {
 				return err
 			}
 
-			lFile, err := os.Create(generator.LockfileName)
+			lfile, err := os.Create(g.LockfileName)
 			if err != nil {
 				return err
 			}
-			defer lFile.Close()
+			defer lfile.Close()
 
-			if err := generator.GenerateLockfile(wm, lFile); err != nil {
+			if err := g.GenerateLockfile(wm, lfile); err != nil {
 				return err
 			}
 
@@ -88,12 +88,12 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 }
 
 func getGeneratorFlags(cmd *cobra.Command) (*generate.Flags, error) {
-	baseDir, err := cmd.Flags().GetString("base-dir")
+	bDir, err := cmd.Flags().GetString("base-dir")
 	if err != nil {
 		return nil, err
 	}
 
-	lockfileName, err := cmd.Flags().GetString("lockfile-name")
+	lName, err := cmd.Flags().GetString("lockfile-name")
 	if err != nil {
 		return nil, err
 	}
@@ -108,37 +108,37 @@ func getGeneratorFlags(cmd *cobra.Command) (*generate.Flags, error) {
 		return nil, err
 	}
 
-	dockerfiles, err := cmd.Flags().GetStringSlice("dockerfiles")
+	dfiles, err := cmd.Flags().GetStringSlice("dockerfiles")
 	if err != nil {
 		return nil, err
 	}
 
-	composefiles, err := cmd.Flags().GetStringSlice("compose-files")
+	cfiles, err := cmd.Flags().GetStringSlice("compose-files")
 	if err != nil {
 		return nil, err
 	}
 
-	dockerfileGlobs, err := cmd.Flags().GetStringSlice("dockerfile-globs")
+	dGlobs, err := cmd.Flags().GetStringSlice("dockerfile-globs")
 	if err != nil {
 		return nil, err
 	}
 
-	composefileGlobs, err := cmd.Flags().GetStringSlice("compose-file-globs")
+	cGlobs, err := cmd.Flags().GetStringSlice("compose-file-globs")
 	if err != nil {
 		return nil, err
 	}
 
-	dockerfileRecursive, err := cmd.Flags().GetBool("dockerfile-recursive")
+	dRecursive, err := cmd.Flags().GetBool("dockerfile-recursive")
 	if err != nil {
 		return nil, err
 	}
 
-	composefileRecursive, err := cmd.Flags().GetBool("compose-file-recursive")
+	cRecursive, err := cmd.Flags().GetBool("compose-file-recursive")
 	if err != nil {
 		return nil, err
 	}
 
-	dockerfileEnvBuildArgs, err := cmd.Flags().GetBool(
+	dfileEnvBuildArgs, err := cmd.Flags().GetBool(
 		"dockerfile-env-build-args",
 	)
 	if err != nil {
@@ -146,8 +146,8 @@ func getGeneratorFlags(cmd *cobra.Command) (*generate.Flags, error) {
 	}
 
 	return generate.NewFlags(
-		baseDir, lockfileName, configFile, envFile,
-		dockerfiles, composefiles, dockerfileGlobs, composefileGlobs,
-		dockerfileRecursive, composefileRecursive, dockerfileEnvBuildArgs,
+		bDir, lName, configFile, envFile,
+		dfiles, cfiles, dGlobs, cGlobs,
+		dRecursive, cRecursive, dfileEnvBuildArgs,
 	)
 }

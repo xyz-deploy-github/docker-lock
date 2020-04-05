@@ -84,10 +84,10 @@ func (w *ElasticWrapper) getToken(name string) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	decoder := json.NewDecoder(resp.Body)
+	d := json.NewDecoder(resp.Body)
 
 	t := elasticTokenResponse{}
-	if err = decoder.Decode(&t); err != nil {
+	if err = d.Decode(&t); err != nil {
 		return "", err
 	}
 

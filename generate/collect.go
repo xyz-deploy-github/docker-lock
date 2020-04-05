@@ -8,14 +8,12 @@ import (
 	"sync"
 )
 
-type pathResult struct {
+type pathRes struct {
 	path string
 	err  error
 }
 
-func collectDockerfileAndComposefilePaths(
-	flags *Flags,
-) ([]string, []string, error) {
+func collectDandCPaths(flags *Flags) ([]string, []string, error) {
 	doneCh := make(chan struct{})
 
 	dBaseSet := map[string]struct{}{"Dockerfile": {}}
@@ -35,7 +33,7 @@ func collectDockerfileAndComposefilePaths(
 		doneCh,
 	)
 
-	dPaths, cPaths, err := convertPathChsToSlices(dPathCh, cPathCh)
+	dPaths, cPaths, err := convertPathChsToSls(dPathCh, cPathCh)
 	if err != nil {
 		close(doneCh)
 		return nil, nil, err
@@ -47,7 +45,7 @@ func collectDockerfileAndComposefilePaths(
 		dPathCh = collectDefaultPaths(flags.BaseDir, dBaseSet, doneCh)
 		cPathCh = collectDefaultPaths(flags.BaseDir, cBaseSet, doneCh)
 
-		dPaths, cPaths, err = convertPathChsToSlices(dPathCh, cPathCh)
+		dPaths, cPaths, err = convertPathChsToSls(dPathCh, cPathCh)
 		if err != nil {
 			close(doneCh)
 			return nil, nil, err
@@ -68,8 +66,8 @@ func collectNonDefaultPaths(
 	globs []string,
 	recursive bool,
 	doneCh <-chan struct{},
-) chan *pathResult {
-	pathCh := make(chan *pathResult)
+) chan *pathRes {
+	pathCh := make(chan *pathRes)
 	wg := sync.WaitGroup{}
 
 	wg.Add(1)
@@ -107,7 +105,7 @@ func collectNonDefaultPaths(
 func collectSuppliedPaths(
 	bDir string,
 	paths []string,
-	pathCh chan<- *pathResult,
+	pathCh chan<- *pathRes,
 	doneCh <-chan struct{},
 	wg *sync.WaitGroup,
 ) {
@@ -122,7 +120,7 @@ func collectSuppliedPaths(
 func collectGlobPaths(
 	bDir string,
 	globs []string,
-	pathCh chan<- *pathResult,
+	pathCh chan<- *pathRes,
 	doneCh <-chan struct{},
 	wg *sync.WaitGroup,
 ) {
@@ -145,7 +143,7 @@ func collectGlobPaths(
 func collectRecursivePaths(
 	bDir string,
 	defaultNames map[string]struct{},
-	pathCh chan<- *pathResult,
+	pathCh chan<- *pathRes,
 	doneCh <-chan struct{},
 	wg *sync.WaitGroup,
 ) {
@@ -173,9 +171,9 @@ func collectDefaultPaths(
 	bDir string,
 	baseSet map[string]struct{},
 	doneCh <-chan struct{},
-) chan *pathResult {
+) chan *pathRes {
 	wg := sync.WaitGroup{}
-	pathCh := make(chan *pathResult)
+	pathCh := make(chan *pathRes)
 
 	wg.Add(1)
 
@@ -209,25 +207,25 @@ func fileIsRegular(p string) bool {
 
 func addPathToPathCh(
 	p string,
-	pathCh chan<- *pathResult,
+	pathCh chan<- *pathRes,
 	doneCh <-chan struct{},
 ) {
 	if fileIsRegular(p) {
 		select {
 		case <-doneCh:
-		case pathCh <- &pathResult{path: p}:
+		case pathCh <- &pathRes{path: p}:
 		}
 	}
 }
 
 func addErrToPathCh(
 	err error,
-	pathCh chan<- *pathResult,
+	pathCh chan<- *pathRes,
 	doneCh <-chan struct{},
 ) {
 	select {
 	case <-doneCh:
-	case pathCh <- &pathResult{err: err}:
+	case pathCh <- &pathRes{err: err}:
 	}
 }
 
@@ -245,9 +243,9 @@ func validatePaths(dPaths, cPaths []string) error {
 	return nil
 }
 
-func convertPathChsToSlices(
+func convertPathChsToSls(
 	dPathCh,
-	cPathCh <-chan *pathResult,
+	cPathCh <-chan *pathRes,
 ) ([]string, []string, error) {
 	dPathSet := map[string]struct{}{}
 	cPathSet := map[string]struct{}{}
@@ -294,8 +292,8 @@ func convertPathChsToSlices(
 }
 
 func handlePathResult(
-	pathCh *<-chan *pathResult,
-	pathRes *pathResult,
+	pathCh *<-chan *pathRes,
+	pathRes *pathRes,
 	pathSet map[string]struct{},
 	ok bool,
 ) error {

@@ -12,21 +12,21 @@ type Flags struct {
 
 // NewFlags creates flags for a Verifier.
 func NewFlags(
-	lockfilePath, configFile, envFile string,
-	dockerfileEnvBuildArgs bool,
+	lPath, configFile, envFile string,
+	dfileEnvBuildArgs bool,
 ) (*Flags, error) {
-	lockfilePath = convertStringToSlash(lockfilePath)
-	configFile = convertStringToSlash(configFile)
-	envFile = convertStringToSlash(envFile)
+	lPath = convertStrToSlash(lPath)
+	configFile = convertStrToSlash(configFile)
+	envFile = convertStrToSlash(envFile)
 
 	return &Flags{
-		LockfilePath:           lockfilePath,
+		LockfilePath:           lPath,
 		ConfigFile:             configFile,
 		EnvFile:                envFile,
-		DockerfileEnvBuildArgs: dockerfileEnvBuildArgs,
+		DockerfileEnvBuildArgs: dfileEnvBuildArgs,
 	}, nil
 }
 
-func convertStringToSlash(s string) string {
+func convertStrToSlash(s string) string {
 	return filepath.ToSlash(s)
 }

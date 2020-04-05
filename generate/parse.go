@@ -27,11 +27,11 @@ func (g *Generator) parseFiles(doneCh <-chan struct{}) chan *parsedImageLine {
 
 	wg.Add(1)
 
-	go g.parseDockerfiles(pilCh, &wg, doneCh)
+	go g.parseDfiles(pilCh, &wg, doneCh)
 
 	wg.Add(1)
 
-	go g.parseComposefiles(pilCh, &wg, doneCh)
+	go g.parseCfiles(pilCh, &wg, doneCh)
 
 	go func() {
 		wg.Wait()
@@ -41,7 +41,7 @@ func (g *Generator) parseFiles(doneCh <-chan struct{}) chan *parsedImageLine {
 	return pilCh
 }
 
-func (g *Generator) parseDockerfiles(
+func (g *Generator) parseDfiles(
 	pilCh chan<- *parsedImageLine,
 	wg *sync.WaitGroup,
 	doneCh <-chan struct{},
@@ -60,11 +60,11 @@ func (g *Generator) parseDockerfiles(
 	for _, dPath := range g.DockerfilePaths {
 		wg.Add(1)
 
-		go g.parseDockerfile(dPath, bArgs, "", "", pilCh, wg, doneCh)
+		go g.parseDfile(dPath, bArgs, "", "", pilCh, wg, doneCh)
 	}
 }
 
-func (g *Generator) parseDockerfile(
+func (g *Generator) parseDfile(
 	dPath string,
 	bArgs map[string]string,
 	cPath string,
@@ -75,46 +75,51 @@ func (g *Generator) parseDockerfile(
 ) {
 	defer wg.Done()
 
-	dFile, err := os.Open(dPath) // nolint: gosec
+	dfile, err := os.Open(dPath) // nolint: gosec
 	if err != nil {
-		select {
-		case <-doneCh:
-		case pilCh <- &parsedImageLine{err: err}:
-		}
-
+		addErrToPilCh(err, pilCh, doneCh)
 		return
 	}
-	defer dFile.Close()
+	defer dfile.Close()
 
 	pos := 0                     // order of image line in Dockerfile
 	stages := map[string]bool{}  // FROM <image line> as <stage>
 	gArgs := map[string]string{} // global ARGs before the first FROM
 	gCtx := true                 // true if before first FROM
-	scnr := bufio.NewScanner(dFile)
+	scnr := bufio.NewScanner(dfile)
 	scnr.Split(bufio.ScanLines)
 
 	for scnr.Scan() {
 		fields := strings.Fields(scnr.Text())
 
+		const instIndex = 0
+
+		const imLineIndex = 1
+
 		if len(fields) > 0 {
-			switch instruction := strings.ToLower(fields[0]); instruction {
+			switch strings.ToLower(fields[instIndex]) {
 			case "arg":
 				if gCtx {
-					if strings.Contains(fields[1], "=") {
+					if strings.Contains(fields[imLineIndex], "=") {
 						//ARG VAR=VAL
-						vv := strings.SplitN(fields[1], "=", 2)
-						strpVar := stripQuotesFromArgInstruction(vv[0])
-						strpVal := stripQuotesFromArgInstruction(vv[1])
+						vv := strings.SplitN(fields[imLineIndex], "=", 2)
+
+						const varIndex = 0
+
+						const valIndex = 1
+
+						strpVar := stripQuotesFromArgInst(vv[varIndex])
+						strpVal := stripQuotesFromArgInst(vv[valIndex])
 						gArgs[strpVar] = strpVal
 					} else {
 						// ARG VAR1
-						strpVar := stripQuotesFromArgInstruction(fields[1])
+						strpVar := stripQuotesFromArgInst(fields[imLineIndex])
 						gArgs[strpVar] = ""
 					}
 				}
 			case "from":
 				gCtx = false
-				line := expandField(fields[1], gArgs, bArgs)
+				line := expandField(fields[imLineIndex], gArgs, bArgs)
 
 				if !stages[line] {
 					select {
@@ -134,7 +139,8 @@ func (g *Generator) parseDockerfile(
 				// FROM <stage> AS <another stage>
 				const maxNumFields = 4
 				if len(fields) == maxNumFields {
-					stage := expandField(fields[3], gArgs, bArgs)
+					const stageIndex = 3
+					stage := expandField(fields[stageIndex], gArgs, bArgs)
 					stages[stage] = true
 				}
 			}
@@ -142,7 +148,7 @@ func (g *Generator) parseDockerfile(
 	}
 }
 
-func (g *Generator) parseComposefiles(
+func (g *Generator) parseCfiles(
 	pilCh chan<- *parsedImageLine,
 	wg *sync.WaitGroup,
 	doneCh <-chan struct{},
@@ -152,11 +158,11 @@ func (g *Generator) parseComposefiles(
 	for _, cPath := range g.ComposefilePaths {
 		wg.Add(1)
 
-		go g.parseComposefile(cPath, pilCh, wg, doneCh)
+		go g.parseCfile(cPath, pilCh, wg, doneCh)
 	}
 }
 
-func (g *Generator) parseComposefile(
+func (g *Generator) parseCfile(
 	cPath string,
 	pilCh chan<- *parsedImageLine,
 	wg *sync.WaitGroup,
@@ -166,32 +172,24 @@ func (g *Generator) parseComposefile(
 
 	ymlByt, err := ioutil.ReadFile(cPath) // nolint: gosec
 	if err != nil {
-		select {
-		case <-doneCh:
-		case pilCh <- &parsedImageLine{err: err}:
-		}
-
+		addErrToPilCh(err, pilCh, doneCh)
 		return
 	}
 
 	comp := compose{}
 	if err := yaml.Unmarshal(ymlByt, &comp); err != nil {
-		select {
-		case <-doneCh:
-		case pilCh <- &parsedImageLine{err: err}:
-		}
-
+		addErrToPilCh(err, pilCh, doneCh)
 		return
 	}
 
 	for svcName, svc := range comp.Services {
 		wg.Add(1)
 
-		go g.parseService(svcName, svc, cPath, pilCh, wg, doneCh)
+		go g.parseSvc(svcName, svc, cPath, pilCh, wg, doneCh)
 	}
 }
 
-func (g *Generator) parseService(
+func (g *Generator) parseSvc(
 	svcName string,
 	svc *service,
 	cPath string,
@@ -222,17 +220,13 @@ func (g *Generator) parseService(
 
 		dPath, err := normalizeDPath(dPath, cPath)
 		if err != nil {
-			select {
-			case <-doneCh:
-			case pilCh <- &parsedImageLine{err: err}:
-			}
-
+			addErrToPilCh(err, pilCh, doneCh)
 			return
 		}
 
 		wg.Add(1)
 
-		go g.parseDockerfile(dPath, nil, cPath, svcName, pilCh, wg, doneCh)
+		go g.parseDfile(dPath, nil, cPath, svcName, pilCh, wg, doneCh)
 	case verbose:
 		ctx := filepath.ToSlash(os.ExpandEnv(build.Context))
 		dPath := filepath.ToSlash(os.ExpandEnv(build.DockerfilePath))
@@ -245,11 +239,7 @@ func (g *Generator) parseService(
 
 		dPath, err := normalizeDPath(dPath, cPath)
 		if err != nil {
-			select {
-			case <-doneCh:
-			case pilCh <- &parsedImageLine{err: err}:
-			}
-
+			addErrToPilCh(err, pilCh, doneCh)
 			return
 		}
 
@@ -262,7 +252,7 @@ func (g *Generator) parseService(
 
 		wg.Add(1)
 
-		go g.parseDockerfile(dPath, bArgs, cPath, svcName, pilCh, wg, doneCh)
+		go g.parseDfile(dPath, bArgs, cPath, svcName, pilCh, wg, doneCh)
 	}
 }
 
@@ -290,7 +280,7 @@ func expandField(
 	})
 }
 
-func stripQuotesFromArgInstruction(s string) string {
+func stripQuotesFromArgInst(s string) string {
 	// Valid in a Dockerfile - any number of quotes if quote is on either side.
 	// ARG "IMAGE"="busybox"
 	// ARG "IMAGE"""""="busybox"""""""""""""
@@ -328,4 +318,15 @@ func normalizeDPath(dPath string, cPath string) (string, error) {
 	}
 
 	return dPath, nil
+}
+
+func addErrToPilCh(
+	err error,
+	pilCh chan<- *parsedImageLine,
+	doneCh <-chan struct{},
+) {
+	select {
+	case <-doneCh:
+	case pilCh <- &parsedImageLine{err: err}:
+	}
 }

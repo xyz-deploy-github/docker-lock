@@ -24,12 +24,12 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 				return err
 			}
 
-			verifier, err := verify.NewVerifier(flags)
+			v, err := verify.NewVerifier(flags)
 			if err != nil {
 				return err
 			}
 
-			if err := verifier.VerifyLockfile(wm); err != nil {
+			if err := v.VerifyLockfile(wm); err != nil {
 				return err
 			}
 
@@ -55,7 +55,7 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 }
 
 func getVerifierFlags(cmd *cobra.Command) (*verify.Flags, error) {
-	lockfilePath, err := cmd.Flags().GetString("lockfile-path")
+	lPath, err := cmd.Flags().GetString("lockfile-path")
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func getVerifierFlags(cmd *cobra.Command) (*verify.Flags, error) {
 		return nil, err
 	}
 
-	dockerfileEnvBuildArgs, err := cmd.Flags().GetBool(
+	dfileEnvBuildArgs, err := cmd.Flags().GetBool(
 		"dockerfile-env-build-args",
 	)
 	if err != nil {
@@ -78,6 +78,6 @@ func getVerifierFlags(cmd *cobra.Command) (*verify.Flags, error) {
 	}
 
 	return verify.NewFlags(
-		lockfilePath, configFile, envFile, dockerfileEnvBuildArgs,
+		lPath, configFile, envFile, dfileEnvBuildArgs,
 	)
 }

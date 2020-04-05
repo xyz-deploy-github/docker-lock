@@ -16,6 +16,8 @@ RUN apt-get update && \
     git clone https://github.com/preservim/nerdtree.git ~/.vim/pack/vendor/start/nerdtree && \
     echo ":nnoremap <C-g> :NERDTreeToggle<CR>" >> ~/.vimrc && \
     echo "imap jj <Esc>" >> ~/.vimrc && \
+    echo "set number" >> ~/.vimrc && \
+    echo "set colorcolumn=80" >> ~/.vimrc && \
     rm -rf /var/lib/apt/lists/*
 ENV PATH="${PATH}:/usr/local/go/bin"
 WORKDIR /workspaces/docker-lock

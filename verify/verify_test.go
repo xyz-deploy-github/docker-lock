@@ -171,27 +171,27 @@ func getDefaultWrapperManager(
 	configPath string,
 	client *registry.HTTPClient,
 ) (*registry.WrapperManager, error) {
-	defaultWrapper, err := firstparty.GetDefaultWrapper(configPath, client)
+	dw, err := firstparty.GetDefaultWrapper(configPath, client)
 	if err != nil {
 		return nil, err
 	}
 
-	wrapperManager := registry.NewWrapperManager(defaultWrapper)
+	wm := registry.NewWrapperManager(dw)
 
-	firstPartyWrappers, err := firstparty.GetAllWrappers(configPath, client)
+	fpWrappers, err := firstparty.GetAllWrappers(configPath, client)
 	if err != nil {
 		return nil, err
 	}
 
-	contribWrappers, err := contrib.GetAllWrappers(client)
+	cWrappers, err := contrib.GetAllWrappers(client)
 	if err != nil {
 		return nil, err
 	}
 
-	wrapperManager.Add(firstPartyWrappers...)
-	wrapperManager.Add(contribWrappers...)
+	wm.Add(fpWrappers...)
+	wm.Add(cWrappers...)
 
-	return wrapperManager, nil
+	return wm, nil
 }
 
 func getDefaultConfigPath() string {

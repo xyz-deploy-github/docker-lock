@@ -38,12 +38,12 @@ func TestGenerator(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			got, err := writeLockfile(g)
+			got, err := writeLfile(g)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			if err := compareLockfiles(got, tc.want); err != nil {
+			if err := cmpLfiles(got, tc.want); err != nil {
 				t.Fatal(err)
 			}
 		})
@@ -59,21 +59,21 @@ func TestGenerator(t *testing.T) {
 // FROM busy AS anotherbusy
 // should only parse the first 'busybox'.
 func dBuildStage() (*test, error) {
-	dockerfiles := []string{
+	dfiles := []string{
 		filepath.Join(dTestDir, "buildstage", "Dockerfile"),
 	}
 
 	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
-		dockerfiles, []string{}, []string{}, []string{},
+		dfiles, []string{}, []string{}, []string{},
 		false, false, false,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(map[string][]*DockerfileImage{
-		filepath.ToSlash(dockerfiles[0]): {
+	lfile := NewLockfile(map[string][]*DockerfileImage{
+		filepath.ToSlash(dfiles[0]): {
 			{Image: &Image{Name: "busybox", Tag: "latest"}},
 			{Image: &Image{Name: "ubuntu", Tag: "latest"}},
 		}}, nil,
@@ -81,7 +81,7 @@ func dBuildStage() (*test, error) {
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
@@ -89,21 +89,21 @@ func dBuildStage() (*test, error) {
 // (aka global args) should not be overridden by args defined after
 // from statements (aka local args).
 func dLocalArg() (*test, error) {
-	dockerfiles := []string{
+	dfiles := []string{
 		filepath.Join(dTestDir, "localarg", "Dockerfile"),
 	}
 
 	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
-		dockerfiles, []string{}, []string{}, []string{},
+		dfiles, []string{}, []string{}, []string{},
 		false, false, false,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(map[string][]*DockerfileImage{
-		filepath.ToSlash(dockerfiles[0]): {
+	lfile := NewLockfile(map[string][]*DockerfileImage{
+		filepath.ToSlash(dfiles[0]): {
 			{Image: &Image{Name: "busybox", Tag: "latest"}},
 			{Image: &Image{Name: "busybox", Tag: "latest"}},
 		}}, nil,
@@ -111,31 +111,31 @@ func dLocalArg() (*test, error) {
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
 // dMultiple ensures that Lockfiles from multiple Dockerfiles are correct.
 func dMultiple() (*test, error) {
-	dockerfiles := []string{
+	dfiles := []string{
 		filepath.Join(dTestDir, "multiple", "DockerfileOne"),
 		filepath.Join(dTestDir, "multiple", "DockerfileTwo"),
 	}
 
 	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
-		dockerfiles, []string{}, []string{}, []string{},
+		dfiles, []string{}, []string{}, []string{},
 		false, false, false,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(map[string][]*DockerfileImage{
-		filepath.ToSlash(dockerfiles[0]): {
+	lfile := NewLockfile(map[string][]*DockerfileImage{
+		filepath.ToSlash(dfiles[0]): {
 			{Image: &Image{Name: "ubuntu", Tag: "latest"}},
 		},
-		filepath.ToSlash(dockerfiles[1]): {
+		filepath.ToSlash(dfiles[1]): {
 			{Image: &Image{Name: "busybox", Tag: "latest"}},
 		},
 	}, nil,
@@ -143,21 +143,21 @@ func dMultiple() (*test, error) {
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
 // dRecursive ensures Lockfiles from multiple Dockerfiles
 // in subdirectories are correct.
 func dRecursive() (*test, error) {
-	dockerfiles := []string{
+	dfiles := []string{
 		filepath.Join(dTestDir, "recursive", "Dockerfile"),
 		filepath.Join(dTestDir, "recursive", "recursive", "Dockerfile"),
 	}
-	recursiveBaseDir := filepath.Join(dTestDir, "recursive")
+	rBDir := filepath.Join(dTestDir, "recursive")
 
 	flags, err := NewFlags(
-		recursiveBaseDir, "docker-lock.json", getDefaultConfigPath(), ".env",
+		rBDir, "docker-lock.json", getDefaultConfigPath(), ".env",
 		[]string{}, []string{}, []string{}, []string{},
 		true, false, false,
 	)
@@ -165,11 +165,11 @@ func dRecursive() (*test, error) {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(map[string][]*DockerfileImage{
-		filepath.ToSlash(dockerfiles[0]): {
+	lfile := NewLockfile(map[string][]*DockerfileImage{
+		filepath.ToSlash(dfiles[0]): {
 			{Image: &Image{Name: "busybox", Tag: "latest"}},
 		},
-		filepath.ToSlash(dockerfiles[1]): {
+		filepath.ToSlash(dfiles[1]): {
 			{Image: &Image{Name: "ubuntu", Tag: "latest"}},
 		},
 	}, nil,
@@ -177,7 +177,7 @@ func dRecursive() (*test, error) {
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
@@ -187,7 +187,7 @@ func dGlobs() (*test, error) {
 		filepath.Join(dTestDir, "globs", "**", "Dockerfile"),
 		filepath.Join(dTestDir, "globs", "Dockerfile"),
 	}
-	dockerfiles := []string{
+	dfiles := []string{
 		filepath.Join(dTestDir, "globs", "globs", "Dockerfile"),
 		filepath.Join(dTestDir, "globs", "Dockerfile"),
 	}
@@ -201,11 +201,11 @@ func dGlobs() (*test, error) {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(map[string][]*DockerfileImage{
-		filepath.ToSlash(dockerfiles[0]): {
+	lfile := NewLockfile(map[string][]*DockerfileImage{
+		filepath.ToSlash(dfiles[0]): {
 			{Image: &Image{Name: "ubuntu", Tag: "latest"}},
 		},
-		filepath.ToSlash(dockerfiles[1]): {
+		filepath.ToSlash(dfiles[1]): {
 			{Image: &Image{Name: "busybox", Tag: "latest"}},
 		},
 	}, nil,
@@ -213,13 +213,13 @@ func dGlobs() (*test, error) {
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
 // dBuildArgs ensures environment variables can be used as build args.
 func dBuildArgs() (*test, error) {
-	dockerfiles := []string{
+	dfiles := []string{
 		filepath.Join(dTestDir, "buildargs", "Dockerfile"),
 	}
 	envPath := filepath.ToSlash(
@@ -233,35 +233,35 @@ func dBuildArgs() (*test, error) {
 
 	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), envPath,
-		dockerfiles, []string{}, []string{}, []string{},
+		dfiles, []string{}, []string{}, []string{},
 		false, false, true,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(map[string][]*DockerfileImage{
-		filepath.ToSlash(dockerfiles[0]): {
+	lfile := NewLockfile(map[string][]*DockerfileImage{
+		filepath.ToSlash(dfiles[0]): {
 			{Image: &Image{Name: "busybox", Tag: "latest"}},
 		}}, nil,
 	)
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
 // dNoFile ensures Lockfiles include a Dockerfile in the base directory,
 // if no other files are specified.
 func dNoFile() (*test, error) {
-	baseDir := filepath.Join(dTestDir, "nofile")
-	dockerfiles := []string{
-		filepath.Join(baseDir, "Dockerfile"),
+	bDir := filepath.Join(dTestDir, "nofile")
+	dfiles := []string{
+		filepath.Join(bDir, "Dockerfile"),
 	}
 
 	flags, err := NewFlags(
-		baseDir, "docker-lock.json", getDefaultConfigPath(), ".env",
+		bDir, "docker-lock.json", getDefaultConfigPath(), ".env",
 		[]string{}, []string{}, []string{}, []string{},
 		false, false, false,
 	)
@@ -269,15 +269,15 @@ func dNoFile() (*test, error) {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(map[string][]*DockerfileImage{
-		filepath.ToSlash(dockerfiles[0]): {
+	lfile := NewLockfile(map[string][]*DockerfileImage{
+		filepath.ToSlash(dfiles[0]): {
 			{Image: &Image{Name: "busybox", Tag: "latest"}},
 		}}, nil,
 	)
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
@@ -286,54 +286,53 @@ func dNoFile() (*test, error) {
 // cImage ensures Lockfiles from docker-compose files with
 // the image key are correct.
 func cImage() (*test, error) {
-	composefiles := []string{
+	cfiles := []string{
 		filepath.Join(cTestDir, "image", "docker-compose.yml"),
 	}
 
 	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
-		[]string{}, composefiles, []string{}, []string{},
+		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(nil, map[string][]*ComposefileImage{
-		filepath.ToSlash(composefiles[0]): {
+	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
+		filepath.ToSlash(cfiles[0]): {
 			{
 				Image:          &Image{Name: "busybox", Tag: "latest"},
 				ServiceName:    "svc",
 				DockerfilePath: "",
 			},
 		},
-	},
-	)
+	})
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
 // cBuild ensures Lockfiles from docker-compose files with
 // the build key are correct.
 func cBuild() (*test, error) {
-	composefiles := []string{
+	cfiles := []string{
 		filepath.Join(cTestDir, "build", "docker-compose.yml"),
 	}
 
 	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
-		[]string{}, composefiles, []string{}, []string{},
+		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(nil, map[string][]*ComposefileImage{
-		filepath.ToSlash(composefiles[0]): {
+	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
+		filepath.ToSlash(cfiles[0]): {
 			{
 				Image:       &Image{Name: "busybox", Tag: "latest"},
 				ServiceName: "svc",
@@ -342,33 +341,32 @@ func cBuild() (*test, error) {
 				),
 			},
 		},
-	},
-	)
+	})
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
 // cDockerfile ensures Lockfiles from docker-compose files with
 // the dockerfile key are correct.
 func cDockerfile() (*test, error) {
-	composefiles := []string{
+	cfiles := []string{
 		filepath.Join(cTestDir, "dockerfile", "docker-compose.yml"),
 	}
 
 	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
-		[]string{}, composefiles, []string{}, []string{},
+		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(nil, map[string][]*ComposefileImage{
-		filepath.ToSlash(composefiles[0]): {
+	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
+		filepath.ToSlash(cfiles[0]): {
 			{
 				Image:       &Image{Name: "busybox", Tag: "latest"},
 				ServiceName: "svc",
@@ -379,33 +377,32 @@ func cDockerfile() (*test, error) {
 				),
 			},
 		},
-	},
-	)
+	})
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
 // cContext ensures Lockfiles from docker-compose files with
 // the context key are correct.
 func cContext() (*test, error) {
-	composefiles := []string{
+	cfiles := []string{
 		filepath.Join(cTestDir, "context", "docker-compose.yml"),
 	}
 
 	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
-		[]string{}, composefiles, []string{}, []string{},
+		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(nil, map[string][]*ComposefileImage{
-		filepath.ToSlash(composefiles[0]): {
+	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
+		filepath.ToSlash(cfiles[0]): {
 			{
 				Image:       &Image{Name: "busybox", Tag: "latest"},
 				ServiceName: "svc",
@@ -416,19 +413,18 @@ func cContext() (*test, error) {
 				),
 			},
 		},
-	},
-	)
+	})
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
 // cEnv ensures Lockfiles from docker-compose files with
 // environment variables replaced by values in a .env file are correct.
 func cEnv() (*test, error) {
-	composefiles := []string{
+	cfiles := []string{
 		filepath.Join(cTestDir, "env", "docker-compose.yml"),
 	}
 	envPath := filepath.Join(cTestDir, "env", ".env")
@@ -440,15 +436,15 @@ func cEnv() (*test, error) {
 
 	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), envPath,
-		[]string{}, composefiles, []string{}, []string{},
+		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(nil, map[string][]*ComposefileImage{
-		filepath.ToSlash(composefiles[0]): {
+	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
+		filepath.ToSlash(cfiles[0]): {
 			{
 				Image:       &Image{Name: "busybox", Tag: "latest"},
 				ServiceName: "svc",
@@ -459,33 +455,32 @@ func cEnv() (*test, error) {
 				),
 			},
 		},
-	},
-	)
+	})
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
 // cArgsOverride ensures that build args in docker-compose
 // files override args defined in Dockerfiles.
 func cArgsOverride() (*test, error) {
-	composefiles := []string{
+	cfiles := []string{
 		filepath.Join(cTestDir, "args", "override", "docker-compose.yml"),
 	}
 
 	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
-		[]string{}, composefiles, []string{}, []string{},
+		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(nil, map[string][]*ComposefileImage{
-		filepath.ToSlash(composefiles[0]): {
+	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
+		filepath.ToSlash(cfiles[0]): {
 			{
 				Image:       &Image{Name: "busybox", Tag: "latest"},
 				ServiceName: "svc",
@@ -494,33 +489,32 @@ func cArgsOverride() (*test, error) {
 				),
 			},
 		},
-	},
-	)
+	})
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
 // cArgsEmpty ensures that build args in docker-compose
 // files override empty args in Dockerfiles.
 func cArgsEmpty() (*test, error) {
-	composefiles := []string{
+	cfiles := []string{
 		filepath.Join(cTestDir, "args", "empty", "docker-compose.yml"),
 	}
 
 	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
-		[]string{}, composefiles, []string{}, []string{},
+		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(nil, map[string][]*ComposefileImage{
-		filepath.ToSlash(composefiles[0]): {
+	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
+		filepath.ToSlash(cfiles[0]): {
 			{
 				Image:       &Image{Name: "busybox", Tag: "latest"},
 				ServiceName: "svc",
@@ -529,12 +523,11 @@ func cArgsEmpty() (*test, error) {
 				),
 			},
 		},
-	},
-	)
+	})
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
@@ -542,21 +535,21 @@ func cArgsEmpty() (*test, error) {
 // but not in docker-compose files behave as though no docker-compose
 // files exist.
 func cArgsNoArg() (*test, error) {
-	composefiles := []string{
+	cfiles := []string{
 		filepath.Join(cTestDir, "args", "noarg", "docker-compose.yml"),
 	}
 
 	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
-		[]string{}, composefiles, []string{}, []string{},
+		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(nil, map[string][]*ComposefileImage{
-		filepath.ToSlash(composefiles[0]): {
+	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
+		filepath.ToSlash(cfiles[0]): {
 			{
 				Image:       &Image{Name: "busybox", Tag: "latest"},
 				ServiceName: "svc",
@@ -565,22 +558,21 @@ func cArgsNoArg() (*test, error) {
 				),
 			},
 		},
-	},
-	)
+	})
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
 // cMultiple ensures Lockfiles from multiple docker-compose files are correct.
 func cMultiple() (*test, error) {
-	composefiles := []string{
+	cfiles := []string{
 		filepath.Join(cTestDir, "multiple", "docker-compose-one.yml"),
 		filepath.Join(cTestDir, "multiple", "docker-compose-two.yml"),
 	}
-	dockerfiles := []string{
+	dfiles := []string{
 		filepath.ToSlash(filepath.Join(
 			cTestDir, "multiple", "build", "Dockerfile"),
 		),
@@ -594,19 +586,19 @@ func cMultiple() (*test, error) {
 
 	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
-		[]string{}, composefiles, []string{}, []string{},
+		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(nil, map[string][]*ComposefileImage{
-		filepath.ToSlash(composefiles[0]): {
+	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
+		filepath.ToSlash(cfiles[0]): {
 			{
 				Image:          &Image{Name: "ubuntu", Tag: "latest"},
 				ServiceName:    "build-svc",
-				DockerfilePath: dockerfiles[0],
+				DockerfilePath: dfiles[0],
 			},
 			{
 				Image:          &Image{Name: "busybox", Tag: "latest"},
@@ -614,31 +606,30 @@ func cMultiple() (*test, error) {
 				DockerfilePath: "",
 			},
 		},
-		filepath.ToSlash(composefiles[1]): {
+		filepath.ToSlash(cfiles[1]): {
 			{
 				Image:          &Image{Name: "node", Tag: "latest"},
 				ServiceName:    "context-svc",
-				DockerfilePath: dockerfiles[1],
+				DockerfilePath: dfiles[1],
 			},
 			{
 				Image:          &Image{Name: "golang", Tag: "latest"},
 				ServiceName:    "dockerfile-svc",
-				DockerfilePath: dockerfiles[2],
+				DockerfilePath: dfiles[2],
 			},
 		},
-	},
-	)
+	})
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
 // cRecursive ensures Lockfiles from multiple docker-compose
 // files in subdirectories are correct.
 func cRecursive() (*test, error) {
-	composefiles := []string{
+	cfiles := []string{
 		filepath.ToSlash(
 			filepath.Join(cTestDir, "recursive", "docker-compose.yml"),
 		),
@@ -660,27 +651,26 @@ func cRecursive() (*test, error) {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(nil, map[string][]*ComposefileImage{
-		composefiles[0]: {
+	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
+		cfiles[0]: {
 			{
 				Image:          &Image{Name: "golang", Tag: "latest"},
 				ServiceName:    "svc",
 				DockerfilePath: "",
 			},
 		},
-		composefiles[1]: {
+		cfiles[1]: {
 			{
 				Image:          &Image{Name: "busybox", Tag: "latest"},
 				ServiceName:    "svc",
 				DockerfilePath: dockerfile,
 			},
 		},
-	},
-	)
+	})
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
@@ -688,7 +678,7 @@ func cRecursive() (*test, error) {
 // files in the base directory, if no other files are specified.
 func cNoFile() (*test, error) {
 	bDir := filepath.Join(cTestDir, "nofile")
-	composefiles := []string{
+	cfiles := []string{
 		filepath.ToSlash(filepath.Join(bDir, "docker-compose.yml")),
 		filepath.ToSlash(filepath.Join(bDir, "docker-compose.yaml")),
 	}
@@ -702,8 +692,8 @@ func cNoFile() (*test, error) {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(nil, map[string][]*ComposefileImage{
-		composefiles[0]: {
+	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
+		cfiles[0]: {
 			{
 				Image:          &Image{Name: "busybox", Tag: "latest"},
 				ServiceName:    "svc",
@@ -715,19 +705,18 @@ func cNoFile() (*test, error) {
 				DockerfilePath: "",
 			},
 		},
-		composefiles[1]: {
+		cfiles[1]: {
 			{
 				Image:          &Image{Name: "golang", Tag: "latest"},
 				ServiceName:    "svc",
 				DockerfilePath: "",
 			},
 		},
-	},
-	)
+	})
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
@@ -738,7 +727,7 @@ func cGlobs() (*test, error) {
 		filepath.Join(cTestDir, "globs", "**", "docker-compose.yml"),
 		filepath.Join(cTestDir, "globs", "docker-compose.yml"),
 	}
-	composefiles := []string{
+	cfiles := []string{
 		filepath.ToSlash(
 			filepath.Join(cTestDir, "globs", "image", "docker-compose.yml"),
 		),
@@ -756,37 +745,36 @@ func cGlobs() (*test, error) {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(nil, map[string][]*ComposefileImage{
-		composefiles[0]: {
+	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
+		cfiles[0]: {
 			{
 				Image:          &Image{Name: "ubuntu", Tag: "latest"},
 				ServiceName:    "svc",
 				DockerfilePath: "",
 			},
 		},
-		composefiles[1]: {
+		cfiles[1]: {
 			{
 				Image:          &Image{Name: "busybox", Tag: "latest"},
 				ServiceName:    "svc",
 				DockerfilePath: "",
 			},
 		},
-	},
-	)
+	})
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
 // cAssortment ensures that Lockfiles from an assortment of keys
 // are correct.
 func cAssortment() (*test, error) {
-	composefiles := []string{
+	cfiles := []string{
 		filepath.Join(cTestDir, "assortment", "docker-compose.yml"),
 	}
-	dockerfiles := []string{
+	dfiles := []string{
 		filepath.ToSlash(
 			filepath.Join(cTestDir, "assortment", "build", "Dockerfile"),
 		),
@@ -800,29 +788,29 @@ func cAssortment() (*test, error) {
 
 	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
-		[]string{}, composefiles, []string{}, []string{},
+		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(nil, map[string][]*ComposefileImage{
-		filepath.ToSlash(composefiles[0]): {
+	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
+		filepath.ToSlash(cfiles[0]): {
 			{
 				Image:          &Image{Name: "golang", Tag: "latest"},
 				ServiceName:    "build-svc",
-				DockerfilePath: dockerfiles[0],
+				DockerfilePath: dfiles[0],
 			},
 			{
 				Image:          &Image{Name: "node", Tag: "latest"},
 				ServiceName:    "context-svc",
-				DockerfilePath: dockerfiles[1],
+				DockerfilePath: dfiles[1],
 			},
 			{
 				Image:          &Image{Name: "ubuntu", Tag: "latest"},
 				ServiceName:    "dockerfile-svc",
-				DockerfilePath: dockerfiles[2],
+				DockerfilePath: dfiles[2],
 			},
 			{
 				Image:          &Image{Name: "busybox", Tag: "latest"},
@@ -830,22 +818,21 @@ func cAssortment() (*test, error) {
 				DockerfilePath: "",
 			},
 		},
-	},
-	)
+	})
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
 // cSort ensures that Dockerfiles referenced in docker-compose files
 // and the images in those Dockerfiles are sorted as required for rewriting.
 func cSort() (*test, error) {
-	composefiles := []string{
+	cfiles := []string{
 		filepath.Join(cTestDir, "sort", "docker-compose.yml"),
 	}
-	dockerfiles := []string{
+	dfiles := []string{
 		filepath.ToSlash(filepath.Join(
 			cTestDir, "sort", "sort", "Dockerfile-one"),
 		),
@@ -856,42 +843,41 @@ func cSort() (*test, error) {
 
 	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
-		[]string{}, composefiles, []string{}, []string{},
+		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(nil, map[string][]*ComposefileImage{
-		filepath.ToSlash(composefiles[0]): {
+	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
+		filepath.ToSlash(cfiles[0]): {
 			{
 				Image:          &Image{Name: "busybox", Tag: "latest"},
 				ServiceName:    "svc-one",
-				DockerfilePath: dockerfiles[0],
+				DockerfilePath: dfiles[0],
 			},
 			{
 				Image:          &Image{Name: "golang", Tag: "latest"},
 				ServiceName:    "svc-one",
-				DockerfilePath: dockerfiles[0],
+				DockerfilePath: dfiles[0],
 			},
 			{
 				Image:          &Image{Name: "ubuntu", Tag: "latest"},
 				ServiceName:    "svc-two",
-				DockerfilePath: dockerfiles[1],
+				DockerfilePath: dfiles[1],
 			},
 			{
 				Image:          &Image{Name: "java", Tag: "latest"},
 				ServiceName:    "svc-two",
-				DockerfilePath: dockerfiles[1],
+				DockerfilePath: dfiles[1],
 			},
 		},
-	},
-	)
+	})
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
@@ -899,10 +885,10 @@ func cSort() (*test, error) {
 // absolute paths and relative paths in docker-compose files resolve to the same
 // relative path to the current working directory in the Lockfile.
 func cAbsPathDockerfile() (*test, error) {
-	composefiles := []string{
+	cfiles := []string{
 		filepath.Join(cTestDir, "abspath", "docker-compose.yml"),
 	}
-	dockerfiles := []string{
+	dfiles := []string{
 		filepath.ToSlash(filepath.Join(
 			cTestDir, "abspath", "abspath", "Dockerfile"),
 		),
@@ -910,7 +896,7 @@ func cAbsPathDockerfile() (*test, error) {
 
 	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
-		[]string{}, composefiles, []string{}, []string{},
+		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
 	if err != nil {
@@ -930,25 +916,24 @@ func cAbsPathDockerfile() (*test, error) {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(nil, map[string][]*ComposefileImage{
-		filepath.ToSlash(composefiles[0]): {
+	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
+		filepath.ToSlash(cfiles[0]): {
 			{
 				Image:          &Image{Name: "busybox", Tag: "latest"},
 				ServiceName:    "svc-one",
-				DockerfilePath: dockerfiles[0],
+				DockerfilePath: dfiles[0],
 			},
 			{
 				Image:          &Image{Name: "busybox", Tag: "latest"},
 				ServiceName:    "svc-two",
-				DockerfilePath: dockerfiles[0],
+				DockerfilePath: dfiles[0],
 			},
 		},
-	},
-	)
+	})
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
@@ -956,36 +941,36 @@ func cAbsPathDockerfile() (*test, error) {
 
 // bDuplicates ensures that Lockfiles do not include the same file twice.
 func bDuplicates() (*test, error) {
-	composefiles := []string{
+	cfiles := []string{
 		filepath.Join(bTestDir, "docker-compose.yml"),
 		filepath.Join(bTestDir, "docker-compose.yml"),
 	}
-	dockerfiles := []string{
+	dfiles := []string{
 		filepath.Join(bTestDir, "both", "Dockerfile"),
 		filepath.Join(bTestDir, "both", "Dockerfile"),
 	}
 
 	flags, err := NewFlags(
 		".", "docker-lock.json", getDefaultConfigPath(), ".env",
-		dockerfiles, composefiles, []string{}, []string{},
+		dfiles, cfiles, []string{}, []string{},
 		false, false, false,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	lockfile := NewLockfile(
+	lfile := NewLockfile(
 		map[string][]*DockerfileImage{
-			filepath.ToSlash(dockerfiles[0]): {
+			filepath.ToSlash(dfiles[0]): {
 				{Image: &Image{Name: "ubuntu", Tag: "latest"}},
 			},
 		},
 		map[string][]*ComposefileImage{
-			filepath.ToSlash(composefiles[0]): {
+			filepath.ToSlash(cfiles[0]): {
 				{
 					Image:          &Image{Name: "ubuntu", Tag: "latest"},
 					ServiceName:    "both-svc",
-					DockerfilePath: filepath.ToSlash(dockerfiles[0]),
+					DockerfilePath: filepath.ToSlash(dfiles[0]),
 				},
 				{
 					Image:          &Image{Name: "busybox", Tag: "latest"},
@@ -993,12 +978,11 @@ func bDuplicates() (*test, error) {
 					DockerfilePath: "",
 				},
 			},
-		},
-	)
+		})
 
 	return &test{
 		flags: flags,
-		want:  lockfile,
+		want:  lfile,
 	}, nil
 }
 
@@ -1149,26 +1133,26 @@ func getTests() (map[string]*test, error) {
 	return tests, nil
 }
 
-func compareLockfiles(got, want *Lockfile) error {
-	if err := compareDockerfilePaths(
+func cmpLfiles(got, want *Lockfile) error {
+	if err := cmpDPaths(
 		got.DockerfileImages, want.DockerfileImages,
 	); err != nil {
 		return err
 	}
 
-	if err := compareComposefilePaths(
+	if err := cmpCPaths(
 		got.ComposefileImages, want.ComposefileImages,
 	); err != nil {
 		return err
 	}
 
-	if err := compareDockerfileImages(
+	if err := cmpDIms(
 		got.DockerfileImages, want.DockerfileImages,
 	); err != nil {
 		return err
 	}
 
-	if err := compareComposefileImages(
+	if err := cmpCIms(
 		got.ComposefileImages, want.ComposefileImages,
 	); err != nil {
 		return err
@@ -1177,7 +1161,7 @@ func compareLockfiles(got, want *Lockfile) error {
 	return nil
 }
 
-func compareDockerfilePaths(got, want map[string][]*DockerfileImage) error {
+func cmpDPaths(got, want map[string][]*DockerfileImage) error {
 	allSets := make([]map[string]struct{}, 2)
 
 	for i, m := range []map[string][]*DockerfileImage{got, want} {
@@ -1190,10 +1174,10 @@ func compareDockerfilePaths(got, want map[string][]*DockerfileImage) error {
 		allSets[i] = set
 	}
 
-	return compareFilePaths(allSets[0], allSets[1])
+	return cmpPaths(allSets[0], allSets[1])
 }
 
-func compareComposefilePaths(got, want map[string][]*ComposefileImage) error {
+func cmpCPaths(got, want map[string][]*ComposefileImage) error {
 	allSets := make([]map[string]struct{}, 2)
 
 	for i, m := range []map[string][]*ComposefileImage{got, want} {
@@ -1206,10 +1190,10 @@ func compareComposefilePaths(got, want map[string][]*ComposefileImage) error {
 		allSets[i] = set
 	}
 
-	return compareFilePaths(allSets[0], allSets[1])
+	return cmpPaths(allSets[0], allSets[1])
 }
 
-func compareFilePaths(got, want map[string]struct{}) error {
+func cmpPaths(got, want map[string]struct{}) error {
 	if len(got) != len(want) {
 		return fmt.Errorf(
 			"got '%d' files, want '%d'", len(got), len(want),
@@ -1227,10 +1211,10 @@ func compareFilePaths(got, want map[string]struct{}) error {
 	return nil
 }
 
-func compareDockerfileImages(got, want map[string][]*DockerfileImage) error {
+func cmpDIms(got, want map[string][]*DockerfileImage) error {
 	for p := range got {
 		for i := range got[p] {
-			if err := compareImages(
+			if err := cmpIms(
 				got[p][i].Image, want[p][i].Image,
 			); err != nil {
 				return err
@@ -1241,10 +1225,10 @@ func compareDockerfileImages(got, want map[string][]*DockerfileImage) error {
 	return nil
 }
 
-func compareComposefileImages(got, want map[string][]*ComposefileImage) error {
+func cmpCIms(got, want map[string][]*ComposefileImage) error {
 	for p := range got {
 		for i := range got[p] {
-			if err := compareImages(
+			if err := cmpIms(
 				got[p][i].Image, want[p][i].Image,
 			); err != nil {
 				return err
@@ -1271,7 +1255,7 @@ func compareComposefileImages(got, want map[string][]*ComposefileImage) error {
 	return nil
 }
 
-func compareImages(got, want *Image) error {
+func cmpIms(got, want *Image) error {
 	if got.Name != want.Name {
 		return fmt.Errorf(
 			"got '%s', want '%s'", got.Name, want.Name,
@@ -1293,7 +1277,7 @@ func compareImages(got, want *Image) error {
 	return nil
 }
 
-func writeLockfile(g *Generator) (*Lockfile, error) {
+func writeLfile(g *Generator) (*Lockfile, error) {
 	configPath := getDefaultConfigPath()
 
 	wm, err := getDefaultWrapperManager(configPath, client)
@@ -1306,39 +1290,39 @@ func writeLockfile(g *Generator) (*Lockfile, error) {
 		return nil, err
 	}
 
-	lFile := Lockfile{}
-	if err = json.Unmarshal(buf.Bytes(), &lFile); err != nil {
+	lfile := Lockfile{}
+	if err = json.Unmarshal(buf.Bytes(), &lfile); err != nil {
 		return nil, err
 	}
 
-	return &lFile, err
+	return &lfile, err
 }
 
 func getDefaultWrapperManager(
 	configPath string,
 	client *registry.HTTPClient,
 ) (*registry.WrapperManager, error) {
-	defaultWrapper, err := firstparty.GetDefaultWrapper(configPath, client)
+	dw, err := firstparty.GetDefaultWrapper(configPath, client)
 	if err != nil {
 		return nil, err
 	}
 
-	wrapperManager := registry.NewWrapperManager(defaultWrapper)
+	wm := registry.NewWrapperManager(dw)
 
-	firstPartyWrappers, err := firstparty.GetAllWrappers(configPath, client)
+	fpWrappers, err := firstparty.GetAllWrappers(configPath, client)
 	if err != nil {
 		return nil, err
 	}
 
-	contribWrappers, err := contrib.GetAllWrappers(client)
+	cWrappers, err := contrib.GetAllWrappers(client)
 	if err != nil {
 		return nil, err
 	}
 
-	wrapperManager.Add(firstPartyWrappers...)
-	wrapperManager.Add(contribWrappers...)
+	wm.Add(fpWrappers...)
+	wm.Add(cWrappers...)
 
-	return wrapperManager, nil
+	return wm, nil
 }
 
 func getDefaultConfigPath() string {

@@ -128,10 +128,10 @@ func (w *ACRWrapper) getToken(name string) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	decoder := json.NewDecoder(resp.Body)
+	d := json.NewDecoder(resp.Body)
 
 	t := acrTokenResponse{}
-	if err = decoder.Decode(&t); err != nil {
+	if err = d.Decode(&t); err != nil {
 		return "", err
 	}
 
@@ -173,11 +173,11 @@ func (w *ACRWrapper) getAuthCredentials() (*acrAuthCredentials, error) {
 		}
 	}
 
-	authString := string(authByt)
+	authStr := string(authByt)
 
 	switch {
-	case authString != "":
-		auth := strings.Split(authString, ":")
+	case authStr != "":
+		auth := strings.Split(authStr, ":")
 		return &acrAuthCredentials{username: auth[0], password: auth[1]}, nil
 	case conf.CredsStore != "":
 		authCreds, err := w.getAuthCredentialsFromCredsStore(conf.CredsStore)
@@ -204,14 +204,14 @@ func (w *ACRWrapper) getAuthCredentialsFromCredsStore(
 	credsStore = fmt.Sprintf("%s-%s", "docker-credential", credsStore)
 	p := c.NewShellProgramFunc(credsStore)
 
-	credResponse, err := c.Get(p, fmt.Sprintf("%s.azurecr.io", w.regName))
+	credRes, err := c.Get(p, fmt.Sprintf("%s.azurecr.io", w.regName))
 	if err != nil {
 		return authCreds, err
 	}
 
 	return &acrAuthCredentials{
-		username: credResponse.Username,
-		password: credResponse.Secret,
+		username: credRes.Username,
+		password: credRes.Secret,
 	}, nil
 }
 

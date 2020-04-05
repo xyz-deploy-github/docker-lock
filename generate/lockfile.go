@@ -22,26 +22,26 @@ func NewLockfile(
 	cIms map[string][]*ComposefileImage,
 ) *Lockfile {
 	l := &Lockfile{DockerfileImages: dIms, ComposefileImages: cIms}
-	l.sortImages()
+	l.sortIms()
 
 	return l
 }
 
-func (l *Lockfile) sortImages() {
+func (l *Lockfile) sortIms() {
 	wg := sync.WaitGroup{}
 
 	wg.Add(1)
 
-	go l.sortDockerfileImages(&wg)
+	go l.sortDIms(&wg)
 
 	wg.Add(1)
 
-	go l.sortComposefileImages(&wg)
+	go l.sortCIms(&wg)
 
 	wg.Wait()
 }
 
-func (l *Lockfile) sortDockerfileImages(wg *sync.WaitGroup) {
+func (l *Lockfile) sortDIms(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for _, ims := range l.DockerfileImages {
@@ -57,7 +57,7 @@ func (l *Lockfile) sortDockerfileImages(wg *sync.WaitGroup) {
 	}
 }
 
-func (l *Lockfile) sortComposefileImages(wg *sync.WaitGroup) {
+func (l *Lockfile) sortCIms(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for _, ims := range l.ComposefileImages {

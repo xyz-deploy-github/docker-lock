@@ -10,19 +10,17 @@ type Flags struct {
 }
 
 // NewFlags creates flags for a Rewriter.
-func NewFlags(
-	lockfilePath, suffix, tempDir string,
-) (*Flags, error) {
-	lockfilePath = convertStringToSlash(lockfilePath)
-	tempDir = convertStringToSlash(tempDir)
+func NewFlags(lPath, suffix, tmpDir string) (*Flags, error) {
+	lPath = convertStrToSlash(lPath)
+	tmpDir = convertStrToSlash(tmpDir)
 
 	return &Flags{
-		LockfilePath: lockfilePath,
+		LockfilePath: lPath,
 		Suffix:       suffix,
-		TempDir:      tempDir,
+		TempDir:      tmpDir,
 	}, nil
 }
 
-func convertStringToSlash(s string) string {
+func convertStrToSlash(s string) string {
 	return filepath.ToSlash(s)
 }

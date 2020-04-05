@@ -140,10 +140,10 @@ func (w *DockerWrapper) getToken(name string) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	decoder := json.NewDecoder(resp.Body)
+	d := json.NewDecoder(resp.Body)
 
 	t := dockerTokenResponse{}
-	if err = decoder.Decode(&t); err != nil {
+	if err = d.Decode(&t); err != nil {
 		return "", err
 	}
 
@@ -180,11 +180,11 @@ func (w *DockerWrapper) getAuthCredentials() (*dockerAuthCredentials, error) {
 		return nil, err
 	}
 
-	authString := string(authByt)
+	authStr := string(authByt)
 
 	switch {
-	case authString != "":
-		auth := strings.Split(authString, ":")
+	case authStr != "":
+		auth := strings.Split(authStr, ":")
 		return &dockerAuthCredentials{username: auth[0], password: auth[1]}, nil
 	case conf.CredsStore != "":
 		authCreds, err := w.getAuthCredentialsFromCredsStore(conf.CredsStore)
@@ -211,14 +211,14 @@ func (w *DockerWrapper) getAuthCredentialsFromCredsStore(
 	credsStore = fmt.Sprintf("%s-%s", "docker-credential", credsStore)
 	p := c.NewShellProgramFunc(credsStore)
 
-	credResponse, err := c.Get(p, "https://index.docker.io/v1/")
+	credRes, err := c.Get(p, "https://index.docker.io/v1/")
 	if err != nil {
 		return authCreds, err
 	}
 
 	return &dockerAuthCredentials{
-		username: credResponse.Username,
-		password: credResponse.Secret,
+		username: credRes.Username,
+		password: credRes.Secret,
 	}, nil
 }
 

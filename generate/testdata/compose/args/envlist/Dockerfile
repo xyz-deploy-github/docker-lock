@@ -1,0 +1,2 @@
+ARG cArgsEnvListImage
+FROM ${cArgsEnvListImage}

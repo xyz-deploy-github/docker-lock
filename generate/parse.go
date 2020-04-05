@@ -245,9 +245,30 @@ func (g *Generator) parseSvc(
 
 		bArgs := map[string]string{}
 
-		for _, argVal := range build.Args {
-			av := strings.SplitN(argVal, "=", 2)
-			bArgs[os.ExpandEnv(av[0])] = os.ExpandEnv(av[1])
+		if build.ArgsWrapper != nil {
+			switch args := build.ArgsWrapper.Args.(type) {
+			case argsMap:
+				for a, v := range args {
+					arg := os.ExpandEnv(a)
+					val := os.ExpandEnv(v)
+					bArgs[arg] = val
+				}
+			case argsSlice:
+				for _, argValStr := range args {
+					argValSl := strings.SplitN(argValStr, "=", 2)
+					arg := os.ExpandEnv(argValSl[0])
+
+					const argOnlyLen = 1
+
+					switch len(argValSl) {
+					case argOnlyLen:
+						bArgs[arg] = os.Getenv(arg)
+					default:
+						val := os.ExpandEnv(argValSl[1])
+						bArgs[arg] = val
+					}
+				}
+			}
 		}
 
 		wg.Add(1)

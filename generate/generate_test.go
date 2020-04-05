@@ -463,6 +463,117 @@ func cEnv() (*test, error) {
 	}, nil
 }
 
+// cArgsEnvList ensures that docker-compose files with a list
+// of environment variables as build args are used.
+func cArgsEnvList() (*test, error) {
+	cfiles := []string{
+		filepath.Join(cTestDir, "args", "envlist", "docker-compose.yml"),
+	}
+
+	envPath := filepath.ToSlash(
+		filepath.Join(cTestDir, "args", "envlist", ".env"),
+	)
+
+	err := godotenv.Load(envPath)
+	if err != nil {
+		return nil, err
+	}
+
+	flags, err := NewFlags(
+		".", "docker-lock.json", getDefaultConfigPath(), envPath,
+		[]string{}, cfiles, []string{}, []string{},
+		false, false, false,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
+		filepath.ToSlash(cfiles[0]): {
+			{
+				Image:       &Image{Name: "busybox", Tag: "latest"},
+				ServiceName: "svc",
+				DockerfilePath: filepath.ToSlash(
+					filepath.Join(cTestDir, "args", "envlist", "Dockerfile"),
+				),
+			},
+		},
+	})
+
+	return &test{
+		flags: flags,
+		want:  lfile,
+	}, nil
+}
+
+// cArgsKeyValList ensures that docker-compose files with a list
+// of keys and vals as build args are used.
+func cArgsKeyValList() (*test, error) {
+	cfiles := []string{
+		filepath.Join(cTestDir, "args", "keyvallist", "docker-compose.yml"),
+	}
+
+	flags, err := NewFlags(
+		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		[]string{}, cfiles, []string{}, []string{},
+		false, false, false,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
+		filepath.ToSlash(cfiles[0]): {
+			{
+				Image:       &Image{Name: "busybox", Tag: "latest"},
+				ServiceName: "svc",
+				DockerfilePath: filepath.ToSlash(
+					filepath.Join(cTestDir, "args", "keyvallist", "Dockerfile"),
+				),
+			},
+		},
+	})
+
+	return &test{
+		flags: flags,
+		want:  lfile,
+	}, nil
+}
+
+// cArgsKeyValMap ensures that docker-compose files with a map
+// of keys and vals as build args are used.
+func cArgsKeyValMap() (*test, error) {
+	cfiles := []string{
+		filepath.Join(cTestDir, "args", "keyvalmap", "docker-compose.yml"),
+	}
+
+	flags, err := NewFlags(
+		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		[]string{}, cfiles, []string{}, []string{},
+		false, false, false,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
+		filepath.ToSlash(cfiles[0]): {
+			{
+				Image:       &Image{Name: "busybox", Tag: "latest"},
+				ServiceName: "svc",
+				DockerfilePath: filepath.ToSlash(
+					filepath.Join(cTestDir, "args", "keyvalmap", "Dockerfile"),
+				),
+			},
+		},
+	})
+
+	return &test{
+		flags: flags,
+		want:  lfile,
+	}, nil
+}
+
 // cArgsOverride ensures that build args in docker-compose
 // files override args defined in Dockerfiles.
 func cArgsOverride() (*test, error) {
@@ -1074,6 +1185,21 @@ func getTests() (map[string]*test, error) {
 		return nil, err
 	}
 
+	cArgsEnvList, err := cArgsEnvList()
+	if err != nil {
+		return nil, err
+	}
+
+	cArgsKeyValList, err := cArgsKeyValList()
+	if err != nil {
+		return nil, err
+	}
+
+	cArgsKeyValMap, err := cArgsKeyValMap()
+	if err != nil {
+		return nil, err
+	}
+
 	cArgsOverride, err := cArgsOverride()
 	if err != nil {
 		return nil, err
@@ -1122,12 +1248,15 @@ func getTests() (map[string]*test, error) {
 		"cNoFile":            cNoFile,
 		"cGlobs":             cGlobs,
 		"cAssortment":        cAssortment,
+		"cArgsEnvList":       cArgsEnvList,
+		"cArgsKeyValList":    cArgsKeyValList,
+		"cArgsKeyValMap":     cArgsKeyValMap,
 		"cArgsOverride":      cArgsOverride,
 		"cArgsEmpty":         cArgsEmpty,
 		"cArgsNoArg":         cArgsNoArg,
 		"cSort":              cSort,
-		"bDuplicates":        bDuplicates,
 		"cAbsPathDockerfile": cAbsPathDockerfile,
+		"bDuplicates":        bDuplicates,
 	}
 
 	return tests, nil

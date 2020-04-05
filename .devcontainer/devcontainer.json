@@ -8,7 +8,10 @@
 		// Enable go debugger
 		"--cap-add=SYS_PTRACE",
 		"--security-opt",
-		"seccomp=unconfined"
+		"seccomp=unconfined",
+		// map host docker daemon into container for sibling containers
+		"-v",
+		"/var/run/docker.sock:/var/run/docker.sock"
 	],
 	"settings": {
 		"files.eol": "\n",

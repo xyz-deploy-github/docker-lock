@@ -86,7 +86,7 @@ If using VSCode's [Remote Development Extension - Containers](https://marketplac
 If using vim:
 * The development container includes the [basic version of vim-awesome](https://github.com/amix/vimrc#how-to-install-the-basic-version), [vim-go](https://github.com/fatih/vim-go), and [NERDTree](https://github.com/preservim/nerdtree)
 * Build the development container: `docker build -f .devcontainer/Dockerfile -t dev .`
-* Mount the root directory into the container, and drop into a bash shell: `docker run -it -v ${PWD}:/workspaces/docker-lock dev`
+* Mount the root directory into the container, and drop into a bash shell: `docker run -it -v ${PWD}:/workspaces/docker-lock -v /var/run/docker.sock:/var/run/docker.sock dev`
 * Open vim and type `:GoInstallBinaries` to initialize `vim-go`
 * When all the tools have been installed, close and reopen vim
 

@@ -17,24 +17,35 @@ type buildWrapper struct {
 	Build interface{}
 }
 
+// simple represents a "build" section without build keys. For instance,
+// build: dirWithDockerfile
+type simple string
+
 // verbose represents a "build" section with build keys specified. For instance,
 // build:
 //     context: ./dirWithDockerfile
 //     dockerfile: Dockerfile
 type verbose struct {
-	Context        string   `yaml:"context"`
-	DockerfilePath string   `yaml:"dockerfile"`
-	Args           []string `yaml:"args"`
+	Context        string       `yaml:"context"`
+	DockerfilePath string       `yaml:"dockerfile"`
+	ArgsWrapper    *argsWrapper `yaml:"args"`
 }
 
-// simple represents a "build" section without build keys. For instance,
-// build: dirWithDockerfile
-type simple string
+// argsWrapper describes the "args" section of a build section. It can contain
+// a slice of strings or a map.
+type argsWrapper struct {
+	Args interface{}
+}
 
-// UnmarshalYAML unmarshals the "build" section of a service. It first
-// tries to unmarshal the bytes into a verbose type. If that fails,
-// it tries to unmarshal the bytes into a simple type. If neither succeeds,
-// it returns an error.
+// argsSlice can be build args as keys that reference environment vars or
+// keys and values.
+type argsSlice []string
+
+// argsMap are build args as keys and values.
+type argsMap map[string]string
+
+// UnmarshalYAML unmarshals the "build" section of a service into either
+// a simple or verbose build.
 func (b *buildWrapper) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*b = buildWrapper{}
 
@@ -51,4 +62,24 @@ func (b *buildWrapper) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	return fmt.Errorf("unable to unmarshal service")
+}
+
+// UnmarshalYAML unmarshals the "args" section of a verbose service. Args can
+// be either slices or maps.
+func (a *argsWrapper) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*a = argsWrapper{}
+
+	var as argsSlice
+	if err := unmarshal(&as); err == nil {
+		a.Args = as
+		return nil
+	}
+
+	var am argsMap
+	if err := unmarshal(&am); err == nil {
+		a.Args = am
+		return nil
+	}
+
+	return fmt.Errorf("unable to unmarshal build args")
 }

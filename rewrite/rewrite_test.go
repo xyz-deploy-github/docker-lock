@@ -201,7 +201,7 @@ func cAssortment() *test {
 	}
 }
 
-// cDiffNumSvcs ensures that if a lockfile and docker-compose file have
+// cDiffNumSvcs ensures that if a Lockfile and docker-compose file have
 // a different number of services, rewrite will fail.
 func cDiffNumSvcs() *test {
 	bDir := filepath.Join(cTestDir, "diffnumsvcs")
@@ -215,7 +215,7 @@ func cDiffNumSvcs() *test {
 	}
 }
 
-// cDiffNamedSvcs ensures that if a lockfile and docker-compose file have
+// cDiffNamedSvcs ensures that if a Lockfile and docker-compose file have
 // different named services, rewrite will fail.
 func cDiffNamedSvcs() *test {
 	bDir := filepath.Join(cTestDir, "diffnamedsvcs")

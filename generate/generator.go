@@ -1,3 +1,4 @@
+// Package generate provides functions to generate a Lockfile.
 package generate
 
 import (

@@ -1,3 +1,5 @@
+// Package firstparty provides functions for getting digests from
+// registries supported by docker-lock's maintainers.
 package firstparty
 
 import (
@@ -67,7 +69,9 @@ func NewDockerWrapper(
 
 // GetDigest gets the digest from a name and tag. The workflow for
 // authenticating with private repositories:
+//
 // (1) if "DOCKER_USERNAME" and "DOCKER_PASSWORD" are set, use them.
+//
 // (2) Otherwise, try to get credentials from docker's config file. This method
 // requires the user to have logged in with the 'docker login' command
 // beforehand.

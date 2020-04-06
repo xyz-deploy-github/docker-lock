@@ -6,7 +6,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Version is overridden in the CD pipeline to match the git tag
+// Version is the docker-lock version. In the CD pipeline,
+// this value is overridden to match the git tag.
 var Version = "v0.0.1" //nolint: gochecknoglobals
 
 // NewVersionCmd creates the command 'version' used in 'docker lock version'.

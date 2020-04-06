@@ -1,3 +1,5 @@
+// Package rewrite provides functions to rewrite Dockerfiles
+// and docker-compose files from a Lockfile.
 package rewrite
 
 import (
@@ -57,20 +59,28 @@ func NewRewriter(flags *Flags) (*Rewriter, error) {
 
 // Rewrite rewrites docker and docker-compose files to include base images
 // with digests from a Lockfile.
+//
 // Rewrite has "transaction"-like properties to ensure all rewrites succeed or
 // fail together. The function follows the following steps:
+//
 // (1) Create a temporary directory in the system default temporary directory
 // location or in the location supplied via the command line arg.
+//
 // (2) Rewrite every file to a file in the temporary directory.
+//
 // (3) If all rewrites succeed, rename each temporary file to its desired
 // outpath. Providing a suffix ensures that the temporary file will not
 // overwrite the original. Instead, a new file of the form Dockerfile-suffix,
 // docker-compose-suffix.yml, or docker-compose-suffix.yaml will be written.
+//
 // (4) If an error occurs during renaming, revert all files back to their
 // original content.
+//
 // (5) If reverting fails, return an error with the paths that failed
 // to revert.
+//
 // (6) Delete the temporary directory.
+//
 // Note: If the Lockfile references a Dockerfile and that same Dockerfile
 // is referenced by another docker-compose file, the Dockerfile will be
 // rewritten according to the docker-compose file.

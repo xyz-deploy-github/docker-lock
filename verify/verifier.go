@@ -1,3 +1,5 @@
+// Package verify provides functions for verifying that an existing
+// Lockfile is up-to-date.
 package verify
 
 import (
@@ -32,10 +34,14 @@ func NewVerifier(flags *Flags) (*Verifier, error) {
 // VerifyLockfile generates bytes for a new Lockfile and ensures that
 // the existing Lockfile contains the same information. Specifically,
 // the existing Lockfile must have:
+//
 // (1) the same number of Dockerfiles and docker-compose files
+//
 // (2) the same number of images in each Dockerfile and docker-compose file
+//
 // (3) the same image in the proper order in each Dockerfile and docker-compose
 // file
+//
 // If any of these checks fail, VerifyLockfile will return an error.
 func (v *Verifier) VerifyLockfile(wm *registry.WrapperManager) error {
 	lByt := bytes.Buffer{}

@@ -68,7 +68,9 @@ func NewACRWrapper(
 
 // GetDigest gets the digest from a name and tag. The workflow for
 // authenticating with private repositories:
+//
 // (1) if "ACR_USERNAME" and "ACR_PASSWORD" are set, use them.
+//
 // (2) Otherwise, try to get credentials from docker's config file.
 // This method requires the user to have logged in with the
 // 'docker login' command beforehand.

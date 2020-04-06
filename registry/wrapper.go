@@ -1,3 +1,4 @@
+// Package registry provides functions to get digests from registries.
 package registry
 
 // Wrapper defines an interface that registry wrappers implement.

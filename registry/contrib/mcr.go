@@ -1,3 +1,5 @@
+// Package contrib provides functions for getting digests from
+// registries supported by docker-lock's community.
 package contrib
 
 import (

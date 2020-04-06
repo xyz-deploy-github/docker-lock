@@ -8,8 +8,7 @@ import (
 )
 
 // Lockfile contains DockerfileImages and ComposefileImages identified by
-// their filepaths. This data structure can be written to disk as the
-// output Lockfile.
+// their filepaths.
 type Lockfile struct {
 	DockerfileImages  map[string][]*DockerfileImage  `json:"dockerfiles"`
 	ComposefileImages map[string][]*ComposefileImage `json:"composefiles"`
@@ -80,6 +79,7 @@ func (l *Lockfile) sortCIms(wg *sync.WaitGroup) {
 	}
 }
 
+// Write writes a Lockfile, formatted as indented json, to an io.Writer.
 func (l *Lockfile) Write(w io.Writer) error {
 	lByt, err := json.MarshalIndent(l, "", "\t")
 	if err != nil {

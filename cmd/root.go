@@ -1,3 +1,4 @@
+// Package cmd provides docker-lock's cli.
 package cmd
 
 import (

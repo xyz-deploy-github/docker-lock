@@ -389,7 +389,7 @@ func cDockerfile() (*test, error) {
 // the context key are correct.
 func cContext() (*test, error) {
 	cfiles := []string{
-		filepath.Join(cTestDir, "context", "docker-compose.yml"),
+		filepath.Join(cTestDir, "context", "context", "docker-compose.yml"),
 	}
 
 	flags, err := NewFlags(
@@ -408,9 +408,93 @@ func cContext() (*test, error) {
 				ServiceName: "svc",
 				DockerfilePath: filepath.ToSlash(
 					filepath.Join(
-						cTestDir, "context", "context", "Dockerfile",
+						cTestDir, "context", "context", "context", "Dockerfile",
 					),
 				),
+			},
+		},
+	})
+
+	return &test{
+		flags: flags,
+		want:  lfile,
+	}, nil
+}
+
+// cRelContext ensures Lockfiles from docker-compose files with
+// a context outside of the directory with the docker-compose file works.
+func cRelContext() (*test, error) {
+	cfiles := []string{
+		filepath.Join(
+			cTestDir, "context", "relcontext", "relcontext",
+			"docker-compose.yml",
+		),
+	}
+
+	flags, err := NewFlags(
+		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		[]string{}, cfiles, []string{}, []string{},
+		false, false, false,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
+		filepath.ToSlash(cfiles[0]): {
+			{
+				Image:       &Image{Name: "busybox", Tag: "latest"},
+				ServiceName: "svc",
+				DockerfilePath: filepath.ToSlash(
+					filepath.Join(
+						cTestDir, "context", "relcontext", "Dockerfile",
+					),
+				),
+			},
+		},
+	})
+
+	return &test{
+		flags: flags,
+		want:  lfile,
+	}, nil
+}
+
+// cAbsContext ensures Lockfiles from docker-compose files with
+// absolute paths as the context key are correct.
+func cAbsContext() (*test, error) {
+	cfiles := []string{
+		filepath.Join(cTestDir, "context", "abscontext", "docker-compose.yml"),
+	}
+
+	flags, err := NewFlags(
+		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		[]string{}, cfiles, []string{}, []string{},
+		false, false, false,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	absCtx, err := filepath.Abs(
+		filepath.Join(filepath.Dir(cfiles[0]), "abscontext"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := os.Setenv("cAbsContext", absCtx); err != nil {
+		return nil, err
+	}
+
+	dPath := filepath.Join(absCtx, "Dockerfile")
+
+	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
+		filepath.ToSlash(cfiles[0]): {
+			{
+				Image:          &Image{Name: "busybox", Tag: "latest"},
+				ServiceName:    "svc",
+				DockerfilePath: filepath.ToSlash(dPath),
 			},
 		},
 	})
@@ -992,62 +1076,6 @@ func cSort() (*test, error) {
 	}, nil
 }
 
-// cAbsPathDockerfile ensures that Dockerfiles referenced by
-// absolute paths and relative paths in docker-compose files resolve to the same
-// relative path to the current working directory in the Lockfile.
-func cAbsPathDockerfile() (*test, error) {
-	cfiles := []string{
-		filepath.Join(cTestDir, "abspath", "docker-compose.yml"),
-	}
-	dfiles := []string{
-		filepath.ToSlash(filepath.Join(
-			cTestDir, "abspath", "abspath", "Dockerfile"),
-		),
-	}
-
-	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
-		[]string{}, cfiles, []string{}, []string{},
-		false, false, false,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	absBuildPath, err := filepath.Abs(
-		filepath.Join(cTestDir, "abspath", "abspath"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := os.Setenv(
-		"TestGenerateComposefileAbsPathDockerfile_ABS_BUILD_PATH",
-		absBuildPath); err != nil {
-		return nil, err
-	}
-
-	lfile := NewLockfile(nil, map[string][]*ComposefileImage{
-		filepath.ToSlash(cfiles[0]): {
-			{
-				Image:          &Image{Name: "busybox", Tag: "latest"},
-				ServiceName:    "svc-one",
-				DockerfilePath: dfiles[0],
-			},
-			{
-				Image:          &Image{Name: "busybox", Tag: "latest"},
-				ServiceName:    "svc-two",
-				DockerfilePath: dfiles[0],
-			},
-		},
-	})
-
-	return &test{
-		flags: flags,
-		want:  lfile,
-	}, nil
-}
-
 // Both tests
 
 // bDuplicates ensures that Lockfiles do not include the same file twice.
@@ -1155,6 +1183,16 @@ func getTests() (map[string]*test, error) {
 		return nil, err
 	}
 
+	cRelContext, err := cRelContext()
+	if err != nil {
+		return nil, err
+	}
+
+	cAbsContext, err := cAbsContext()
+	if err != nil {
+		return nil, err
+	}
+
 	cEnv, err := cEnv()
 	if err != nil {
 		return nil, err
@@ -1225,38 +1263,34 @@ func getTests() (map[string]*test, error) {
 		return nil, err
 	}
 
-	cAbsPathDockerfile, err := cAbsPathDockerfile()
-	if err != nil {
-		return nil, err
-	}
-
 	tests := map[string]*test{
-		"dBuildstage":        dBuildStage,
-		"dLocalarg":          dLocalArg,
-		"dMultiple":          dMultiple,
-		"dRecursive":         dRecursive,
-		"dNoFile":            dNoFile,
-		"dGlobs":             dGlobs,
-		"dBuildArg":          dBuildArg,
-		"cImage":             cImage,
-		"cBuild":             cBuild,
-		"cDockerfile":        cDockerfile,
-		"cContext":           cContext,
-		"cEnv":               cEnv,
-		"cMultiple":          cMultiple,
-		"cRecursive":         cRecursive,
-		"cNoFile":            cNoFile,
-		"cGlobs":             cGlobs,
-		"cAssortment":        cAssortment,
-		"cArgsEnvList":       cArgsEnvList,
-		"cArgsKeyValList":    cArgsKeyValList,
-		"cArgsKeyValMap":     cArgsKeyValMap,
-		"cArgsOverride":      cArgsOverride,
-		"cArgsEmpty":         cArgsEmpty,
-		"cArgsNoArg":         cArgsNoArg,
-		"cSort":              cSort,
-		"cAbsPathDockerfile": cAbsPathDockerfile,
-		"bDuplicates":        bDuplicates,
+		"dBuildstage":     dBuildStage,
+		"dLocalarg":       dLocalArg,
+		"dMultiple":       dMultiple,
+		"dRecursive":      dRecursive,
+		"dNoFile":         dNoFile,
+		"dGlobs":          dGlobs,
+		"dBuildArg":       dBuildArg,
+		"cImage":          cImage,
+		"cBuild":          cBuild,
+		"cDockerfile":     cDockerfile,
+		"cContext":        cContext,
+		"cRelContext":     cRelContext,
+		"cAbsContext":     cAbsContext,
+		"cEnv":            cEnv,
+		"cMultiple":       cMultiple,
+		"cRecursive":      cRecursive,
+		"cNoFile":         cNoFile,
+		"cGlobs":          cGlobs,
+		"cAssortment":     cAssortment,
+		"cArgsEnvList":    cArgsEnvList,
+		"cArgsKeyValList": cArgsKeyValList,
+		"cArgsKeyValMap":  cArgsKeyValMap,
+		"cArgsOverride":   cArgsOverride,
+		"cArgsEmpty":      cArgsEmpty,
+		"cArgsNoArg":      cArgsNoArg,
+		"cSort":           cSort,
+		"bDuplicates":     bDuplicates,
 	}
 
 	return tests, nil

@@ -48,7 +48,12 @@ func NewRewriter(flags *Flags) (*Rewriter, error) {
 		return nil, err
 	}
 
-	lfile.DockerfileImages = dedupeDIms(lfile)
+	dIms, err := dedupeDIms(lfile)
+	if err != nil {
+		return nil, err
+	}
+
+	lfile.DockerfileImages = dIms
 
 	return &Rewriter{
 		Lockfile: lfile,
@@ -553,20 +558,35 @@ func revertRnFiles(rns []*rnInfo) error {
 
 func dedupeDIms(
 	lfile *generate.Lockfile,
-) map[string][]*generate.DockerfileImage {
+) (map[string][]*generate.DockerfileImage, error) {
 	dPathsInCfiles := map[string]map[string]struct{}{}
 
 	for cPath, ims := range lfile.ComposefileImages {
 		for _, im := range ims {
-			if im.DockerfilePath != "" {
+			dPath := im.DockerfilePath
+
+			if dPath != "" {
 				cPathSvc := fmt.Sprintf("%s/%s", cPath, im.ServiceName)
 
-				if dPathsInCfiles[im.DockerfilePath] == nil {
-					dPathsInCfiles[im.DockerfilePath] = map[string]struct{}{
+				if filepath.IsAbs(dPath) {
+					wd, err := os.Getwd()
+					if err != nil {
+						return nil, err
+					}
+
+					wd = filepath.ToSlash(wd)
+
+					if rel, err := filepath.Rel(wd, dPath); err == nil {
+						dPath = filepath.ToSlash(rel)
+					}
+				}
+
+				if dPathsInCfiles[dPath] == nil {
+					dPathsInCfiles[dPath] = map[string]struct{}{
 						cPathSvc: {},
 					}
 				} else {
-					dPathsInCfiles[im.DockerfilePath][cPathSvc] = struct{}{}
+					dPathsInCfiles[dPath][cPathSvc] = struct{}{}
 				}
 			}
 		}
@@ -602,7 +622,7 @@ func dedupeDIms(
 		}
 	}
 
-	return dImsNotInCfiles
+	return dImsNotInCfiles, nil
 }
 
 func readLfile(lPath string) (*generate.Lockfile, error) {

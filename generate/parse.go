@@ -2,7 +2,6 @@ package generate
 
 import (
 	"bufio"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -215,33 +214,28 @@ func (g *Generator) parseSvc(
 
 	switch build := svc.BuildWrapper.Build.(type) {
 	case simple:
-		dDir := filepath.ToSlash(os.ExpandEnv(string(build)))
-		dPath := filepath.ToSlash(filepath.Join(dDir, "Dockerfile"))
-
-		dPath, err := normalizeDPath(dPath, cPath)
-		if err != nil {
-			addErrToPilCh(err, pilCh, doneCh)
-			return
+		ctx := filepath.ToSlash(os.ExpandEnv(string(build)))
+		if !filepath.IsAbs(ctx) {
+			ctx = filepath.ToSlash(filepath.Join(filepath.Dir(cPath), ctx))
 		}
+
+		dPath := filepath.ToSlash(filepath.Join(ctx, "Dockerfile"))
 
 		wg.Add(1)
 
 		go g.parseDfile(dPath, nil, cPath, svcName, pilCh, wg, doneCh)
 	case verbose:
 		ctx := filepath.ToSlash(os.ExpandEnv(build.Context))
-		dPath := filepath.ToSlash(os.ExpandEnv(build.DockerfilePath))
+		if !filepath.IsAbs(ctx) {
+			ctx = filepath.ToSlash(filepath.Join(filepath.Dir(cPath), ctx))
+		}
 
+		dPath := filepath.ToSlash(os.ExpandEnv(build.DockerfilePath))
 		if dPath == "" {
 			dPath = "Dockerfile"
 		}
 
 		dPath = filepath.ToSlash(filepath.Join(ctx, dPath))
-
-		dPath, err := normalizeDPath(dPath, cPath)
-		if err != nil {
-			addErrToPilCh(err, pilCh, doneCh)
-			return
-		}
 
 		bArgs := map[string]string{}
 
@@ -310,35 +304,6 @@ func stripQuotesFromArgInst(s string) string {
 	}
 
 	return s
-}
-
-func normalizeDPath(dPath string, cPath string) (string, error) {
-	if filepath.IsAbs(dPath) {
-		wd, err := os.Getwd()
-		if err != nil {
-			return "", err
-		}
-
-		wd = filepath.ToSlash(wd)
-
-		if strings.HasPrefix(dPath, wd) {
-			dPath = filepath.ToSlash(
-				filepath.Join(".", strings.TrimPrefix(dPath, wd)),
-			)
-		} else {
-			return "",
-				fmt.Errorf("%s is outside the current working directory", dPath)
-		}
-	} else {
-		dPath = filepath.ToSlash(filepath.Join(filepath.Dir(cPath), dPath))
-	}
-
-	if strings.HasPrefix(dPath, "..") {
-		return "",
-			fmt.Errorf("%s is outside the current working directory", dPath)
-	}
-
-	return dPath, nil
 }
 
 func addErrToPilCh(

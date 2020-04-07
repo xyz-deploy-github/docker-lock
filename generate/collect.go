@@ -182,7 +182,9 @@ func collectDefaultPaths(
 
 		for p := range baseSet {
 			p = filepath.ToSlash(filepath.Join(bDir, p))
-			addPathToPathCh(p, pathCh, doneCh)
+			if fileIsRegular(p) {
+				addPathToPathCh(p, pathCh, doneCh)
+			}
 		}
 	}()
 
@@ -210,11 +212,9 @@ func addPathToPathCh(
 	pathCh chan<- *pathRes,
 	doneCh <-chan struct{},
 ) {
-	if fileIsRegular(p) {
-		select {
-		case <-doneCh:
-		case pathCh <- &pathRes{path: p}:
-		}
+	select {
+	case <-doneCh:
+	case pathCh <- &pathRes{path: p}:
 	}
 }
 

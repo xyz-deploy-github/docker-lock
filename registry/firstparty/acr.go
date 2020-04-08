@@ -3,7 +3,6 @@ package firstparty
 import (
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -103,7 +102,7 @@ func (w *ACRWrapper) GetDigest(name string, tag string) (string, error) {
 	digest := resp.Header.Get("Docker-Content-Digest")
 
 	if digest == "" {
-		return "", errors.New("no digest found")
+		return "", fmt.Errorf("no digest found for '%s:%s'", name, tag)
 	}
 
 	return strings.TrimPrefix(digest, "sha256:"), nil

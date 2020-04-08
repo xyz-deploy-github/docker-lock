@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"github.com/joho/godotenv"
 	"github.com/michaelperel/docker-lock/registry"
 	"github.com/michaelperel/docker-lock/verify"
 	"github.com/spf13/cobra"
@@ -17,7 +16,10 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_ = godotenv.Load(flags.EnvFile)
+
+			if err = loadEnv(flags.EnvFile); err != nil {
+				return err
+			}
 
 			wm, err := getDefaultWrapperManager(flags.ConfigFile, client)
 			if err != nil {

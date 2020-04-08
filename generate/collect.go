@@ -298,14 +298,14 @@ func handlePathResult(
 	ok bool,
 ) error {
 	switch ok {
-	case false:
-		*pathCh = nil
-	default:
+	case true:
 		if pathRes.err != nil {
 			return pathRes.err
 		}
 
 		pathSet[pathRes.path] = struct{}{}
+	case false:
+		*pathCh = nil
 	}
 
 	return nil

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/joho/godotenv"
 	"github.com/michaelperel/docker-lock/registry"
 	"github.com/michaelperel/docker-lock/registry/contrib"
 	"github.com/michaelperel/docker-lock/registry/firstparty"
@@ -49,4 +50,14 @@ func getDefaultWrapperManager(
 	wm.Add(cWrappers...)
 
 	return wm, nil
+}
+
+func loadEnv(p string) error {
+	if err := godotenv.Load(p); err != nil {
+		if p != ".env" {
+			return err
+		}
+	}
+
+	return nil
 }

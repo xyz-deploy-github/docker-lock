@@ -2,6 +2,7 @@ package generate
 
 import (
 	"bufio"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -177,7 +178,9 @@ func (g *Generator) parseCfile(
 
 	comp := compose{}
 	if err := yaml.Unmarshal(ymlByt, &comp); err != nil {
+		err = fmt.Errorf("from '%s': %v", cPath, err)
 		addErrToPilCh(err, pilCh, doneCh)
+
 		return
 	}
 

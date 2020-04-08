@@ -68,14 +68,14 @@ func (v *Verifier) VerifyLockfile(wm *registry.WrapperManager) error {
 func (v *Verifier) verifyNumFiles(lfile *generate.Lockfile) error {
 	if len(v.Lockfile.DockerfileImages) != len(lfile.DockerfileImages) {
 		return fmt.Errorf(
-			"got %d Dockerfiles, want %d", len(lfile.DockerfileImages),
+			"got '%d' Dockerfiles, want '%d'", len(lfile.DockerfileImages),
 			len(v.Lockfile.DockerfileImages),
 		)
 	}
 
 	if len(v.Lockfile.ComposefileImages) != len(lfile.ComposefileImages) {
 		return fmt.Errorf(
-			"got %d docker-compose files, want %d",
+			"got '%d' docker-compose files, want '%d'",
 			len(lfile.ComposefileImages),
 			len(v.Lockfile.ComposefileImages),
 		)
@@ -89,7 +89,7 @@ func (v *Verifier) verifyIms(lfile *generate.Lockfile) error {
 		if len(v.Lockfile.DockerfileImages[dPath]) !=
 			len(lfile.DockerfileImages[dPath]) {
 			return fmt.Errorf(
-				"got %d images in file %s, want %d",
+				"got '%d' images in file '%s', want '%d'",
 				len(lfile.DockerfileImages[dPath]), dPath,
 				len(v.Lockfile.DockerfileImages[dPath]),
 			)
@@ -111,7 +111,7 @@ func (v *Verifier) verifyIms(lfile *generate.Lockfile) error {
 		if len(v.Lockfile.ComposefileImages[cPath]) !=
 			len(lfile.ComposefileImages[cPath]) {
 			return fmt.Errorf(
-				"got %d images in file %s, want %d",
+				"got '%d' images in file '%s', want '%d'",
 				len(lfile.ComposefileImages[cPath]), cPath,
 				len(v.Lockfile.ComposefileImages[cPath]),
 			)

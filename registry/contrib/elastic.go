@@ -2,7 +2,6 @@ package contrib
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -65,7 +64,7 @@ func (w *ElasticWrapper) GetDigest(name string, tag string) (string, error) {
 
 	digest := resp.Header.Get("Docker-Content-Digest")
 	if digest == "" {
-		return "", errors.New("no digest found")
+		return "", fmt.Errorf("no digest found for '%s:%s'", name, tag)
 	}
 
 	return strings.TrimPrefix(digest, "sha256:"), nil

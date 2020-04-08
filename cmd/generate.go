@@ -3,7 +3,6 @@ package cmd
 import (
 	"os"
 
-	"github.com/joho/godotenv"
 	"github.com/michaelperel/docker-lock/generate"
 	"github.com/michaelperel/docker-lock/registry"
 	"github.com/spf13/cobra"
@@ -20,7 +19,9 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 				return err
 			}
 
-			_ = godotenv.Load(flags.EnvFile)
+			if err = loadEnv(flags.EnvFile); err != nil {
+				return err
+			}
 
 			wm, err := getDefaultWrapperManager(flags.ConfigFile, client)
 			if err != nil {
@@ -52,7 +53,7 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 		"dockerfiles", "d", []string{}, "Path to Dockerfiles",
 	)
 	generateCmd.Flags().StringSliceP(
-		"compose-files", "c", []string{}, "Path to docker-compose files",
+		"composefiles", "c", []string{}, "Path to docker-compose files",
 	)
 	generateCmd.Flags().StringP(
 		"lockfile-name", "l", "docker-lock.json",
@@ -62,22 +63,22 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 		"dockerfile-globs", []string{}, "Glob pattern to select Dockerfiles",
 	)
 	generateCmd.Flags().StringSlice(
-		"compose-file-globs", []string{},
+		"composefile-globs", []string{},
 		"Glob pattern to select docker-compose files",
 	)
 	generateCmd.Flags().Bool(
 		"dockerfile-recursive", false, "Recursively collect Dockerfiles",
 	)
 	generateCmd.Flags().Bool(
-		"compose-file-recursive", false,
+		"composefile-recursive", false,
 		"Recursively collect docker-compose files",
 	)
 	generateCmd.Flags().String(
 		"config-file", getDefaultConfigPath(),
 		"Path to config file for auth credentials",
 	)
-	generateCmd.Flags().String(
-		"env-file", ".env", "Path to .env file",
+	generateCmd.Flags().StringP(
+		"env-file", "e", ".env", "Path to .env file",
 	)
 	generateCmd.Flags().Bool(
 		"dockerfile-env-build-args", false,
@@ -113,7 +114,7 @@ func getGeneratorFlags(cmd *cobra.Command) (*generate.Flags, error) {
 		return nil, err
 	}
 
-	cfiles, err := cmd.Flags().GetStringSlice("compose-files")
+	cfiles, err := cmd.Flags().GetStringSlice("composefiles")
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +124,7 @@ func getGeneratorFlags(cmd *cobra.Command) (*generate.Flags, error) {
 		return nil, err
 	}
 
-	cGlobs, err := cmd.Flags().GetStringSlice("compose-file-globs")
+	cGlobs, err := cmd.Flags().GetStringSlice("composefile-globs")
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +134,7 @@ func getGeneratorFlags(cmd *cobra.Command) (*generate.Flags, error) {
 		return nil, err
 	}
 
-	cRecursive, err := cmd.Flags().GetBool("compose-file-recursive")
+	cRecursive, err := cmd.Flags().GetBool("composefile-recursive")
 	if err != nil {
 		return nil, err
 	}

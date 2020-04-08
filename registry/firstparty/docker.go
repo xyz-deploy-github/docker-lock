@@ -5,7 +5,6 @@ package firstparty
 import (
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -119,7 +118,7 @@ func (w *DockerWrapper) GetDigest(name string, tag string) (string, error) {
 		}
 	}
 
-	return "", errors.New("no digest found")
+	return "", fmt.Errorf("no digest found for '%s:%s'", name, tag)
 }
 
 func (w *DockerWrapper) getToken(name string) (string, error) {

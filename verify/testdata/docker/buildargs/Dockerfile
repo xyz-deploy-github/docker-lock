@@ -1,2 +1,2 @@
-ARG TestVerifyDockerfileEnvBuildArgs_IMAGE
-FROM ${TestVerifyDockerfileEnvBuildArgs_IMAGE}
+ARG dBuildArgs
+FROM ${dBuildArgs}

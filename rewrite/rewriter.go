@@ -203,7 +203,7 @@ func (r *Rewriter) writeDfile(
 			if !stageNames[fields[imLineIndex]] {
 				if imIndex >= len(ims) {
 					err := fmt.Errorf(
-						"more images exist in %s than in the Lockfile",
+						"more images exist in '%s' than in the Lockfile",
 						dPath,
 					)
 					addErrToRnCh(err, rnCh, doneCh)
@@ -232,7 +232,7 @@ func (r *Rewriter) writeDfile(
 
 	if imIndex != len(ims) {
 		err := fmt.Errorf(
-			"more images exist in the Lockfile than in %s", dPath,
+			"more images exist in the Lockfile than in '%s'", dPath,
 		)
 		addErrToRnCh(err, rnCh, doneCh)
 
@@ -268,7 +268,9 @@ func (r *Rewriter) writeCfile(
 
 	comp := compose{}
 	if err := yaml.Unmarshal(cByt, &comp); err != nil {
+		err = fmt.Errorf("from '%s': %v", cPath, err)
 		addErrToRnCh(err, rnCh, doneCh)
+
 		return
 	}
 
@@ -280,7 +282,7 @@ func (r *Rewriter) writeCfile(
 
 	if len(comp.Services) != len(svcIms) {
 		err := fmt.Errorf(
-			"%s has %d service(s), yet the Lockfile has %d", cPath,
+			"'%s' has '%d' service(s), yet the Lockfile has '%d'", cPath,
 			len(comp.Services), len(svcIms),
 		)
 		addErrToRnCh(err, rnCh, doneCh)
@@ -294,7 +296,7 @@ func (r *Rewriter) writeCfile(
 	for svcName, svc := range comp.Services {
 		if _, ok := svcIms[svcName]; !ok {
 			err := fmt.Errorf(
-				"service %s exists in %s, but not in the Lockfile", svcName,
+				"service '%s' exists in '%s', but not in the Lockfile", svcName,
 				cPath,
 			)
 			addErrToRnCh(err, rnCh, doneCh)
@@ -357,7 +359,7 @@ func (r *Rewriter) writeDfileOrGetCImLine(
 		wg.Add(1)
 
 		go r.writeDfile(dPath, dIms, tmpDirPath, rnCh, wg, doneCh)
-	default:
+	case false:
 		im := svcIms[svcName][0]
 
 		select {
@@ -475,7 +477,7 @@ func getOrigByt(oPath string) ([]byte, error) {
 	}
 
 	if mode := fi.Mode(); !mode.IsRegular() {
-		return nil, fmt.Errorf("%s is not a regular file", oPath)
+		return nil, fmt.Errorf("'%s' is not a regular file", oPath)
 	}
 
 	origByt, err := ioutil.ReadFile(oPath) // nolint: gosec
@@ -550,7 +552,7 @@ func revertRnFiles(rns []*rnInfo) error {
 	}
 
 	if len(failedOPaths) != 0 {
-		return fmt.Errorf("failed to revert %s", failedOPaths)
+		return fmt.Errorf("failed to revert '%s'", failedOPaths)
 	}
 
 	return nil
@@ -581,11 +583,12 @@ func dedupeDIms(
 					}
 				}
 
-				if dPathsInCfiles[dPath] == nil {
+				switch dPathsInCfiles[dPath] {
+				case nil:
 					dPathsInCfiles[dPath] = map[string]struct{}{
 						cPathSvc: {},
 					}
-				} else {
+				default:
 					dPathsInCfiles[dPath][cPathSvc] = struct{}{}
 				}
 			}

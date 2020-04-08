@@ -278,7 +278,7 @@ func cmpDfileRewrites(paths []string) error {
 		}
 
 		if !bytes.Equal(gotByt, wantByt) {
-			return fmt.Errorf("files %s and %s differ", gotPath, wantPath)
+			return fmt.Errorf("files '%s' and '%s' differ", gotPath, wantPath)
 		}
 
 		gotStatements := strings.Split(string(gotByt), "\n")
@@ -286,14 +286,15 @@ func cmpDfileRewrites(paths []string) error {
 
 		if len(gotStatements) != len(wantStatements) {
 			return fmt.Errorf(
-				"%s and %s have a different number of lines", gotPath, wantPath,
+				"'%s' and '%s' have a different number of lines", gotPath,
+				wantPath,
 			)
 		}
 
 		for j := range gotStatements {
 			if gotStatements[j] != wantStatements[j] {
 				return fmt.Errorf(
-					"got %s, want %s", gotStatements[j], wantStatements[j],
+					"got '%s', want '%s'", gotStatements[j], wantStatements[j],
 				)
 			}
 		}
@@ -329,7 +330,7 @@ func cmpCfileRewrites(paths []string) error {
 
 		if len(wantComp.Services) != len(gotComp.Services) {
 			return fmt.Errorf(
-				"%s and %s have a different number of services",
+				"'%s' and '%s' have a different number of services",
 				gotPath, wantPath,
 			)
 		}
@@ -339,7 +340,7 @@ func cmpCfileRewrites(paths []string) error {
 			wantIm := wantComp.Services[svcName].Image
 
 			if gotIm != wantIm {
-				return fmt.Errorf("got %s, want %s", gotIm, wantIm)
+				return fmt.Errorf("got '%s', want '%s'", gotIm, wantIm)
 			}
 		}
 	}

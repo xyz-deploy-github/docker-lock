@@ -3,6 +3,7 @@ package generate
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"sync"
 
@@ -134,7 +135,7 @@ func (g *Generator) getImsWithDigests(
 
 			wg.Add(1)
 
-			go g.queryRegistry(pil.line, wm, lineToImCh, doneCh, &wg)
+			go g.queryRegistry(pil, wm, lineToImCh, doneCh, &wg)
 		}
 	}
 
@@ -147,7 +148,7 @@ func (g *Generator) getImsWithDigests(
 }
 
 func (g *Generator) queryRegistry(
-	l string,
+	pil *parsedImageLine,
 	wm *registry.WrapperManager,
 	lineToImCh chan<- *registryResponse,
 	doneCh <-chan struct{},
@@ -155,7 +156,7 @@ func (g *Generator) queryRegistry(
 ) {
 	defer wg.Done()
 
-	im := g.convertLineToIm(l)
+	im := g.convertLineToIm(pil.line)
 
 	if im.Digest == "" {
 		w := wm.GetWrapper(im.Name)
@@ -164,6 +165,20 @@ func (g *Generator) queryRegistry(
 
 		digest, err := w.GetDigest(im.Name, im.Tag)
 		if err != nil {
+			extraErrInfo := ""
+			if pil.dPath != "" {
+				extraErrInfo = fmt.Sprintf("from '%s': ", pil.dPath)
+			}
+
+			if pil.cPath != "" {
+				extraErrInfo = fmt.Sprintf(
+					"%sfrom '%s': from service '%s': ", extraErrInfo, pil.cPath,
+					pil.svcName,
+				)
+			}
+
+			err = fmt.Errorf("%s%v", extraErrInfo, err)
+
 			select {
 			case <-doneCh:
 			case lineToImCh <- &registryResponse{err: err}:
@@ -177,7 +192,7 @@ func (g *Generator) queryRegistry(
 
 	select {
 	case <-doneCh:
-	case lineToImCh <- &registryResponse{im: im, line: l}:
+	case lineToImCh <- &registryResponse{im: im, line: pil.line}:
 	}
 }
 
@@ -317,7 +332,7 @@ loop:
 		// ubuntu@sha256:9b1702...
 		name = l[:digestSeparator]
 		digest = l[digestSeparator+1+len("sha256:"):]
-	default:
+	case tagSeparator == -1 && digestSeparator == -1:
 		// ubuntu
 		name = l
 		tag = "latest"

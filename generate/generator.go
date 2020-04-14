@@ -102,9 +102,10 @@ func (g *Generator) GenerateLockfile(
 
 	// Apply the registries' results to all parsedImageLines.
 	dIms, cIms, err := g.applyDigests(
-		lineToImCh, lineToPils,
+		lineToImCh, lineToPils, doneCh,
 	)
 	if err != nil {
+		close(doneCh)
 		return err
 	}
 
@@ -199,6 +200,7 @@ func (g *Generator) queryRegistry(
 func (g *Generator) applyDigests(
 	lineToImCh <-chan *registryResponse,
 	lineToPils map[string][]*parsedImageLine,
+	doneCh <-chan struct{},
 ) (map[string][]*DockerfileImage, map[string][]*ComposefileImage, error) {
 	dImsCh := make(chan map[string][]*DockerfileImage)
 	cImsCh := make(chan map[string][]*ComposefileImage)
@@ -212,7 +214,7 @@ func (g *Generator) applyDigests(
 		wg.Add(1)
 
 		go g.applyDigestsPerLine(
-			res.im, lineToPils[res.line], dImsCh, cImsCh, &wg,
+			res.im, lineToPils[res.line], dImsCh, cImsCh, &wg, doneCh,
 		)
 	}
 
@@ -233,6 +235,7 @@ func (g *Generator) applyDigestsPerLine(
 	dImsCh chan<- map[string][]*DockerfileImage,
 	cImsCh chan<- map[string][]*ComposefileImage,
 	wg *sync.WaitGroup,
+	doneCh <-chan struct{},
 ) {
 	defer wg.Done()
 
@@ -257,11 +260,19 @@ func (g *Generator) applyDigestsPerLine(
 	}
 
 	if len(dIms) > 0 {
-		dImsCh <- dIms
+		select {
+		case <-doneCh:
+			return
+		case dImsCh <- dIms:
+		}
 	}
 
 	if len(cIms) > 0 {
-		cImsCh <- cIms
+		select {
+		case <-doneCh:
+			return
+		case cImsCh <- cIms:
+		}
 	}
 }
 

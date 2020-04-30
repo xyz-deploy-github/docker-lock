@@ -2,10 +2,12 @@ package generate
 
 import "fmt"
 
+// compose contains the services in a docker-compose file.
 type compose struct {
 	Services map[string]*service `yaml:"services"`
 }
 
+// service represents the service section of a docker-compose file.
 type service struct {
 	ImageName    string        `yaml:"image"`
 	BuildWrapper *buildWrapper `yaml:"build"`

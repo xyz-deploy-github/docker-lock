@@ -58,10 +58,13 @@ func NewFlags(
 	}, nil
 }
 
+// convertStrToSlash converts a filepath string to use forward slashes.
 func convertStrToSlash(s string) string {
 	return filepath.ToSlash(s)
 }
 
+// convertStrSlToSlash converts a slice of filepath strings to use forward
+// slashes.
 func convertStrSlToSlash(s []string) []string {
 	sl := make([]string, len(s))
 
@@ -74,20 +77,21 @@ func convertStrSlToSlash(s []string) []string {
 	return sl
 }
 
+// validateFlags validates legal values for command line flags.
 func validateFlags(
 	bDir, lName string,
 	dfiles, cfiles, dGlobs, cGlobs []string,
 ) error {
-	if err := validateBDir(bDir); err != nil {
+	if err := validateBaseDirectory(bDir); err != nil {
 		return err
 	}
 
-	if err := validateLName(lName); err != nil {
+	if err := validateLockfileName(lName); err != nil {
 		return err
 	}
 
 	for _, ps := range [][]string{dfiles, cfiles} {
-		if err := validateInputPaths(bDir, ps); err != nil {
+		if err := validateSuppliedPaths(bDir, ps); err != nil {
 			return err
 		}
 	}
@@ -101,7 +105,10 @@ func validateFlags(
 	return nil
 }
 
-func validateBDir(bDir string) error {
+// validateBaseDirectory ensures that the base directory is not an
+// absolute path and that it is a directory inside the current working
+// directory.
+func validateBaseDirectory(bDir string) error {
 	if filepath.IsAbs(bDir) {
 		return fmt.Errorf(
 			"'%s' base-dir does not support absolute paths", bDir,
@@ -130,7 +137,9 @@ func validateBDir(bDir string) error {
 	return nil
 }
 
-func validateLName(lName string) error {
+// validateLockfileName ensures that the lockfile name does not
+// contain slashes.
+func validateLockfileName(lName string) error {
 	if strings.Contains(lName, "/") {
 		return fmt.Errorf(
 			"'%s' lockfile-name cannot contain slashes", lName,
@@ -140,8 +149,10 @@ func validateLName(lName string) error {
 	return nil
 }
 
-func validateInputPaths(bDir string, inputPaths []string) error {
-	for _, p := range inputPaths {
+// validateSuppliedPaths ensures that supplied paths are not absolute paths
+// and that they are inside the current working directory.
+func validateSuppliedPaths(bDir string, suppliedPaths []string) error {
+	for _, p := range suppliedPaths {
 		if filepath.IsAbs(p) {
 			return fmt.Errorf(
 				"'%s' input paths do not support absolute paths", p,
@@ -160,6 +171,7 @@ func validateInputPaths(bDir string, inputPaths []string) error {
 	return nil
 }
 
+// validateGlobs ensures that globs are not absolute paths.
 func validateGlobs(globs []string) error {
 	for _, g := range globs {
 		if filepath.IsAbs(g) {

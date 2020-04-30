@@ -14,33 +14,35 @@ type Lockfile struct {
 	ComposefileImages map[string][]*ComposefileImage `json:"composefiles"`
 }
 
-// NewLockfile creates a Lockfile with sorted DockerfileImages
-// and ComposefilesImages.
+// NewLockfile creates a Lockfile, first sorting DockerfileImages
+// and ComposefileImages.
 func NewLockfile(
 	dIms map[string][]*DockerfileImage,
 	cIms map[string][]*ComposefileImage,
 ) *Lockfile {
 	l := &Lockfile{DockerfileImages: dIms, ComposefileImages: cIms}
-	l.sortIms()
+	l.sortImages()
 
 	return l
 }
 
-func (l *Lockfile) sortIms() {
+// sortImages sorts DockerfileImages and ComposefileImages.
+func (l *Lockfile) sortImages() {
 	wg := sync.WaitGroup{}
 
 	wg.Add(1)
 
-	go l.sortDIms(&wg)
+	go l.sortDockerfileImages(&wg)
 
 	wg.Add(1)
 
-	go l.sortCIms(&wg)
+	go l.sortComposefileImages(&wg)
 
 	wg.Wait()
 }
 
-func (l *Lockfile) sortDIms(wg *sync.WaitGroup) {
+// sortDockerfileImages sorts by position.
+func (l *Lockfile) sortDockerfileImages(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for _, ims := range l.DockerfileImages {
@@ -50,13 +52,15 @@ func (l *Lockfile) sortDIms(wg *sync.WaitGroup) {
 			defer wg.Done()
 
 			sort.Slice(ims, func(i, j int) bool {
-				return ims[i].pos < ims[j].pos
+				return ims[i].position < ims[j].position
 			})
 		}(ims)
 	}
 }
 
-func (l *Lockfile) sortCIms(wg *sync.WaitGroup) {
+// sortComposefileImages sorts by ServiceName, DockerfilePath, and position,
+// in that order.
+func (l *Lockfile) sortComposefileImages(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for _, ims := range l.ComposefileImages {
@@ -72,14 +76,14 @@ func (l *Lockfile) sortCIms(wg *sync.WaitGroup) {
 				case ims[i].DockerfilePath != ims[j].DockerfilePath:
 					return ims[i].DockerfilePath < ims[j].DockerfilePath
 				default:
-					return ims[i].pos < ims[j].pos
+					return ims[i].position < ims[j].position
 				}
 			})
 		}(ims)
 	}
 }
 
-// Write writes a Lockfile, formatted as indented json, to an io.Writer.
+// Write writes a Lockfile to an io.Writer, formatted as indented json.
 func (l *Lockfile) Write(w io.Writer) error {
 	lByt, err := json.MarshalIndent(l, "", "\t")
 	if err != nil {

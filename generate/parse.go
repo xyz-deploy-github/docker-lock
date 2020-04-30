@@ -12,64 +12,63 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type parsedImageLine struct {
-	line    string // e.g. python:3.6@sha256:25a189...
-	dPath   string
-	cPath   string
-	pos     int
-	svcName string
-	err     error
+// BaseImage represents an image in a Dockerfile's FROM instruction
+// or a docker-compose file's image key.
+type BaseImage struct {
+	Image           *Image
+	dockerfilePath  string
+	composefilePath string
+	position        int
+	serviceName     string
+	err             error
 }
 
-func (g *Generator) parseFiles(doneCh <-chan struct{}) chan *parsedImageLine {
-	pilCh := make(chan *parsedImageLine)
+// parseFiles finds all base images in the generator's Dockerfiles and
+// docker-compose files.
+func (g *Generator) parseFiles(doneCh <-chan struct{}) chan *BaseImage {
+	bImCh := make(chan *BaseImage)
 	wg := sync.WaitGroup{}
 
 	wg.Add(1)
 
-	go g.parseDfiles(pilCh, &wg, doneCh)
+	go g.parseDfiles(bImCh, &wg, doneCh)
 
 	wg.Add(1)
 
-	go g.parseCfiles(pilCh, &wg, doneCh)
+	go g.parseCfiles(bImCh, &wg, doneCh)
 
 	go func() {
 		wg.Wait()
-		close(pilCh)
+		close(bImCh)
 	}()
 
-	return pilCh
+	return bImCh
 }
 
+// parseDfiles finds base images in Dockerfiles.
 func (g *Generator) parseDfiles(
-	pilCh chan<- *parsedImageLine,
+	bImCh chan<- *BaseImage,
 	wg *sync.WaitGroup,
 	doneCh <-chan struct{},
 ) {
 	defer wg.Done()
 
-	bArgs := map[string]string{}
-
-	if g.DockerfileEnvBuildArgs {
-		for _, e := range os.Environ() {
-			argVal := strings.SplitN(e, "=", 2)
-			bArgs[argVal[0]] = argVal[1]
-		}
-	}
+	bArgs := g.dBuildArgs()
 
 	for _, dPath := range g.DockerfilePaths {
 		wg.Add(1)
 
-		go g.parseDfile(dPath, bArgs, "", "", pilCh, wg, doneCh)
+		go g.parseDfile(dPath, bArgs, "", "", bImCh, wg, doneCh)
 	}
 }
 
+// parseDfile finds base images in a Dockerfile.
 func (g *Generator) parseDfile(
 	dPath string,
 	bArgs map[string]string,
 	cPath string,
 	svcName string,
-	pilCh chan<- *parsedImageLine,
+	bImCh chan<- *BaseImage,
 	wg *sync.WaitGroup,
 	doneCh <-chan struct{},
 ) {
@@ -77,7 +76,7 @@ func (g *Generator) parseDfile(
 
 	dfile, err := os.Open(dPath) // nolint: gosec
 	if err != nil {
-		addErrToPilCh(err, pilCh, doneCh)
+		g.addErrToBiCh(err, bImCh, doneCh)
 		return
 	}
 	defer dfile.Close()
@@ -108,29 +107,30 @@ func (g *Generator) parseDfile(
 
 						const valIndex = 1
 
-						strpVar := stripQuotesFromArgInst(vv[varIndex])
-						strpVal := stripQuotesFromArgInst(vv[valIndex])
+						strpVar := g.stripQuotes(vv[varIndex])
+						strpVal := g.stripQuotes(vv[valIndex])
 						gArgs[strpVar] = strpVal
 					} else {
 						// ARG VAR1
-						strpVar := stripQuotesFromArgInst(fields[imLineIndex])
+						strpVar := g.stripQuotes(fields[imLineIndex])
 						gArgs[strpVar] = ""
 					}
 				}
 			case "from":
 				gCtx = false
 				line := expandField(fields[imLineIndex], gArgs, bArgs)
+				im := g.convertImageLineToImage(line)
 
 				if !stages[line] {
 					select {
 					case <-doneCh:
 						return
-					case pilCh <- &parsedImageLine{
-						line:    line,
-						dPath:   dPath,
-						cPath:   cPath,
-						svcName: svcName,
-						pos:     pos,
+					case bImCh <- &BaseImage{
+						Image:           im,
+						dockerfilePath:  dPath,
+						composefilePath: cPath,
+						serviceName:     svcName,
+						position:        pos,
 					}:
 						pos++
 					}
@@ -148,8 +148,9 @@ func (g *Generator) parseDfile(
 	}
 }
 
+// parseCfiles finds base images in docker-compose files.
 func (g *Generator) parseCfiles(
-	pilCh chan<- *parsedImageLine,
+	bImCh chan<- *BaseImage,
 	wg *sync.WaitGroup,
 	doneCh <-chan struct{},
 ) {
@@ -158,13 +159,14 @@ func (g *Generator) parseCfiles(
 	for _, cPath := range g.ComposefilePaths {
 		wg.Add(1)
 
-		go g.parseCfile(cPath, pilCh, wg, doneCh)
+		go g.parseCfile(cPath, bImCh, wg, doneCh)
 	}
 }
 
+// parseCfile finds base images in a docker-compose file.
 func (g *Generator) parseCfile(
 	cPath string,
-	pilCh chan<- *parsedImageLine,
+	bImCh chan<- *BaseImage,
 	wg *sync.WaitGroup,
 	doneCh <-chan struct{},
 ) {
@@ -172,14 +174,14 @@ func (g *Generator) parseCfile(
 
 	ymlByt, err := ioutil.ReadFile(cPath) // nolint: gosec
 	if err != nil {
-		addErrToPilCh(err, pilCh, doneCh)
+		g.addErrToBiCh(err, bImCh, doneCh)
 		return
 	}
 
 	comp := compose{}
 	if err := yaml.Unmarshal(ymlByt, &comp); err != nil {
 		err = fmt.Errorf("from '%s': %v", cPath, err)
-		addErrToPilCh(err, pilCh, doneCh)
+		g.addErrToBiCh(err, bImCh, doneCh)
 
 		return
 	}
@@ -187,28 +189,30 @@ func (g *Generator) parseCfile(
 	for svcName, svc := range comp.Services {
 		wg.Add(1)
 
-		go g.parseSvc(svcName, svc, cPath, pilCh, wg, doneCh)
+		go g.parseService(svcName, svc, cPath, bImCh, wg, doneCh)
 	}
 }
 
-func (g *Generator) parseSvc(
+// parseService finds base images in a service.
+func (g *Generator) parseService(
 	svcName string,
 	svc *service,
 	cPath string,
-	pilCh chan<- *parsedImageLine,
+	bImCh chan<- *BaseImage,
 	wg *sync.WaitGroup,
 	doneCh <-chan struct{},
 ) {
 	defer wg.Done()
 
 	if svc.BuildWrapper == nil {
-		line := os.ExpandEnv(svc.ImageName)
+		imLine := os.ExpandEnv(svc.ImageName)
+		im := g.convertImageLineToImage(imLine)
 		select {
 		case <-doneCh:
-		case pilCh <- &parsedImageLine{
-			line:    line,
-			cPath:   cPath,
-			svcName: svcName,
+		case bImCh <- &BaseImage{
+			Image:           im,
+			composefilePath: cPath,
+			serviceName:     svcName,
 		}:
 		}
 
@@ -226,7 +230,7 @@ func (g *Generator) parseSvc(
 
 		wg.Add(1)
 
-		go g.parseDfile(dPath, nil, cPath, svcName, pilCh, wg, doneCh)
+		go g.parseDfile(dPath, nil, cPath, svcName, bImCh, wg, doneCh)
 	case verbose:
 		ctx := filepath.ToSlash(os.ExpandEnv(build.Context))
 		if !filepath.IsAbs(ctx) {
@@ -240,40 +244,58 @@ func (g *Generator) parseSvc(
 
 		dPath = filepath.ToSlash(filepath.Join(ctx, dPath))
 
-		bArgs := map[string]string{}
-
-		if build.ArgsWrapper != nil {
-			switch args := build.ArgsWrapper.Args.(type) {
-			case argsMap:
-				for a, v := range args {
-					arg := os.ExpandEnv(a)
-					val := os.ExpandEnv(v)
-					bArgs[arg] = val
-				}
-			case argsSlice:
-				for _, argValStr := range args {
-					argValSl := strings.SplitN(argValStr, "=", 2)
-					arg := os.ExpandEnv(argValSl[0])
-
-					const argOnlyLen = 1
-
-					switch len(argValSl) {
-					case argOnlyLen:
-						bArgs[arg] = os.Getenv(arg)
-					default:
-						val := os.ExpandEnv(argValSl[1])
-						bArgs[arg] = val
-					}
-				}
-			}
-		}
+		bArgs := g.cBuildArgs(build)
 
 		wg.Add(1)
 
-		go g.parseDfile(dPath, bArgs, cPath, svcName, pilCh, wg, doneCh)
+		go g.parseDfile(dPath, bArgs, cPath, svcName, bImCh, wg, doneCh)
 	}
 }
 
+// convertLineToIm converts a line such as ubuntu:bionic into an Image.
+func (g *Generator) convertImageLineToImage(line string) *Image {
+	tagSeparator := -1
+	digestSeparator := -1
+
+loop:
+	for i, c := range line {
+		switch c {
+		case ':':
+			tagSeparator = i
+		case '@':
+			digestSeparator = i
+			break loop
+		}
+	}
+
+	var name, tag, digest string
+
+	// 4 valid cases
+	switch {
+	case tagSeparator != -1 && digestSeparator != -1:
+		// ubuntu:18.04@sha256:9b1702...
+		name = line[:tagSeparator]
+		tag = line[tagSeparator+1 : digestSeparator]
+		digest = line[digestSeparator+1+len("sha256:"):]
+	case tagSeparator != -1 && digestSeparator == -1:
+		// ubuntu:18.04
+		name = line[:tagSeparator]
+		tag = line[tagSeparator+1:]
+	case tagSeparator == -1 && digestSeparator != -1:
+		// ubuntu@sha256:9b1702...
+		name = line[:digestSeparator]
+		digest = line[digestSeparator+1+len("sha256:"):]
+	case tagSeparator == -1 && digestSeparator == -1:
+		// ubuntu
+		name = line
+		tag = "latest"
+	}
+
+	return &Image{Name: name, Tag: tag, Digest: digest}
+}
+
+// expandField expands environment variables in a field according to
+// global args and build args.
 func expandField(
 	field string,
 	gArgs map[string]string,
@@ -285,20 +307,71 @@ func expandField(
 			return ""
 		}
 
-		var val string
-
 		bArg, ok := bArgs[arg]
 		if ok {
-			val = bArg
-		} else {
-			val = gVal
+			return bArg
 		}
 
-		return val
+		return gVal
 	})
 }
 
-func stripQuotesFromArgInst(s string) string {
+// dBuildArgs returns build args for Dockerfiles from environment variables if
+// set via the flag --dockerfile-env-build-args.
+func (g *Generator) dBuildArgs() map[string]string {
+	bArgs := map[string]string{}
+
+	if !g.DockerfileEnvBuildArgs {
+		return bArgs
+	}
+
+	for _, e := range os.Environ() {
+		argVal := strings.SplitN(e, "=", 2)
+		bArgs[argVal[0]] = argVal[1]
+	}
+
+	return bArgs
+}
+
+// cBuildArgs returns build args for a docker-compose service if the args key
+// in the docker-compose file has a value.
+func (g *Generator) cBuildArgs(build verbose) map[string]string {
+	bArgs := map[string]string{}
+
+	if build.ArgsWrapper == nil {
+		return bArgs
+	}
+
+	switch args := build.ArgsWrapper.Args.(type) {
+	case argsMap:
+		for a, v := range args {
+			arg := os.ExpandEnv(a)
+			val := os.ExpandEnv(v)
+			bArgs[arg] = val
+		}
+	case argsSlice:
+		for _, argValStr := range args {
+			argValSl := strings.SplitN(argValStr, "=", 2)
+			arg := os.ExpandEnv(argValSl[0])
+
+			const argOnlyLen = 1
+
+			switch len(argValSl) {
+			case argOnlyLen:
+				bArgs[arg] = os.Getenv(arg)
+			default:
+				val := os.ExpandEnv(argValSl[1])
+				bArgs[arg] = val
+			}
+		}
+	}
+
+	return bArgs
+}
+
+// stripQuotes strips valid quotes from an ARG instruction's keys
+// and values.
+func (g *Generator) stripQuotes(s string) string {
 	// Valid in a Dockerfile - any number of quotes if quote is on either side.
 	// ARG "IMAGE"="busybox"
 	// ARG "IMAGE"""""="busybox"""""""""""""
@@ -309,13 +382,15 @@ func stripQuotesFromArgInst(s string) string {
 	return s
 }
 
-func addErrToPilCh(
+// addErrToBiCh adds an error to a base image channel, ensuring the goroutine
+// will not leak if the done channel is closed.
+func (g *Generator) addErrToBiCh(
 	err error,
-	pilCh chan<- *parsedImageLine,
+	bImCh chan<- *BaseImage,
 	doneCh <-chan struct{},
 ) {
 	select {
 	case <-doneCh:
-	case pilCh <- &parsedImageLine{err: err}:
+	case bImCh <- &BaseImage{err: err}:
 	}
 }

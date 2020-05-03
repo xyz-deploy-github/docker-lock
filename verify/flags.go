@@ -27,6 +27,7 @@ func NewFlags(
 	}, nil
 }
 
+// convertStrToSlash converts a filepath string to use forward slashes.
 func convertStrToSlash(s string) string {
 	return filepath.ToSlash(s)
 }

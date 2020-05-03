@@ -21,7 +21,7 @@ type Verifier struct {
 
 // NewVerifier creates a Verifier from command line flags.
 func NewVerifier(flags *Flags) (*Verifier, error) {
-	lfile, err := readLfile(flags.LockfilePath)
+	lfile, err := readLockfile(flags.LockfilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -58,13 +58,16 @@ func (v *Verifier) VerifyLockfile(wm *registry.WrapperManager) error {
 		return err
 	}
 
-	if err := v.verifyIms(&lfile); err != nil {
+	if err := v.verifyImages(&lfile); err != nil {
 		return err
 	}
 
 	return nil
 }
 
+// verifyNumFiles ensures that the existing Lockfile and newly
+// generated Lockfile have the same number of Dockerfiles and
+// docker-compose files.
 func (v *Verifier) verifyNumFiles(lfile *generate.Lockfile) error {
 	if len(v.Lockfile.DockerfileImages) != len(lfile.DockerfileImages) {
 		return fmt.Errorf(
@@ -84,7 +87,9 @@ func (v *Verifier) verifyNumFiles(lfile *generate.Lockfile) error {
 	return nil
 }
 
-func (v *Verifier) verifyIms(lfile *generate.Lockfile) error {
+// verifyImages ensures that the existing Lockfile and newly generated Lockfile
+// have the same images in order for each Dockerfile and docker-compose file.
+func (v *Verifier) verifyImages(lfile *generate.Lockfile) error {
 	for dPath := range v.Lockfile.DockerfileImages {
 		if len(v.Lockfile.DockerfileImages[dPath]) !=
 			len(lfile.DockerfileImages[dPath]) {
@@ -132,7 +137,9 @@ func (v *Verifier) verifyIms(lfile *generate.Lockfile) error {
 	return nil
 }
 
-func readLfile(lName string) (*generate.Lockfile, error) {
+// readLockfile reads an existing Lockfile from the current directory
+// given the Lockfile's name.
+func readLockfile(lName string) (*generate.Lockfile, error) {
 	lByt, err := ioutil.ReadFile(lName) // nolint: gosec
 	if err != nil {
 		return nil, err
@@ -146,6 +153,9 @@ func readLfile(lName string) (*generate.Lockfile, error) {
 	return &lfile, nil
 }
 
+// makeGenerator creates a *Generator. It initializes the generator
+// with the values from the Lockfile, rather than using the constructor.
+// This enables the rewrite command to take fewer flags.
 func makeGenerator(
 	lfile *generate.Lockfile,
 	dfileEnvBuildArgs bool,

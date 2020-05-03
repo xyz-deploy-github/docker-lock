@@ -10,7 +10,7 @@ import (
 	"github.com/michaelperel/docker-lock/registry"
 )
 
-var server = getMockServer()       //nolint: gochecknoglobals
+var server = mockServer()          //nolint: gochecknoglobals
 var client = &registry.HTTPClient{ //nolint: gochecknoglobals
 	Client:        server.Client(),
 	BaseDigestURL: server.URL,
@@ -26,7 +26,7 @@ func TestMain(m *testing.M) {
 	os.Exit(retCode)
 }
 
-func getMockServer() *httptest.Server {
+func mockServer() *httptest.Server {
 	server := httptest.NewServer(
 		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			switch url := req.URL.String(); {

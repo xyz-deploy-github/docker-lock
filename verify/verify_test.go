@@ -48,7 +48,7 @@ func TestVerifier(t *testing.T) {
 func dDiffNumImages() (*test, error) {
 	lPath := filepath.Join(dTestDir, "diffnumimages", "docker-lock.json")
 
-	flags, err := NewFlags(lPath, getDefaultConfigPath(), ".env", false)
+	flags, err := NewFlags(lPath, defaultConfigPath(), ".env", false)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func dDiffNumImages() (*test, error) {
 func dDiffDigests() (*test, error) {
 	lPath := filepath.Join(dTestDir, "diffdigests", "docker-lock.json")
 
-	flags, err := NewFlags(lPath, getDefaultConfigPath(), ".env", false)
+	flags, err := NewFlags(lPath, defaultConfigPath(), ".env", false)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func dBuildArgs() (*test, error) {
 		return nil, err
 	}
 
-	flags, err := NewFlags(lPath, getDefaultConfigPath(), envPath, true)
+	flags, err := NewFlags(lPath, defaultConfigPath(), envPath, true)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func dBuildArgs() (*test, error) {
 func cDiffNumImages() (*test, error) {
 	lPath := filepath.Join(cTestDir, "diffnumimages", "docker-lock.json")
 
-	flags, err := NewFlags(lPath, getDefaultConfigPath(), ".env", false)
+	flags, err := NewFlags(lPath, defaultConfigPath(), ".env", false)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func cDiffNumImages() (*test, error) {
 func cDiffDigests() (*test, error) {
 	lPath := filepath.Join(cTestDir, "diffdigests", "docker-lock.json")
 
-	flags, err := NewFlags(lPath, getDefaultConfigPath(), ".env", false)
+	flags, err := NewFlags(lPath, defaultConfigPath(), ".env", false)
 	if err != nil {
 		return nil, err
 	}
@@ -157,9 +157,9 @@ func getTests() (map[string]*test, error) {
 }
 
 func verifyLockfile(v *Verifier) error {
-	configPath := getDefaultConfigPath()
+	configPath := defaultConfigPath()
 
-	wm, err := getDefaultWrapperManager(configPath, client)
+	wm, err := defaultWrapperManager(configPath, client)
 	if err != nil {
 		return err
 	}
@@ -167,23 +167,23 @@ func verifyLockfile(v *Verifier) error {
 	return v.VerifyLockfile(wm)
 }
 
-func getDefaultWrapperManager(
+func defaultWrapperManager(
 	configPath string,
 	client *registry.HTTPClient,
 ) (*registry.WrapperManager, error) {
-	dw, err := firstparty.GetDefaultWrapper(configPath, client)
+	dw, err := firstparty.DefaultWrapper(configPath, client)
 	if err != nil {
 		return nil, err
 	}
 
 	wm := registry.NewWrapperManager(dw)
 
-	fpWrappers, err := firstparty.GetAllWrappers(configPath, client)
+	fpWrappers, err := firstparty.AllWrappers(configPath, client)
 	if err != nil {
 		return nil, err
 	}
 
-	cWrappers, err := contrib.GetAllWrappers(client)
+	cWrappers, err := contrib.AllWrappers(client)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +194,7 @@ func getDefaultWrapperManager(
 	return wm, nil
 }
 
-func getDefaultConfigPath() string {
+func defaultConfigPath() string {
 	if homeDir, err := os.UserHomeDir(); err == nil {
 		cPath := filepath.ToSlash(
 			filepath.Join(homeDir, ".docker", "config.json"),

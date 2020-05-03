@@ -2,17 +2,17 @@ package firstparty
 
 import "github.com/michaelperel/docker-lock/registry"
 
-// GetDefaultWrapper returns a wrapper for images without a prefix.
-func GetDefaultWrapper(
+// DefaultWrapper returns a wrapper for images without a prefix.
+func DefaultWrapper(
 	configPath string,
 	client *registry.HTTPClient,
 ) (registry.Wrapper, error) {
 	return NewDockerWrapper(configPath, client)
 }
 
-// GetAllWrappers returns all wrappers officially supported
+// AllWrappers returns all wrappers officially supported
 // by the maintainers of docker-lock.
-func GetAllWrappers(
+func AllWrappers(
 	configPath string,
 	client *registry.HTTPClient,
 ) ([]registry.Wrapper, error) {

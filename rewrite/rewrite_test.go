@@ -263,14 +263,14 @@ func cmpRewrites(dPaths, cPaths []string) error {
 
 func cmpDfileRewrites(paths []string) error {
 	for _, p := range paths {
-		gotPath := getSuffixPath(p, "got")
+		gotPath := suffixPath(p, "got")
 
 		gotByt, err := ioutil.ReadFile(gotPath)
 		if err != nil {
 			return err
 		}
 
-		wantPath := getSuffixPath(p, "want")
+		wantPath := suffixPath(p, "want")
 
 		wantByt, err := ioutil.ReadFile(wantPath)
 		if err != nil {
@@ -305,8 +305,8 @@ func cmpDfileRewrites(paths []string) error {
 
 func cmpCfileRewrites(paths []string) error {
 	for _, p := range paths {
-		gotPath := getSuffixPath(p, "got")
-		wantPath := getSuffixPath(p, "want")
+		gotPath := suffixPath(p, "got")
+		wantPath := suffixPath(p, "want")
 
 		gotByt, err := ioutil.ReadFile(gotPath)
 		if err != nil {
@@ -351,7 +351,7 @@ func cmpCfileRewrites(paths []string) error {
 func rmGotPaths(dPaths, cPaths []string) error {
 	for _, paths := range [][]string{dPaths, cPaths} {
 		for _, p := range paths {
-			if err := os.Remove(getSuffixPath(p, "got")); err != nil {
+			if err := os.Remove(suffixPath(p, "got")); err != nil {
 				return err
 			}
 		}
@@ -360,7 +360,7 @@ func rmGotPaths(dPaths, cPaths []string) error {
 	return nil
 }
 
-func getSuffixPath(p, suffix string) string {
+func suffixPath(p, suffix string) string {
 	switch {
 	case strings.HasSuffix(p, ".yml"):
 		return fmt.Sprintf(

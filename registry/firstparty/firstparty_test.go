@@ -6,12 +6,12 @@ import (
 	"github.com/michaelperel/docker-lock/registry"
 )
 
-// TestGetAllWrappers ensures that all wrappers officially
+// TestAllWrappers ensures that all wrappers officially
 // supported by docker-lock's maintainers are returned.
-func TestGetAllWrappers(t *testing.T) {
+func TestAllWrappers(t *testing.T) {
 	client := &registry.HTTPClient{}
 
-	wrappers, err := GetAllWrappers("", client)
+	wrappers, err := AllWrappers("", client)
 	if err != nil {
 		t.Fatal("could not get wrappers")
 	}
@@ -35,12 +35,12 @@ func TestGetAllWrappers(t *testing.T) {
 	}
 }
 
-// TestGetDefaultWrapper ensures that the default wrapper
+// TestDefaultWrapper ensures that the default wrapper
 // is one that can handle images without a prefix.
-func TestGetDefaultWrapper(t *testing.T) {
+func TestDefaultWrapper(t *testing.T) {
 	client := &registry.HTTPClient{}
 
-	wrapper, err := GetDefaultWrapper("", client)
+	wrapper, err := DefaultWrapper("", client)
 	if err != nil {
 		t.Fatal("could not get default wrapper")
 	}

@@ -10,7 +10,7 @@ import (
 	"github.com/michaelperel/docker-lock/registry/firstparty"
 )
 
-func getDefaultConfigPath() string {
+func defaultConfigPath() string {
 	if homeDir, err := os.UserHomeDir(); err == nil {
 		cPath := filepath.ToSlash(
 			filepath.Join(homeDir, ".docker", "config.json"),
@@ -25,23 +25,23 @@ func getDefaultConfigPath() string {
 	return ""
 }
 
-func getDefaultWrapperManager(
+func defaultWrapperManager(
 	configPath string,
 	client *registry.HTTPClient,
 ) (*registry.WrapperManager, error) {
-	dw, err := firstparty.GetDefaultWrapper(configPath, client)
+	dw, err := firstparty.DefaultWrapper(configPath, client)
 	if err != nil {
 		return nil, err
 	}
 
 	wm := registry.NewWrapperManager(dw)
 
-	fpWrappers, err := firstparty.GetAllWrappers(configPath, client)
+	fpWrappers, err := firstparty.AllWrappers(configPath, client)
 	if err != nil {
 		return nil, err
 	}
 
-	cWrappers, err := contrib.GetAllWrappers(client)
+	cWrappers, err := contrib.AllWrappers(client)
 	if err != nil {
 		return nil, err
 	}

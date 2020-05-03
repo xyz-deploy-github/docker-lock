@@ -14,7 +14,7 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 		Use:   "generate",
 		Short: "Generate a Lockfile to track image digests",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			flags, err := getGeneratorFlags(cmd)
+			flags, err := generatorFlags(cmd)
 			if err != nil {
 				return err
 			}
@@ -23,7 +23,7 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 				return err
 			}
 
-			wm, err := getDefaultWrapperManager(flags.ConfigFile, client)
+			wm, err := defaultWrapperManager(flags.ConfigFile, client)
 			if err != nil {
 				return err
 			}
@@ -74,7 +74,7 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 		"Recursively collect docker-compose files",
 	)
 	generateCmd.Flags().String(
-		"config-file", getDefaultConfigPath(),
+		"config-file", defaultConfigPath(),
 		"Path to config file for auth credentials",
 	)
 	generateCmd.Flags().StringP(
@@ -88,7 +88,7 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 	return generateCmd
 }
 
-func getGeneratorFlags(cmd *cobra.Command) (*generate.Flags, error) {
+func generatorFlags(cmd *cobra.Command) (*generate.Flags, error) {
 	bDir, err := cmd.Flags().GetString("base-dir")
 	if err != nil {
 		return nil, err

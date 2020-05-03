@@ -373,7 +373,7 @@ func (r *Rewriter) writeTempFile(
 		return
 	}
 
-	origByt, err := r.getOrigByt(oPath)
+	origByt, err := r.origByt(oPath)
 	if err != nil {
 		addErrToRnCh(err, rnCh, doneCh)
 		return
@@ -389,9 +389,9 @@ func (r *Rewriter) writeTempFile(
 	}
 }
 
-// getOrigByt returns the bytes at a path or an error if the path
+// origByt returns the bytes at a path or an error if the path
 // exists but has mode type bits set.
-func (r *Rewriter) getOrigByt(oPath string) ([]byte, error) {
+func (r *Rewriter) origByt(oPath string) ([]byte, error) {
 	fi, err := os.Stat(oPath)
 	if err != nil {
 		return nil, nil

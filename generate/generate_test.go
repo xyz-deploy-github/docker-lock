@@ -64,7 +64,7 @@ func dBuildStage() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		".", "docker-lock.json", defaultConfigPath(), ".env",
 		dfiles, []string{}, []string{}, []string{},
 		false, false, false,
 	)
@@ -94,7 +94,7 @@ func dLocalArg() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		".", "docker-lock.json", defaultConfigPath(), ".env",
 		dfiles, []string{}, []string{}, []string{},
 		false, false, false,
 	)
@@ -123,7 +123,7 @@ func dMultiple() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		".", "docker-lock.json", defaultConfigPath(), ".env",
 		dfiles, []string{}, []string{}, []string{},
 		false, false, false,
 	)
@@ -157,7 +157,7 @@ func dRecursive() (*test, error) {
 	rBDir := filepath.Join(dTestDir, "recursive")
 
 	flags, err := NewFlags(
-		rBDir, "docker-lock.json", getDefaultConfigPath(), ".env",
+		rBDir, "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, []string{}, []string{}, []string{},
 		true, false, false,
 	)
@@ -193,7 +193,7 @@ func dGlobs() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, []string{}, globs, []string{},
 		false, false, false,
 	)
@@ -232,7 +232,7 @@ func dBuildArgs() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), envPath,
+		".", "docker-lock.json", defaultConfigPath(), envPath,
 		dfiles, []string{}, []string{}, []string{},
 		false, false, true,
 	)
@@ -261,7 +261,7 @@ func dNoFile() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		bDir, "docker-lock.json", getDefaultConfigPath(), ".env",
+		bDir, "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, []string{}, []string{}, []string{},
 		false, false, false,
 	)
@@ -291,7 +291,7 @@ func cImage() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
@@ -323,7 +323,7 @@ func cBuild() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
@@ -357,7 +357,7 @@ func cDockerfile() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
@@ -393,7 +393,7 @@ func cContext() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
@@ -432,7 +432,7 @@ func cRelContext() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
@@ -468,7 +468,7 @@ func cAbsContext() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
@@ -519,7 +519,7 @@ func cEnv() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), envPath,
+		".", "docker-lock.json", defaultConfigPath(), envPath,
 		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
@@ -564,7 +564,7 @@ func cArgsEnvList() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), envPath,
+		".", "docker-lock.json", defaultConfigPath(), envPath,
 		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
@@ -598,7 +598,7 @@ func cArgsKeyValList() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
@@ -632,7 +632,7 @@ func cArgsKeyValMap() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
@@ -666,7 +666,7 @@ func cArgsOverride() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
@@ -700,7 +700,7 @@ func cArgsEmpty() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
@@ -735,7 +735,7 @@ func cArgsNoArg() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
@@ -780,7 +780,7 @@ func cMultiple() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
@@ -838,7 +838,7 @@ func cRecursive() (*test, error) {
 	bDir := filepath.Join(cTestDir, "recursive")
 
 	flags, err := NewFlags(
-		bDir, "docker-lock.json", getDefaultConfigPath(), ".env",
+		bDir, "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, []string{}, []string{}, []string{},
 		false, true, false,
 	)
@@ -879,7 +879,7 @@ func cNoFile() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		bDir, "docker-lock.json", getDefaultConfigPath(), ".env",
+		bDir, "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, []string{}, []string{}, []string{},
 		false, false, false,
 	)
@@ -932,7 +932,7 @@ func cGlobs() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, []string{}, []string{}, globs,
 		false, false, false,
 	)
@@ -982,7 +982,7 @@ func cAssortment() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
@@ -1037,7 +1037,7 @@ func cSort() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
 		false, false, false,
 	)
@@ -1090,7 +1090,7 @@ func bDuplicates() (*test, error) {
 	}
 
 	flags, err := NewFlags(
-		".", "docker-lock.json", getDefaultConfigPath(), ".env",
+		".", "docker-lock.json", defaultConfigPath(), ".env",
 		dfiles, cfiles, []string{}, []string{},
 		false, false, false,
 	)
@@ -1441,9 +1441,9 @@ func cmpIms(got, want *Image) error {
 }
 
 func writeLfile(g *Generator) (*Lockfile, error) {
-	configPath := getDefaultConfigPath()
+	configPath := defaultConfigPath()
 
-	wm, err := getDefaultWrapperManager(configPath, client)
+	wm, err := defaultWrapperManager(configPath, client)
 	if err != nil {
 		return nil, err
 	}
@@ -1461,23 +1461,23 @@ func writeLfile(g *Generator) (*Lockfile, error) {
 	return &lfile, err
 }
 
-func getDefaultWrapperManager(
+func defaultWrapperManager(
 	configPath string,
 	client *registry.HTTPClient,
 ) (*registry.WrapperManager, error) {
-	dw, err := firstparty.GetDefaultWrapper(configPath, client)
+	dw, err := firstparty.DefaultWrapper(configPath, client)
 	if err != nil {
 		return nil, err
 	}
 
 	wm := registry.NewWrapperManager(dw)
 
-	fpWrappers, err := firstparty.GetAllWrappers(configPath, client)
+	fpWrappers, err := firstparty.AllWrappers(configPath, client)
 	if err != nil {
 		return nil, err
 	}
 
-	cWrappers, err := contrib.GetAllWrappers(client)
+	cWrappers, err := contrib.AllWrappers(client)
 	if err != nil {
 		return nil, err
 	}
@@ -1488,7 +1488,7 @@ func getDefaultWrapperManager(
 	return wm, nil
 }
 
-func getDefaultConfigPath() string {
+func defaultConfigPath() string {
 	if homeDir, err := os.UserHomeDir(); err == nil {
 		cPath := filepath.ToSlash(
 			filepath.Join(homeDir, ".docker", "config.json"),

@@ -20,13 +20,16 @@ import (
 type DockerWrapper struct {
 	ConfigPath string
 	Client     *registry.HTTPClient
-	authCreds  *dockerAuthCredentials
+	*dockerAuthCreds
 }
 
+// dockerTokenResponse contains the bearer token required to
+// query the container registry for a digest.
 type dockerTokenResponse struct {
 	Token string `json:"token"`
 }
 
+// dockerConfig represents the section in docker's config.json for Docker Hub.
 type dockerConfig struct {
 	Auths struct {
 		Index struct {
@@ -36,7 +39,9 @@ type dockerConfig struct {
 	CredsStore string `json:"credsStore"`
 }
 
-type dockerAuthCredentials struct {
+// dockerAuthCreds contains the username and password required to
+// query the container registry for a digest.
+type dockerAuthCreds struct {
 	username string
 	password string
 }
@@ -56,25 +61,25 @@ func NewDockerWrapper(
 
 	w := &DockerWrapper{ConfigPath: configPath, Client: client}
 
-	authCreds, err := w.getAuthCredentials()
+	ac, err := w.authCreds()
 	if err != nil {
 		return nil, err
 	}
 
-	w.authCreds = authCreds
+	w.dockerAuthCreds = ac
 
 	return w, nil
 }
 
-// GetDigest gets the digest from a name and tag. The workflow for
-// authenticating with private repositories:
+// Digest queries the container registry for the digest given a name and tag.
+// The workflow for authenticating with private repositories:
 //
 // (1) if "DOCKER_USERNAME" and "DOCKER_PASSWORD" are set, use them.
 //
 // (2) Otherwise, try to get credentials from docker's config file. This method
 // requires the user to have logged in with the 'docker login' command
 // beforehand.
-func (w *DockerWrapper) GetDigest(name string, tag string) (string, error) {
+func (w *DockerWrapper) Digest(name string, tag string) (string, error) {
 	// Docker-Content-Digest is the root of the hash chain
 	// https://github.com/docker/distribution/issues/1662
 	var names []string
@@ -86,7 +91,7 @@ func (w *DockerWrapper) GetDigest(name string, tag string) (string, error) {
 	}
 
 	for _, name := range names {
-		token, err := w.getToken(name)
+		t, err := w.token(name)
 		if err != nil {
 			return "", err
 		}
@@ -100,7 +105,7 @@ func (w *DockerWrapper) GetDigest(name string, tag string) (string, error) {
 			return "", err
 		}
 
-		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", t))
 		req.Header.Add(
 			"Accept", "application/vnd.docker.distribution.manifest.v2+json",
 		)
@@ -121,7 +126,9 @@ func (w *DockerWrapper) GetDigest(name string, tag string) (string, error) {
 	return "", fmt.Errorf("no digest found for '%s:%s'", name, tag)
 }
 
-func (w *DockerWrapper) getToken(name string) (string, error) {
+// token queries the container registry for a bearer token that is later
+// required to query the container registry for a digest.
+func (w *DockerWrapper) token(name string) (string, error) {
 	url := fmt.Sprintf(
 		"%s?scope=repository:%s:pull&service=registry.docker.io",
 		w.Client.BaseTokenURL,
@@ -133,8 +140,8 @@ func (w *DockerWrapper) getToken(name string) (string, error) {
 		return "", err
 	}
 
-	if w.authCreds.username != "" && w.authCreds.password != "" {
-		req.SetBasicAuth(w.authCreds.username, w.authCreds.password)
+	if w.username != "" && w.password != "" {
+		req.SetBasicAuth(w.username, w.password)
 	}
 
 	resp, err := w.Client.Client.Do(req)
@@ -153,19 +160,23 @@ func (w *DockerWrapper) getToken(name string) (string, error) {
 	return t.Token, nil
 }
 
-func (w *DockerWrapper) getAuthCredentials() (*dockerAuthCredentials, error) {
+// authCreds returns the username and password required to query
+// the registry for the digest. It first looks for the environment
+// variables "DOCKER_USERNAME" and "DOCKER_PASSWORD". If those do not exist,
+// it tries to read them from docker's config.json.
+func (w *DockerWrapper) authCreds() (*dockerAuthCreds, error) {
 	username := os.Getenv("DOCKER_USERNAME")
 	password := os.Getenv("DOCKER_PASSWORD")
 
 	if username != "" && password != "" {
-		return &dockerAuthCredentials{
+		return &dockerAuthCreds{
 			username: username,
 			password: password,
 		}, nil
 	}
 
 	if w.ConfigPath == "" {
-		return &dockerAuthCredentials{}, nil
+		return &dockerAuthCreds{}, nil
 	}
 
 	confByt, err := ioutil.ReadFile(w.ConfigPath)
@@ -188,25 +199,27 @@ func (w *DockerWrapper) getAuthCredentials() (*dockerAuthCredentials, error) {
 	switch {
 	case authStr != "":
 		auth := strings.Split(authStr, ":")
-		return &dockerAuthCredentials{username: auth[0], password: auth[1]}, nil
+		return &dockerAuthCreds{username: auth[0], password: auth[1]}, nil
 	case conf.CredsStore != "":
-		authCreds, err := w.getAuthCredentialsFromCredsStore(conf.CredsStore)
+		authCreds, err := w.authCredsFromStore(conf.CredsStore)
 		if err != nil {
-			return &dockerAuthCredentials{}, nil
+			return &dockerAuthCreds{}, nil
 		}
 
 		return authCreds, nil
 	}
 
-	return &dockerAuthCredentials{}, nil
+	return &dockerAuthCreds{}, nil
 }
 
-func (w *DockerWrapper) getAuthCredentialsFromCredsStore(
+// authCredsFromStore reads auth creds from a creds store such as
+// wincred, pass, or osxkeychain by shelling out to docker credential helper.
+func (w *DockerWrapper) authCredsFromStore(
 	credsStore string,
-) (authCreds *dockerAuthCredentials, err error) {
+) (authCreds *dockerAuthCreds, err error) {
 	defer func() {
 		if err := recover(); err != nil {
-			authCreds = &dockerAuthCredentials{}
+			authCreds = &dockerAuthCreds{}
 			return
 		}
 	}()
@@ -219,7 +232,7 @@ func (w *DockerWrapper) getAuthCredentialsFromCredsStore(
 		return authCreds, err
 	}
 
-	return &dockerAuthCredentials{
+	return &dockerAuthCreds{
 		username: credRes.Username,
 		password: credRes.Secret,
 	}, nil

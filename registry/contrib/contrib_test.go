@@ -6,12 +6,12 @@ import (
 	"github.com/michaelperel/docker-lock/registry"
 )
 
-// TestGetAllWrappers ensures that all wrappers maintained by the
+// TestAllWrappers ensures that all wrappers maintained by the
 // community are returned.
-func TestGetAllWrappers(t *testing.T) {
+func TestAllWrappers(t *testing.T) {
 	client := &registry.HTTPClient{}
 
-	wrappers, err := GetAllWrappers(client)
+	wrappers, err := AllWrappers(client)
 	if err != nil {
 		t.Fatal("could not get wrappers")
 	}

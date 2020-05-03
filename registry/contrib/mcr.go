@@ -29,8 +29,8 @@ func NewMCRWrapper(client *registry.HTTPClient) *MCRWrapper {
 	return w
 }
 
-// GetDigest gets the digest from a name and tag.
-func (w *MCRWrapper) GetDigest(name string, tag string) (string, error) {
+// Digest queries the container registry for the digest given a name and tag.
+func (w *MCRWrapper) Digest(name string, tag string) (string, error) {
 	name = strings.Replace(name, w.Prefix(), "", 1)
 
 	url := fmt.Sprintf("%s/%s/manifests/%s", w.Client.BaseDigestURL, name, tag)

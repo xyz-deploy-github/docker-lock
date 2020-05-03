@@ -11,7 +11,7 @@ func NewRewriteCmd() *cobra.Command {
 		Use:   "rewrite",
 		Short: "Rewrite files referenced by a Lockfile to use image digests",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			flags, err := getRewriterFlags(cmd)
+			flags, err := rewriterFlags(cmd)
 			if err != nil {
 				return err
 			}
@@ -45,7 +45,7 @@ func NewRewriteCmd() *cobra.Command {
 	return rewriteCmd
 }
 
-func getRewriterFlags(cmd *cobra.Command) (*rewrite.Flags, error) {
+func rewriterFlags(cmd *cobra.Command) (*rewrite.Flags, error) {
 	lPath, err := cmd.Flags().GetString("lockfile-path")
 	if err != nil {
 		return nil, err

@@ -107,9 +107,9 @@ func (g *Generator) queryContainerRegisty(
 ) {
 	defer wg.Done()
 
-	w := wm.GetWrapper(bIm.Image.Name)
+	w := wm.Wrapper(bIm.Image.Name)
 
-	d, err := w.GetDigest(bIm.Image.Name, bIm.Image.Tag)
+	d, err := w.Digest(bIm.Image.Name, bIm.Image.Tag)
 	if err != nil {
 		errMsg := ""
 		if bIm.dockerfilePath != "" {

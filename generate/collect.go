@@ -221,7 +221,8 @@ func isRegularFile(p string) bool {
 	return false
 }
 
-// addPathToPathCh adds a path to a channel, ensuring not to be blocked.
+// addPathToPathCh adds a path to the path channel, ensuring not to block
+// the calling goroutine.
 func addPathToPathCh(
 	p string,
 	pathCh chan<- *pathResult,
@@ -233,7 +234,8 @@ func addPathToPathCh(
 	}
 }
 
-// addErrToPathCh adds an error to a channel, ensuring not to be blocked.
+// addErrToPathCh adds an error to the path channel, ensuring not to block
+// the calling goroutine.
 func addErrToPathCh(
 	err error,
 	pathCh chan<- *pathResult,

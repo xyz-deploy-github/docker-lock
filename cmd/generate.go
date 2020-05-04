@@ -88,6 +88,8 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 	return generateCmd
 }
 
+// generatorFlags gets values from the command and uses them to
+// create Flags.
 func generatorFlags(cmd *cobra.Command) (*generate.Flags, error) {
 	bDir, err := cmd.Flags().GetString("base-dir")
 	if err != nil {

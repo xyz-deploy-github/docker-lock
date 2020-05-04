@@ -26,7 +26,7 @@ func (r *Rewriter) revertRnFiles(rns []*rnInfo) error {
 					failedOPathsCh <- rn.oPath
 				}
 			default:
-				if err := ioutil.WriteFile(
+				if err := ioutil.WriteFile( //nolint: gosec
 					rn.oPath, rn.origByt, 0644,
 				); err != nil {
 					failedOPathsCh <- rn.oPath

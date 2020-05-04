@@ -56,6 +56,8 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 	return verifyCmd
 }
 
+// verifierFlags gets values from the command and uses them to
+// create Flags.
 func verifierFlags(cmd *cobra.Command) (*verify.Flags, error) {
 	lPath, err := cmd.Flags().GetString("lockfile-path")
 	if err != nil {

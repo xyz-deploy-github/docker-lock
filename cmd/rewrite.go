@@ -45,6 +45,8 @@ func NewRewriteCmd() *cobra.Command {
 	return rewriteCmd
 }
 
+// rewriterFlags gets values from the command and uses them to
+// create Flags.
 func rewriterFlags(cmd *cobra.Command) (*rewrite.Flags, error) {
 	lPath, err := cmd.Flags().GetString("lockfile-path")
 	if err != nil {

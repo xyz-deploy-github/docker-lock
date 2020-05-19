@@ -20,6 +20,10 @@ than those last recorded in the Lockfile.
 * `docker lock rewrite` rewrites Dockerfiles and docker-compose files 
 to include digests.
 
+`docker-lock` ships with support for Docker Hub, Azure Container Registry, and
+a variety of other container registries. It is designed to be easily
+extensible to any container registry.
+
 If you are unsure about the differences between tags and digests, 
 refer to this [quick summary](#tags-vs-digests).
 
@@ -159,36 +163,3 @@ on pull requests.
 * To generate a coverage report: `./tools/coverage.sh`
 * To view the coverage report on your browser, open a console, but not in 
 docker, run `go tool cover -html=coverage.out`
-
-# Quick Hints
-## Registries
-* `docker-lock`'s maintainers provide support for all registries in 
-`registry/firstparty` (private and public images on `Docker Hub` and 
-`Azure Container Registry`, etc.).
-* `docker-lock`'s community provides support for all registries in 
-`registry/contrib`.
-* To use `docker-lock` with public images on `Docker Hub`, no special 
-instructions are required. However, to use `docker-lock` with private images on 
-`Docker Hub`, you can choose from the following options:
-    1. Login to docker and then use `docker-lock`.
-        * `docker-lock` will get your credentials from the default 
-        locations of your docker config file.
-        * If your config file is stored elsewhere, use the flag `--config-file`.
-        * If your config file references a credential store such as 
-        `osxkeychain`, `wincred` or `pass`, `docker-lock` will read from 
-        the store.
-    2. Export the environment variables `DOCKER_USERNAME` and `DOCKER_PASSWORD` 
-    and then use `docker-lock`.
-        * These variables can be set in an environment variable file and 
-        loaded with the flag `--env-file`.
-* To use `docker-lock` with `Azure Container Registry`, you can follow step i 
-and then choose from steps ii and iii:
-    1. (**REQUIRED**) Export the environment variable `ACR_REGISTRY_NAME`. 
-    For instance, if your image can be referenced by 
-    `myregistry.azurecr.io/myimage`, then `ACR_REGISTRY_NAME` must 
-    equal `myregistry`.
-        * `ACR_REGISTRY_NAME` can be set in an environment variable file and 
-        loaded with the flag `--env-file`.
-    2. Same as option i for `Docker Hub`.
-    3. Same as option ii for `Docker Hub`, except use `ACR_USERNAME` and 
-    `ACR_PASSWORD` instead of `DOCKER_USERNAME` and `DOCKER_PASSWORD`.

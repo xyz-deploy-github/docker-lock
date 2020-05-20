@@ -20,13 +20,14 @@ func (m *WrapperManager) Add(wrappers ...Wrapper) {
 	m.wrappers = append(m.wrappers, wrappers...)
 }
 
-// Wrapper selects a registry wrapper if the image name starts with
+// Wrapper selects a registry wrapper if the line starts with
 // the wrapper's prefix. If no match is found, the default wrapper
-// is used.
-func (m *WrapperManager) Wrapper(imageName string) Wrapper {
+// is used. In this context, a line means the image+repo+tag, as in
+// dockerlocktestaccount.azurecr.io/helloworld:latest.
+func (m *WrapperManager) Wrapper(line string) Wrapper {
 	for _, wrapper := range m.wrappers {
 		p := wrapper.Prefix()
-		if p != "" && strings.HasPrefix(imageName, p) {
+		if p != "" && strings.HasPrefix(line, p) {
 			return wrapper
 		}
 	}

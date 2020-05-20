@@ -1,6 +1,10 @@
 package firstparty
 
-import "github.com/michaelperel/docker-lock/registry"
+import (
+	"os"
+
+	"github.com/michaelperel/docker-lock/registry"
+)
 
 // DefaultWrapper returns a wrapper for images without a prefix.
 func DefaultWrapper(
@@ -11,7 +15,11 @@ func DefaultWrapper(
 }
 
 // AllWrappers returns all wrappers officially supported
-// by the maintainers of docker-lock.
+// by the maintainers of docker-lock, that match the caller's environment.
+// By default, a *DockerWrapper will always be returned. Other wrappers
+// will be returned if their appropriate environment variables are set.
+// Currently, this means that an *ACRWrapper will only be returned if
+// the environment variable, ACR_REGISTRY_NAME, is set.
 func AllWrappers(
 	configPath string,
 	client *registry.HTTPClient,
@@ -21,10 +29,16 @@ func AllWrappers(
 		return nil, err
 	}
 
-	aw, err := NewACRWrapper(configPath, client)
-	if err != nil {
-		return nil, err
+	ws := []registry.Wrapper{dw}
+
+	if os.Getenv("ACR_REGISTRY_NAME") != "" {
+		aw, err := NewACRWrapper(configPath, client)
+		if err != nil {
+			return nil, err
+		}
+
+		ws = append(ws, aw)
 	}
 
-	return []registry.Wrapper{dw, aw}, nil
+	return ws, nil
 }

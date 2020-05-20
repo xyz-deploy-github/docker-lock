@@ -1,6 +1,7 @@
 package firstparty
 
 import (
+	"os"
 	"testing"
 
 	"github.com/michaelperel/docker-lock/registry"
@@ -11,13 +12,36 @@ import (
 func TestAllWrappers(t *testing.T) {
 	client := &registry.HTTPClient{}
 
+	// Without any environment variables
 	wrappers, err := AllWrappers("", client)
 	if err != nil {
 		t.Fatal("could not get wrappers")
 	}
 
-	expectedNumWrappers := 2
+	expectedNumWrappers := 1
 	numWrappers := len(wrappers)
+
+	if numWrappers != expectedNumWrappers {
+		t.Fatalf("got '%d' wrappers, want '%d'",
+			numWrappers,
+			expectedNumWrappers,
+		)
+	}
+
+	if _, ok := wrappers[0].(*DockerWrapper); !ok {
+		t.Fatal("expected DockerWrapper")
+	}
+
+	// With all environment variables
+	os.Setenv("ACR_REGISTRY_NAME", "notempty")
+
+	wrappers, err = AllWrappers("", client)
+	if err != nil {
+		t.Fatal("could not get wrappers")
+	}
+
+	expectedNumWrappers = 2
+	numWrappers = len(wrappers)
 
 	if numWrappers != expectedNumWrappers {
 		t.Fatalf("got '%d' wrappers, want '%d'",

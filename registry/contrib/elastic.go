@@ -35,16 +35,16 @@ func NewElasticWrapper(client *registry.HTTPClient) *ElasticWrapper {
 	return w
 }
 
-// Digest queries the container registry for the digest given a name and tag.
-func (w *ElasticWrapper) Digest(name string, tag string) (string, error) {
-	name = strings.Replace(name, w.Prefix(), "", 1)
+// Digest queries the container registry for the digest given a repo and tag.
+func (w *ElasticWrapper) Digest(repo string, tag string) (string, error) {
+	repo = strings.Replace(repo, w.Prefix(), "", 1)
 
-	t, err := w.token(name)
+	t, err := w.token(repo)
 	if err != nil {
 		return "", err
 	}
 
-	url := fmt.Sprintf("%s/%s/manifests/%s", w.Client.BaseDigestURL, name, tag)
+	url := fmt.Sprintf("%s/%s/manifests/%s", w.Client.BaseDigestURL, repo, tag)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -56,17 +56,16 @@ func (w *ElasticWrapper) Digest(name string, tag string) (string, error) {
 		"Accept", "application/vnd.docker.distribution.manifest.v2+json",
 	)
 
-	client := &http.Client{}
-
-	resp, err := client.Do(req)
+	resp, err := w.Client.Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
 
 	digest := resp.Header.Get("Docker-Content-Digest")
+
 	if digest == "" {
-		return "", fmt.Errorf("no digest found for '%s:%s'", name, tag)
+		return "", fmt.Errorf("no digest found for '%s:%s'", repo, tag)
 	}
 
 	return strings.TrimPrefix(digest, "sha256:"), nil
@@ -74,11 +73,11 @@ func (w *ElasticWrapper) Digest(name string, tag string) (string, error) {
 
 // token queries the container registry for a bearer token that is later
 // required to query the container registry for a digest.
-func (w *ElasticWrapper) token(name string) (string, error) {
-	// example name -> "elasticsearch/elasticsearch-oss"
+func (w *ElasticWrapper) token(repo string) (string, error) {
+	// example repo -> "elasticsearch/elasticsearch-oss"
 	url := fmt.Sprintf(
 		"%s?scope=repository:%s:pull&service=token-service",
-		w.Client.BaseTokenURL, name,
+		w.Client.BaseTokenURL, repo,
 	)
 
 	resp, err := http.Get(url) // nolint: gosec

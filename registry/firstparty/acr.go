@@ -70,7 +70,7 @@ func NewACRWrapper(
 	return w, nil
 }
 
-// Digest queries the container registry for the digest given a name and tag.
+// Digest queries the container registry for the digest given a repo and tag.
 // The workflow for authenticating with private repositories:
 //
 // (1) if "ACR_USERNAME" and "ACR_PASSWORD" are set, use them.
@@ -78,15 +78,15 @@ func NewACRWrapper(
 // (2) Otherwise, try to get credentials from docker's config file.
 // This method requires the user to have logged in with the
 // 'docker login' command beforehand.
-func (w *ACRWrapper) Digest(name string, tag string) (string, error) {
-	name = strings.Replace(name, w.Prefix(), "", 1)
+func (w *ACRWrapper) Digest(repo string, tag string) (string, error) {
+	repo = strings.Replace(repo, w.Prefix(), "", 1)
 
-	t, err := w.token(name)
+	t, err := w.token(repo)
 	if err != nil {
 		return "", err
 	}
 
-	url := fmt.Sprintf("%s/%s/manifests/%s", w.Client.BaseDigestURL, name, tag)
+	url := fmt.Sprintf("%s/%s/manifests/%s", w.Client.BaseDigestURL, repo, tag)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -98,7 +98,7 @@ func (w *ACRWrapper) Digest(name string, tag string) (string, error) {
 		"Accept", "application/vnd.docker.distribution.manifest.v2+json",
 	)
 
-	resp, err := w.Client.Client.Do(req)
+	resp, err := w.Client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -107,7 +107,7 @@ func (w *ACRWrapper) Digest(name string, tag string) (string, error) {
 	digest := resp.Header.Get("Docker-Content-Digest")
 
 	if digest == "" {
-		return "", fmt.Errorf("no digest found for '%s:%s'", name, tag)
+		return "", fmt.Errorf("no digest found for '%s:%s'", repo, tag)
 	}
 
 	return strings.TrimPrefix(digest, "sha256:"), nil
@@ -115,10 +115,10 @@ func (w *ACRWrapper) Digest(name string, tag string) (string, error) {
 
 // token queries the container registry for a bearer token that is later
 // required to query the container registry for a digest.
-func (w *ACRWrapper) token(name string) (string, error) {
+func (w *ACRWrapper) token(repo string) (string, error) {
 	url := fmt.Sprintf(
 		"%s?service=%s.azurecr.io&scope=repository:%s:pull",
-		w.Client.BaseTokenURL, w.registryName, name,
+		w.Client.BaseTokenURL, w.registryName, repo,
 	)
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -130,7 +130,7 @@ func (w *ACRWrapper) token(name string) (string, error) {
 		req.SetBasicAuth(w.username, w.password)
 	}
 
-	resp, err := w.Client.Client.Do(req)
+	resp, err := w.Client.Do(req)
 	if err != nil {
 		return "", err
 	}

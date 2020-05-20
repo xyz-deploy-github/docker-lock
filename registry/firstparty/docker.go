@@ -71,7 +71,7 @@ func NewDockerWrapper(
 	return w, nil
 }
 
-// Digest queries the container registry for the digest given a name and tag.
+// Digest queries the container registry for the digest given a repo and tag.
 // The workflow for authenticating with private repositories:
 //
 // (1) if "DOCKER_USERNAME" and "DOCKER_PASSWORD" are set, use them.
@@ -79,25 +79,25 @@ func NewDockerWrapper(
 // (2) Otherwise, try to get credentials from docker's config file. This method
 // requires the user to have logged in with the 'docker login' command
 // beforehand.
-func (w *DockerWrapper) Digest(name string, tag string) (string, error) {
+func (w *DockerWrapper) Digest(repo string, tag string) (string, error) {
 	// Docker-Content-Digest is the root of the hash chain
 	// https://github.com/docker/distribution/issues/1662
-	var names []string
+	var repos []string
 
-	if strings.Contains(name, "/") {
-		names = []string{name, "library/" + name}
+	if strings.Contains(repo, "/") {
+		repos = []string{repo, "library/" + repo}
 	} else {
-		names = []string{"library/" + name, name}
+		repos = []string{"library/" + repo, repo}
 	}
 
-	for _, name := range names {
-		t, err := w.token(name)
+	for _, repo := range repos {
+		t, err := w.token(repo)
 		if err != nil {
 			return "", err
 		}
 
 		url := fmt.Sprintf(
-			"%s/%s/manifests/%s", w.Client.BaseDigestURL, name, tag,
+			"%s/%s/manifests/%s", w.Client.BaseDigestURL, repo, tag,
 		)
 
 		req, err := http.NewRequest("GET", url, nil)
@@ -110,7 +110,7 @@ func (w *DockerWrapper) Digest(name string, tag string) (string, error) {
 			"Accept", "application/vnd.docker.distribution.manifest.v2+json",
 		)
 
-		resp, err := w.Client.Client.Do(req)
+		resp, err := w.Client.Do(req)
 		if err != nil {
 			return "", err
 		}
@@ -123,16 +123,16 @@ func (w *DockerWrapper) Digest(name string, tag string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("no digest found for '%s:%s'", name, tag)
+	return "", fmt.Errorf("no digest found for '%s:%s'", repo, tag)
 }
 
 // token queries the container registry for a bearer token that is later
 // required to query the container registry for a digest.
-func (w *DockerWrapper) token(name string) (string, error) {
+func (w *DockerWrapper) token(repo string) (string, error) {
 	url := fmt.Sprintf(
 		"%s?scope=repository:%s:pull&service=registry.docker.io",
 		w.Client.BaseTokenURL,
-		name,
+		repo,
 	)
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -144,7 +144,7 @@ func (w *DockerWrapper) token(name string) (string, error) {
 		req.SetBasicAuth(w.username, w.password)
 	}
 
-	resp, err := w.Client.Client.Do(req)
+	resp, err := w.Client.Do(req)
 	if err != nil {
 		return "", err
 	}

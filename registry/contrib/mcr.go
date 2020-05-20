@@ -21,19 +21,19 @@ func NewMCRWrapper(client *registry.HTTPClient) *MCRWrapper {
 
 	if client == nil {
 		w.client = &registry.HTTPClient{
-			Client:        &http.Client{},
-			BaseDigestURL: fmt.Sprintf("https://%sv2", w.Prefix()),
+			Client:      &http.Client{},
+			RegistryURL: fmt.Sprintf("https://%sv2", w.Prefix()),
 		}
 	}
 
 	return w
 }
 
-// Digest queries the container registry for the digest given a repo and tag.
-func (w *MCRWrapper) Digest(repo string, tag string) (string, error) {
+// Digest queries the container registry for the digest given a repo and ref.
+func (w *MCRWrapper) Digest(repo string, ref string) (string, error) {
 	repo = strings.Replace(repo, w.Prefix(), "", 1)
 
-	url := fmt.Sprintf("%s/%s/manifests/%s", w.client.BaseDigestURL, repo, tag)
+	url := fmt.Sprintf("%s/%s/manifests/%s", w.client.RegistryURL, repo, ref)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -53,7 +53,7 @@ func (w *MCRWrapper) Digest(repo string, tag string) (string, error) {
 	digest := resp.Header.Get("Docker-Content-Digest")
 
 	if digest == "" {
-		return "", fmt.Errorf("no digest found for '%s:%s'", repo, tag)
+		return "", fmt.Errorf("no digest found for '%s:%s'", repo, ref)
 	}
 
 	return strings.TrimPrefix(digest, "sha256:"), nil

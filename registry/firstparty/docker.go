@@ -65,9 +65,12 @@ func NewDockerWrapper(
 ) (*DockerWrapper, error) {
 	if client == nil {
 		client = &registry.HTTPClient{
-			Client:        &http.Client{},
-			BaseDigestURL: "https://registry-1.docker.io/v2",
-			BaseTokenURL:  "https://auth.docker.io/token",
+			Client:      &http.Client{},
+			RegistryURL: "https://registry-1.docker.io/v2",
+			TokenURL: fmt.Sprintf(
+				"https://auth.docker.io/token%s",
+				"?scope=repository:%s:pull&service=registry.docker.io",
+			),
 		}
 	}
 
@@ -83,8 +86,8 @@ func NewDockerWrapper(
 	return w, nil
 }
 
-// Digest queries the container registry for the digest given a repo and tag.
-func (w *DockerWrapper) Digest(repo string, tag string) (string, error) {
+// Digest queries the container registry for the digest given a repo and ref.
+func (w *DockerWrapper) Digest(repo string, ref string) (string, error) {
 	// Docker-Content-Digest is the root of the hash chain
 	// https://github.com/docker/distribution/issues/1662
 	var repos []string
@@ -102,7 +105,7 @@ func (w *DockerWrapper) Digest(repo string, tag string) (string, error) {
 		}
 
 		url := fmt.Sprintf(
-			"%s/%s/manifests/%s", w.client.BaseDigestURL, repo, tag,
+			"%s/%s/manifests/%s", w.client.RegistryURL, repo, ref,
 		)
 
 		req, err := http.NewRequest("GET", url, nil)
@@ -128,17 +131,13 @@ func (w *DockerWrapper) Digest(repo string, tag string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("no digest found for '%s:%s'", repo, tag)
+	return "", fmt.Errorf("no digest found for '%s:%s'", repo, ref)
 }
 
 // token queries the container registry for a bearer token that is later
 // required to query the container registry for a digest.
 func (w *DockerWrapper) token(repo string) (string, error) {
-	url := fmt.Sprintf(
-		"%s?scope=repository:%s:pull&service=registry.docker.io",
-		w.client.BaseTokenURL,
-		repo,
-	)
+	url := fmt.Sprintf(w.client.TokenURL, repo)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {

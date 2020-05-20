@@ -12,9 +12,9 @@ import (
 
 var server = mockServer()          //nolint: gochecknoglobals
 var client = &registry.HTTPClient{ //nolint: gochecknoglobals
-	Client:        server.Client(),
-	BaseDigestURL: server.URL,
-	BaseTokenURL:  server.URL,
+	Client:      server.Client(),
+	RegistryURL: server.URL,
+	TokenURL:    server.URL + "?scope=repository%s",
 }
 
 // TestMain executes code before the tests for the package is run and after.

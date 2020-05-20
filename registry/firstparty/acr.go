@@ -69,9 +69,12 @@ func NewACRWrapper(
 
 	if client == nil {
 		w.client = &registry.HTTPClient{
-			Client:        &http.Client{},
-			BaseDigestURL: fmt.Sprintf("https://%sv2", w.Prefix()),
-			BaseTokenURL:  fmt.Sprintf("https://%soauth2/token", w.Prefix()),
+			Client:      &http.Client{},
+			RegistryURL: fmt.Sprintf("https://%sv2", w.Prefix()),
+			TokenURL: fmt.Sprintf(
+				"https://%soauth2/token%s", w.Prefix(),
+				"?service=%s.azurecr.io&scope=repository:%s:pull",
+			),
 		}
 	}
 
@@ -85,8 +88,8 @@ func NewACRWrapper(
 	return w, nil
 }
 
-// Digest queries the container registry for the digest given a repo and tag.
-func (w *ACRWrapper) Digest(repo string, tag string) (string, error) {
+// Digest queries the container registry for the digest given a repo and ref.
+func (w *ACRWrapper) Digest(repo string, ref string) (string, error) {
 	repo = strings.Replace(repo, w.Prefix(), "", 1)
 
 	t, err := w.token(repo)
@@ -94,7 +97,7 @@ func (w *ACRWrapper) Digest(repo string, tag string) (string, error) {
 		return "", err
 	}
 
-	url := fmt.Sprintf("%s/%s/manifests/%s", w.client.BaseDigestURL, repo, tag)
+	url := fmt.Sprintf("%s/%s/manifests/%s", w.client.RegistryURL, repo, ref)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -115,7 +118,7 @@ func (w *ACRWrapper) Digest(repo string, tag string) (string, error) {
 	digest := resp.Header.Get("Docker-Content-Digest")
 
 	if digest == "" {
-		return "", fmt.Errorf("no digest found for '%s:%s'", repo, tag)
+		return "", fmt.Errorf("no digest found for '%s:%s'", repo, ref)
 	}
 
 	return strings.TrimPrefix(digest, "sha256:"), nil
@@ -124,10 +127,7 @@ func (w *ACRWrapper) Digest(repo string, tag string) (string, error) {
 // token queries the container registry for a bearer token that is later
 // required to query the container registry for a digest.
 func (w *ACRWrapper) token(repo string) (string, error) {
-	url := fmt.Sprintf(
-		"%s?service=%s.azurecr.io&scope=repository:%s:pull",
-		w.client.BaseTokenURL, w.registryName, repo,
-	)
+	url := fmt.Sprintf(w.client.TokenURL, w.registryName, repo)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {

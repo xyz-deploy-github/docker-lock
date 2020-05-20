@@ -2,6 +2,7 @@ package firstparty
 
 import (
 	"os"
+	"strconv"
 
 	"github.com/michaelperel/docker-lock/registry"
 )
@@ -44,12 +45,30 @@ func AllWrappers(
 		aw, err := NewACRWrapper(
 			client, configPath, username, password, registryName,
 		)
-
 		if err != nil {
 			return nil, err
 		}
 
 		ws = append(ws, aw)
+	}
+
+	if registryURL := os.Getenv("INTERNAL_REGISTRY_URL"); registryURL != "" {
+		stripPrefix, err := strconv.ParseBool(
+			os.Getenv("INTERNAL_STRIP_PREFIX"),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		iw, err := NewInternalWrapper(
+			client, os.Getenv("INTERNAL_PREFIX"), stripPrefix,
+			registryURL, os.Getenv("INTERNAL_TOKEN_URL"),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		ws = append(ws, iw)
 	}
 
 	return ws, nil

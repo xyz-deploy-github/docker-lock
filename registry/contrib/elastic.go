@@ -11,7 +11,7 @@ import (
 
 // ElasticWrapper is a registry wrapper for the Elasticsearch repository.
 type ElasticWrapper struct {
-	Client *registry.HTTPClient
+	client *registry.HTTPClient
 }
 
 // elasticTokenResponse contains the bearer token required to
@@ -25,7 +25,7 @@ func NewElasticWrapper(client *registry.HTTPClient) *ElasticWrapper {
 	w := &ElasticWrapper{}
 
 	if client == nil {
-		w.Client = &registry.HTTPClient{
+		w.client = &registry.HTTPClient{
 			Client:        &http.Client{},
 			BaseDigestURL: fmt.Sprintf("https://%sv2", w.Prefix()),
 			BaseTokenURL:  "https://docker-auth.elastic.co/auth",
@@ -44,7 +44,7 @@ func (w *ElasticWrapper) Digest(repo string, tag string) (string, error) {
 		return "", err
 	}
 
-	url := fmt.Sprintf("%s/%s/manifests/%s", w.Client.BaseDigestURL, repo, tag)
+	url := fmt.Sprintf("%s/%s/manifests/%s", w.client.BaseDigestURL, repo, tag)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -56,7 +56,7 @@ func (w *ElasticWrapper) Digest(repo string, tag string) (string, error) {
 		"Accept", "application/vnd.docker.distribution.manifest.v2+json",
 	)
 
-	resp, err := w.Client.Do(req)
+	resp, err := w.client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -77,7 +77,7 @@ func (w *ElasticWrapper) token(repo string) (string, error) {
 	// example repo -> "elasticsearch/elasticsearch-oss"
 	url := fmt.Sprintf(
 		"%s?scope=repository:%s:pull&service=token-service",
-		w.Client.BaseTokenURL, repo,
+		w.client.BaseTokenURL, repo,
 	)
 
 	resp, err := http.Get(url) // nolint: gosec

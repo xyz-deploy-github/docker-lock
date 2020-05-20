@@ -12,7 +12,7 @@ import (
 
 // MCRWrapper is a registry wrapper for Microsoft Container Registry.
 type MCRWrapper struct {
-	Client *registry.HTTPClient
+	client *registry.HTTPClient
 }
 
 // NewMCRWrapper creates an MCRWrapper.
@@ -20,7 +20,7 @@ func NewMCRWrapper(client *registry.HTTPClient) *MCRWrapper {
 	w := &MCRWrapper{}
 
 	if client == nil {
-		w.Client = &registry.HTTPClient{
+		w.client = &registry.HTTPClient{
 			Client:        &http.Client{},
 			BaseDigestURL: fmt.Sprintf("https://%sv2", w.Prefix()),
 		}
@@ -33,7 +33,7 @@ func NewMCRWrapper(client *registry.HTTPClient) *MCRWrapper {
 func (w *MCRWrapper) Digest(repo string, tag string) (string, error) {
 	repo = strings.Replace(repo, w.Prefix(), "", 1)
 
-	url := fmt.Sprintf("%s/%s/manifests/%s", w.Client.BaseDigestURL, repo, tag)
+	url := fmt.Sprintf("%s/%s/manifests/%s", w.client.BaseDigestURL, repo, tag)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -44,7 +44,7 @@ func (w *MCRWrapper) Digest(repo string, tag string) (string, error) {
 		"Accept", "application/vnd.docker.distribution.manifest.v2+json",
 	)
 
-	resp, err := w.Client.Do(req)
+	resp, err := w.client.Do(req)
 	if err != nil {
 		return "", err
 	}

@@ -20,8 +20,11 @@ than those last recorded in the Lockfile.
 * `docker lock rewrite` rewrites Dockerfiles and docker-compose files 
 to include digests.
 
-`docker-lock` ships with support for Docker Hub, Azure Container Registry, and
-a variety of other container registries. It is designed to be easily
+`docker-lock` ships with support for [Docker Hub](https://hub.docker.com/),
+[Azure Container Registry](https://azure.microsoft.com/en-us/services/container-registry/),
+[internal registries](https://docs.docker.com/registry/deploying/),
+and a variety of other registries. If your registry is not supported
+out of the box, do not worry. `docker-lock` was designed to be easily
 extensible to any container registry.
 
 If you are unsure about the differences between tags and digests, 

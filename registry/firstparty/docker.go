@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"strings"
 
 	c "github.com/docker/docker-credential-helpers/client"
@@ -18,8 +17,8 @@ import (
 // DockerWrapper is a registry wrapper for Docker Hub. It supports public
 // and private repositories.
 type DockerWrapper struct {
-	ConfigPath string
-	Client     *registry.HTTPClient
+	configPath string
+	client     *registry.HTTPClient
 	*dockerAuthCreds
 }
 
@@ -46,10 +45,23 @@ type dockerAuthCreds struct {
 	password string
 }
 
-// NewDockerWrapper creates a DockerWrapper from docker's config.json.
+// NewDockerWrapper creates a DockerWrapper or returns an error
+// if not possible.
+//
+// If username and password are defined, then they will be used for
+// authentication. Otherwise, the username and password will be obtained
+// from docker's config.json. For this to work, please login using
+// 'docker login'.
+//
+// If using the cli, to set the username and password, ensure
+// DOCKER_USERNAME and DOCKER_PASSWORD are set. This can be achieved
+// automatically via a .env file or manually by exporting the
+// environment variables. configPath can be set via cli flags.
 func NewDockerWrapper(
-	configPath string,
 	client *registry.HTTPClient,
+	configPath string,
+	username string,
+	password string,
 ) (*DockerWrapper, error) {
 	if client == nil {
 		client = &registry.HTTPClient{
@@ -59,9 +71,9 @@ func NewDockerWrapper(
 		}
 	}
 
-	w := &DockerWrapper{ConfigPath: configPath, Client: client}
+	w := &DockerWrapper{configPath: configPath, client: client}
 
-	ac, err := w.authCreds()
+	ac, err := w.authCreds(username, password)
 	if err != nil {
 		return nil, err
 	}
@@ -72,13 +84,6 @@ func NewDockerWrapper(
 }
 
 // Digest queries the container registry for the digest given a repo and tag.
-// The workflow for authenticating with private repositories:
-//
-// (1) if "DOCKER_USERNAME" and "DOCKER_PASSWORD" are set, use them.
-//
-// (2) Otherwise, try to get credentials from docker's config file. This method
-// requires the user to have logged in with the 'docker login' command
-// beforehand.
 func (w *DockerWrapper) Digest(repo string, tag string) (string, error) {
 	// Docker-Content-Digest is the root of the hash chain
 	// https://github.com/docker/distribution/issues/1662
@@ -97,7 +102,7 @@ func (w *DockerWrapper) Digest(repo string, tag string) (string, error) {
 		}
 
 		url := fmt.Sprintf(
-			"%s/%s/manifests/%s", w.Client.BaseDigestURL, repo, tag,
+			"%s/%s/manifests/%s", w.client.BaseDigestURL, repo, tag,
 		)
 
 		req, err := http.NewRequest("GET", url, nil)
@@ -110,7 +115,7 @@ func (w *DockerWrapper) Digest(repo string, tag string) (string, error) {
 			"Accept", "application/vnd.docker.distribution.manifest.v2+json",
 		)
 
-		resp, err := w.Client.Do(req)
+		resp, err := w.client.Do(req)
 		if err != nil {
 			return "", err
 		}
@@ -131,7 +136,7 @@ func (w *DockerWrapper) Digest(repo string, tag string) (string, error) {
 func (w *DockerWrapper) token(repo string) (string, error) {
 	url := fmt.Sprintf(
 		"%s?scope=repository:%s:pull&service=registry.docker.io",
-		w.Client.BaseTokenURL,
+		w.client.BaseTokenURL,
 		repo,
 	)
 
@@ -144,7 +149,7 @@ func (w *DockerWrapper) token(repo string) (string, error) {
 		req.SetBasicAuth(w.username, w.password)
 	}
 
-	resp, err := w.Client.Do(req)
+	resp, err := w.client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -161,13 +166,11 @@ func (w *DockerWrapper) token(repo string) (string, error) {
 }
 
 // authCreds returns the username and password required to query
-// the registry for the digest. It first looks for the environment
-// variables "DOCKER_USERNAME" and "DOCKER_PASSWORD". If those do not exist,
-// it tries to read them from docker's config.json.
-func (w *DockerWrapper) authCreds() (*dockerAuthCreds, error) {
-	username := os.Getenv("DOCKER_USERNAME")
-	password := os.Getenv("DOCKER_PASSWORD")
-
+// the registry for the digest. If username and password are empty,
+// it will look in docker's config.json.
+func (w *DockerWrapper) authCreds(
+	username string, password string,
+) (*dockerAuthCreds, error) {
 	if username != "" && password != "" {
 		return &dockerAuthCreds{
 			username: username,
@@ -175,11 +178,11 @@ func (w *DockerWrapper) authCreds() (*dockerAuthCreds, error) {
 		}, nil
 	}
 
-	if w.ConfigPath == "" {
+	if w.configPath == "" {
 		return &dockerAuthCreds{}, nil
 	}
 
-	confByt, err := ioutil.ReadFile(w.ConfigPath)
+	confByt, err := ioutil.ReadFile(w.configPath)
 	if err != nil {
 		return nil, err
 	}

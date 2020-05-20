@@ -11,7 +11,10 @@ func DefaultWrapper(
 	configPath string,
 	client *registry.HTTPClient,
 ) (registry.Wrapper, error) {
-	return NewDockerWrapper(configPath, client)
+	username := os.Getenv("DOCKER_USERNAME")
+	password := os.Getenv("DOCKER_PASSWORD")
+
+	return NewDockerWrapper(client, configPath, username, password)
 }
 
 // AllWrappers returns all wrappers officially supported
@@ -24,15 +27,24 @@ func AllWrappers(
 	configPath string,
 	client *registry.HTTPClient,
 ) ([]registry.Wrapper, error) {
-	dw, err := NewDockerWrapper(configPath, client)
+	username := os.Getenv("DOCKER_USERNAME")
+	password := os.Getenv("DOCKER_PASSWORD")
+
+	dw, err := NewDockerWrapper(client, configPath, username, password)
 	if err != nil {
 		return nil, err
 	}
 
 	ws := []registry.Wrapper{dw}
 
-	if os.Getenv("ACR_REGISTRY_NAME") != "" {
-		aw, err := NewACRWrapper(configPath, client)
+	if registryName := os.Getenv("ACR_REGISTRY_NAME"); registryName != "" {
+		username = os.Getenv("ACR_USERNAME")
+		password = os.Getenv("ACR_PASSWORD")
+
+		aw, err := NewACRWrapper(
+			client, configPath, username, password, registryName,
+		)
+
 		if err != nil {
 			return nil, err
 		}

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"strings"
 
 	c "github.com/docker/docker-credential-helpers/client"
@@ -15,8 +14,8 @@ import (
 
 // ACRWrapper is a registry wrapper for Azure Container Registry.
 type ACRWrapper struct {
-	ConfigurationPath string
-	Client            *registry.HTTPClient
+	configPath string
+	client     *registry.HTTPClient
 	*acrAuthCreds
 	registryName string
 }
@@ -40,27 +39,43 @@ type acrAuthCreds struct {
 	password string
 }
 
-// NewACRWrapper creates an ACRWrapper from docker's config.json.
-// For ACRWrapper to be selected by the wrapper manager, the environment
-// variable ACR_REGISTRY_NAME must be set. For instance, if your image is
-// stored at myregistry.azurecr.io/myimage, then
-// ACR_REGISTRY_NAME=myregistry.
+// NewACRWrapper creates an ACRWrapper or returns an error if not possible.
+//
+// registryName must not be empty. If your image is referenced by the line
+// myregistry.azurecr.io/myimage, "myregistry" should be registryName's value.
+//
+// If username and password are defined, then they will be used for
+// authentication. Otherwise, the username and password will be obtained
+// from docker's config.json. For this to work, please login using
+// 'docker login' such as 'docker login myregistry.azurecr.io'.
+//
+// If using the cli, to set the registry name, username, and password, ensure
+// ACR_REGISTRY_NAME, ACR_USERNAME, and ACR_PASSWORD are set. This can
+// be achieved automatically via a .env file or manually by exporting the
+// environment variables. configPath can be set via cli flags.
 func NewACRWrapper(
-	configPath string,
 	client *registry.HTTPClient,
+	configPath string,
+	username string,
+	password string,
+	registryName string,
 ) (*ACRWrapper, error) {
-	w := &ACRWrapper{ConfigurationPath: configPath}
-	w.registryName = os.Getenv("ACR_REGISTRY_NAME")
+	if registryName == "" {
+		return nil, fmt.Errorf("acr registry name is empty")
+	}
+
+	w := &ACRWrapper{configPath: configPath}
+	w.registryName = registryName
 
 	if client == nil {
-		w.Client = &registry.HTTPClient{
+		w.client = &registry.HTTPClient{
 			Client:        &http.Client{},
 			BaseDigestURL: fmt.Sprintf("https://%sv2", w.Prefix()),
 			BaseTokenURL:  fmt.Sprintf("https://%soauth2/token", w.Prefix()),
 		}
 	}
 
-	ac, err := w.authCreds()
+	ac, err := w.authCreds(username, password)
 	if err != nil {
 		return nil, err
 	}
@@ -71,13 +86,6 @@ func NewACRWrapper(
 }
 
 // Digest queries the container registry for the digest given a repo and tag.
-// The workflow for authenticating with private repositories:
-//
-// (1) if "ACR_USERNAME" and "ACR_PASSWORD" are set, use them.
-//
-// (2) Otherwise, try to get credentials from docker's config file.
-// This method requires the user to have logged in with the
-// 'docker login' command beforehand.
 func (w *ACRWrapper) Digest(repo string, tag string) (string, error) {
 	repo = strings.Replace(repo, w.Prefix(), "", 1)
 
@@ -86,7 +94,7 @@ func (w *ACRWrapper) Digest(repo string, tag string) (string, error) {
 		return "", err
 	}
 
-	url := fmt.Sprintf("%s/%s/manifests/%s", w.Client.BaseDigestURL, repo, tag)
+	url := fmt.Sprintf("%s/%s/manifests/%s", w.client.BaseDigestURL, repo, tag)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -98,7 +106,7 @@ func (w *ACRWrapper) Digest(repo string, tag string) (string, error) {
 		"Accept", "application/vnd.docker.distribution.manifest.v2+json",
 	)
 
-	resp, err := w.Client.Do(req)
+	resp, err := w.client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -118,7 +126,7 @@ func (w *ACRWrapper) Digest(repo string, tag string) (string, error) {
 func (w *ACRWrapper) token(repo string) (string, error) {
 	url := fmt.Sprintf(
 		"%s?service=%s.azurecr.io&scope=repository:%s:pull",
-		w.Client.BaseTokenURL, w.registryName, repo,
+		w.client.BaseTokenURL, w.registryName, repo,
 	)
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -130,7 +138,7 @@ func (w *ACRWrapper) token(repo string) (string, error) {
 		req.SetBasicAuth(w.username, w.password)
 	}
 
-	resp, err := w.Client.Do(req)
+	resp, err := w.client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -146,23 +154,21 @@ func (w *ACRWrapper) token(repo string) (string, error) {
 	return t.Token, nil
 }
 
-// authCreds returns the username and password required to query
-// the registry for the digest. It first looks for the environment
-// variables "ACR_USERNAME" and "ACR_PASSWORD". If those do not exist,
-// it tries to read them from docker's config.json.
-func (w *ACRWrapper) authCreds() (*acrAuthCreds, error) {
-	username := os.Getenv("ACR_USERNAME")
-	password := os.Getenv("ACR_PASSWORD")
-
+// authCreds returns the username and password for ACR. If username and
+// password are empty, it will look in docker's config.json.
+func (w *ACRWrapper) authCreds(
+	username string,
+	password string,
+) (*acrAuthCreds, error) {
 	if username != "" && password != "" {
 		return &acrAuthCreds{username: username, password: password}, nil
 	}
 
-	if w.ConfigurationPath == "" {
+	if w.configPath == "" {
 		return &acrAuthCreds{}, nil
 	}
 
-	confByt, err := ioutil.ReadFile(w.ConfigurationPath)
+	confByt, err := ioutil.ReadFile(w.configPath)
 	if err != nil {
 		return nil, err
 	}

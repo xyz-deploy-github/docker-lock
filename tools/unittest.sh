@@ -2,5 +2,5 @@
 
 (
     cd "$(dirname "$0")/.." || exit
-    go test -race ./...
+    go test -v -race ./... -count=1
 )

@@ -20,13 +20,14 @@ type Flags struct {
 	DockerfileRecursive    bool
 	ComposefileRecursive   bool
 	DockerfileEnvBuildArgs bool
+	Verbose                bool
 }
 
 // NewFlags creates flags for a Generator.
 func NewFlags(
 	bDir, lName, configFile, envFile string,
 	dfiles, cfiles, dGlobs, cGlobs []string,
-	dRecursive, cRecursive, dfileEnvBuildArgs bool,
+	dRecursive, cRecursive, dfileEnvBuildArgs, verbose bool,
 ) (*Flags, error) {
 	bDir = convertStrToSlash(bDir)
 	configFile = convertStrToSlash(configFile)
@@ -55,6 +56,7 @@ func NewFlags(
 		DockerfileRecursive:    dRecursive,
 		ComposefileRecursive:   cRecursive,
 		DockerfileEnvBuildArgs: dfileEnvBuildArgs,
+		Verbose:                verbose,
 	}, nil
 }
 

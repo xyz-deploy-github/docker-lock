@@ -3,6 +3,7 @@ package rewrite
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"sync"
 )
@@ -48,6 +49,8 @@ func (r *Rewriter) revertRnFiles(rns []*rnInfo) error {
 	if len(failedOPaths) != 0 {
 		return fmt.Errorf("failed to revert '%s'", failedOPaths)
 	}
+
+	log.Printf("Reverted all rewritten files.")
 
 	return nil
 }

@@ -1,6 +1,8 @@
 package firstparty
 
 import (
+	"io/ioutil"
+	"log"
 	"os"
 	"testing"
 
@@ -10,6 +12,8 @@ import (
 // TestAllWrappers ensures that all wrappers officially
 // supported by docker-lock's maintainers are returned.
 func TestAllWrappers(t *testing.T) {
+	log.SetOutput(ioutil.Discard)
+
 	client := &registry.HTTPClient{}
 
 	// Without any environment variables

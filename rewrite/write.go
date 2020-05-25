@@ -3,6 +3,7 @@ package rewrite
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -93,6 +94,8 @@ func (r *Rewriter) writeDfile(
 ) {
 	defer wg.Done()
 
+	log.Printf("Begin handling Dockerfile '%s'.", dPath)
+
 	dByt, err := ioutil.ReadFile(dPath) // nolint: gosec
 	if err != nil {
 		addErrToRnCh(err, rnCh, doneCh)
@@ -113,8 +116,17 @@ func (r *Rewriter) writeDfile(
 			// FROM <image> AS <stage>
 			// FROM <stage> AS <another stage>
 			// Only replace the image, never the stage.
+			log.Printf("In '%s', found FROM fields '%v'.", dPath, fields)
+
 			const imLineIndex = 1
-			if !stageNames[fields[imLineIndex]] {
+
+			line := fields[imLineIndex]
+
+			if !stageNames[line] {
+				log.Printf("In '%s', line '%s' has not been previously "+
+					"declared as a build stage.", dPath, line,
+				)
+
 				if imIndex >= len(ims) {
 					err := fmt.Errorf(
 						"more images exist in '%s' than in the Lockfile",
@@ -125,10 +137,16 @@ func (r *Rewriter) writeDfile(
 					return
 				}
 
-				fields[imLineIndex] = fmt.Sprintf(
+				newLine := fmt.Sprintf(
 					"%s:%s@sha256:%s", ims[imIndex].Name,
 					ims[imIndex].Tag, ims[imIndex].Digest,
 				)
+
+				log.Printf("In '%s', replacing line '%s' with '%s'.",
+					dPath, line, newLine,
+				)
+
+				fields[imLineIndex] = newLine
 				imIndex++
 			}
 			// Ensure stage is added to the stage name set:
@@ -139,8 +157,8 @@ func (r *Rewriter) writeDfile(
 			const maxNumFields = 4
 			if len(fields) == maxNumFields {
 				const stageIndex = 3
-				stageName := fields[stageIndex]
-				stageNames[stageName] = true
+
+				stageNames[fields[stageIndex]] = true
 			}
 
 			statements[i] = strings.Join(fields, " ")
@@ -176,6 +194,8 @@ func (r *Rewriter) writeCfile(
 	doneCh <-chan struct{},
 ) {
 	defer wg.Done()
+
+	log.Printf("Begin handling docker-compose file '%s'.", cPath)
 
 	cByt, err := ioutil.ReadFile(cPath) // nolint: gosec
 	if err != nil {
@@ -225,7 +245,8 @@ func (r *Rewriter) writeCfile(
 		wg.Add(1)
 
 		go r.writeDfileOrGetCImageLine(
-			svc, svcIms[svcName], tmpDirPath, cilCh, rnCh, &cwg, wg, doneCh,
+			cPath, svc, svcIms[svcName], tmpDirPath,
+			cilCh, rnCh, &cwg, wg, doneCh,
 		)
 	}
 
@@ -246,6 +267,7 @@ func (r *Rewriter) writeCfile(
 // the method places the Lockfile's base image on a channel to be processed
 // by the calling goroutine.
 func (r *Rewriter) writeDfileOrGetCImageLine(
+	cPath string,
 	svc *service,
 	ims []*generate.ComposefileImage,
 	tmpDirPath string,
@@ -276,6 +298,10 @@ func (r *Rewriter) writeDfileOrGetCImageLine(
 		// the same Dockerfile.
 		dPath := ims[0].DockerfilePath
 
+		log.Printf("In '%s' service '%s', there is a Dockerfile '%s'.",
+			cPath, ims[0].ServiceName, dPath,
+		)
+
 		for i, im := range ims {
 			dIms[i] = &generate.DockerfileImage{Image: im.Image}
 		}
@@ -287,6 +313,10 @@ func (r *Rewriter) writeDfileOrGetCImageLine(
 		// There must be and can be at most one 'image:' key and therefore
 		// one Image in services that do not reference Dockerfiles.
 		im := ims[0]
+
+		log.Printf("In '%s' service '%s', there is an image key.",
+			cPath, im.ServiceName,
+		)
 
 		select {
 		case <-doneCh:
@@ -336,6 +366,11 @@ func (r *Rewriter) writeCfileFromCImageLine(
 				statements[i] = fmt.Sprintf(
 					"%s %s", s[:imIndex+len("image:")], svcImLines[svcName],
 				)
+
+				log.Printf("In '%s' service '%s', replaced '%s' with '%s'.",
+					cPath, svcName, s, statements[i],
+				)
+
 				svcName = ""
 			}
 		}
@@ -361,12 +396,18 @@ func (r *Rewriter) writeTempFile(
 	doneCh <-chan struct{},
 ) {
 	tmpFile, err := ioutil.TempFile(tmpDirPath, "docker-lock-")
-
 	if err != nil {
 		addErrToRnCh(err, rnCh, doneCh)
 		return
 	}
+
 	defer tmpFile.Close()
+
+	tmpOPath := filepath.ToSlash(tmpFile.Name())
+
+	log.Printf("Writing contents for '%s' to temporary file '%s'.",
+		oPath, tmpOPath,
+	)
 
 	if _, err = tmpFile.Write(wByt); err != nil {
 		addErrToRnCh(err, rnCh, doneCh)
@@ -383,7 +424,7 @@ func (r *Rewriter) writeTempFile(
 	case <-doneCh:
 	case rnCh <- &rnInfo{
 		oPath:    oPath,
-		tmpOPath: filepath.ToSlash(tmpFile.Name()),
+		tmpOPath: tmpOPath,
 		origByt:  origByt,
 	}:
 	}

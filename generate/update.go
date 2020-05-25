@@ -2,6 +2,7 @@ package generate
 
 import (
 	"fmt"
+	"log"
 	"sync"
 
 	"github.com/michaelperel/docker-lock/registry"
@@ -48,6 +49,9 @@ func (g *Generator) updateDigest(
 			return nil, nil, b.err
 		}
 
+		log.Printf("Found '%+v'.", b)
+
+		// Only query the registry once per image.
 		if uniqBIms[*b.Image] == nil {
 			uniqBIms[*b.Image] = b.Image
 
@@ -107,10 +111,14 @@ func (g *Generator) queryContainerRegisty(
 ) {
 	defer wg.Done()
 
+	log.Printf("Querying '%+v' for a digest.", bIm)
+
 	w := wm.Wrapper(bIm.Image.Name)
 
 	d, err := w.Digest(bIm.Image.Name, bIm.Image.Tag)
 	if err != nil {
+		log.Printf("Unable to find digest for '%+v'.", bIm)
+
 		errMsg := ""
 		if bIm.dockerfilePath != "" {
 			errMsg = fmt.Sprintf("from '%s': ", bIm.dockerfilePath)
@@ -129,7 +137,11 @@ func (g *Generator) queryContainerRegisty(
 		case <-doneCh:
 		case digUpCh <- digestUpdate{err: err}:
 		}
+
+		return
 	}
+
+	log.Printf("Found digest '%s' for '%+v'.", d, bIm)
 
 	select {
 	case <-doneCh:

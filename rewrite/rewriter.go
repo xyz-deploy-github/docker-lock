@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -27,12 +28,16 @@ func NewRewriter(flags *Flags) (*Rewriter, error) {
 		return nil, err
 	}
 
+	log.Printf("Read Lockfile '%+v'.", lfile)
+
 	dIms, err := dImsNotInCfiles(lfile)
 	if err != nil {
 		return nil, err
 	}
 
 	lfile.DockerfileImages = dIms
+
+	log.Printf("Deduplicated Dockerfiles to create Lockfile '%+v'.", lfile)
 
 	return &Rewriter{
 		Lockfile: lfile,
@@ -71,6 +76,7 @@ func NewRewriter(flags *Flags) (*Rewriter, error) {
 func (r *Rewriter) Rewrite() (err error) {
 	if len(r.Lockfile.DockerfileImages) == 0 &&
 		len(r.Lockfile.ComposefileImages) == 0 {
+		log.Printf("Lockfile '%+v' empty. Nothing to rewrite.", r.Lockfile)
 		return nil
 	}
 
@@ -79,7 +85,13 @@ func (r *Rewriter) Rewrite() (err error) {
 		return err
 	}
 
+	log.Printf("Created a temporary directory '%s' for rewritten files.",
+		tmpDirPath,
+	)
+
 	defer func() {
+		log.Printf("Removing temporary directory '%s'.", tmpDirPath)
+
 		if rmErr := os.RemoveAll(tmpDirPath); rmErr != nil {
 			err = fmt.Errorf("%v: %v", rmErr, err)
 		}
@@ -88,12 +100,18 @@ func (r *Rewriter) Rewrite() (err error) {
 	doneCh := make(chan struct{})
 	rnCh := r.writeFiles(tmpDirPath, doneCh)
 
-	if err := r.renameFiles(rnCh); err != nil {
+	if err = r.renameFiles(rnCh); err != nil {
+		log.Printf("Unable to rename files. This could occur because " +
+			"the temporary directory and destination paths could be on " +
+			"different drives. If so, use the --tempdir flag " +
+			"to ensure they are on the same drive.",
+		)
 		close(doneCh)
+
 		return err
 	}
 
-	return nil
+	return err
 }
 
 // dImsNotInCfiles returns all DockerfileImages not referenced by any
@@ -140,7 +158,7 @@ func dImsNotInCfiles(
 		}
 	}
 
-	// Warn if multiple docker-compose services refer to the same Dockerfile.
+	// Log if multiple docker-compose services refer to the same Dockerfile.
 	for dPath, cPathSvcs := range dPathsInCPathSvcs {
 		if len(cPathSvcs) > 1 {
 			dupCPathSvcs := make([]string, len(cPathSvcs))
@@ -152,9 +170,8 @@ func dImsNotInCfiles(
 				i++
 			}
 
-			fmt.Fprintf(
-				os.Stderr,
-				"WARNING: '%s' referenced in multiple "+
+			log.Printf(
+				"'%s' referenced in multiple "+
 					"docker-compose services '%s', which will result in a "+
 					"non-deterministic rewrite of '%s' if the docker-compose "+
 					"services would lead to different rewrites.",

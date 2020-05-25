@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,12 +25,14 @@ var cTestDir = filepath.Join("testdata", "compose") //nolint: gochecknoglobals
 var tmpDir = filepath.Join("testdata", "tmp")       //nolint: gochecknoglobals
 
 func TestRewriter(t *testing.T) {
+	log.SetOutput(ioutil.Discard)
+
 	tests := getTests()
 	for name, tc := range tests {
 		tc := tc
 
 		t.Run(name, func(t *testing.T) {
-			flags, err := NewFlags(tc.lPath, "got", tmpDir)
+			flags, err := NewFlags(tc.lPath, "got", tmpDir, false)
 			if err != nil {
 				t.Fatal(err)
 			}

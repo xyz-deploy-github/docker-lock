@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"log"
 	"os"
 
 	"github.com/michaelperel/docker-lock/generate"
@@ -18,6 +19,10 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 			if err != nil {
 				return err
 			}
+
+			configureLogger(flags.Verbose)
+
+			log.Printf("Found flags '%+v'.", flags)
 
 			if err = loadEnv(flags.EnvFile); err != nil {
 				return err
@@ -46,6 +51,9 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 			return nil
 		},
 	}
+	generateCmd.Flags().BoolP(
+		"verbose", "v", false, "Show logs",
+	)
 	generateCmd.Flags().StringP(
 		"base-dir", "b", ".", "Top level directory to collect files from",
 	)
@@ -91,6 +99,11 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 // generatorFlags gets values from the command and uses them to
 // create Flags.
 func generatorFlags(cmd *cobra.Command) (*generate.Flags, error) {
+	verbose, err := cmd.Flags().GetBool("verbose")
+	if err != nil {
+		return nil, err
+	}
+
 	bDir, err := cmd.Flags().GetString("base-dir")
 	if err != nil {
 		return nil, err
@@ -151,6 +164,6 @@ func generatorFlags(cmd *cobra.Command) (*generate.Flags, error) {
 	return generate.NewFlags(
 		bDir, lName, configFile, envFile,
 		dfiles, cfiles, dGlobs, cGlobs,
-		dRecursive, cRecursive, dfileEnvBuildArgs,
+		dRecursive, cRecursive, dfileEnvBuildArgs, verbose,
 	)
 }

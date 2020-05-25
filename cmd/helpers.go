@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -69,4 +71,16 @@ func loadEnv(p string) error {
 	}
 
 	return nil
+}
+
+// configureLogger configures a common logger for all subcommands. If
+// verbose is not set, all logs are discarded.
+func configureLogger(verbose bool) {
+	if !verbose {
+		log.SetOutput(ioutil.Discard)
+		return
+	}
+
+	log.SetFlags(log.LstdFlags | log.Lshortfile | log.Lmicroseconds)
+	log.SetPrefix("[DEBUG] ")
 }

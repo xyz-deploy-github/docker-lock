@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -74,6 +75,8 @@ func (g *Generator) parseDfile(
 ) {
 	defer wg.Done()
 
+	log.Printf("Parsing '%s' with build args '%v'.", dPath, bArgs)
+
 	dfile, err := os.Open(dPath) // nolint: gosec
 	if err != nil {
 		g.addErrToBiCh(err, bImCh, doneCh)
@@ -99,6 +102,10 @@ func (g *Generator) parseDfile(
 			switch strings.ToLower(fields[instIndex]) {
 			case "arg":
 				if gCtx {
+					log.Printf("In '%s', found global ARG fields '%v' before "+
+						"the first FROM instruction.", dPath, fields,
+					)
+
 					if strings.Contains(fields[imLineIndex], "=") {
 						//ARG VAR=VAL
 						vv := strings.SplitN(fields[imLineIndex], "=", 2)
@@ -109,19 +116,45 @@ func (g *Generator) parseDfile(
 
 						strpVar := g.stripQuotes(vv[varIndex])
 						strpVal := g.stripQuotes(vv[valIndex])
+
 						gArgs[strpVar] = strpVal
+
+						log.Printf("In '%s', set global ARG '%s' to '%s'.",
+							dPath, strpVar, strpVal,
+						)
 					} else {
 						// ARG VAR1
 						strpVar := g.stripQuotes(fields[imLineIndex])
+
 						gArgs[strpVar] = ""
+
+						log.Printf("In '%s', set global ARG '%s' to '\"\"'",
+							dPath, strpVar,
+						)
 					}
 				}
 			case "from":
 				gCtx = false
-				line := expandField(fields[imLineIndex], gArgs, bArgs)
-				im := g.convertImageLineToImage(line)
+
+				log.Printf("In '%s', found FROM fields '%v'.", dPath, fields)
+
+				line := fields[imLineIndex]
 
 				if !stages[line] {
+					log.Printf("In '%s', line '%s' has not been previously "+
+						"declared as a build stage.", dPath, line,
+					)
+
+					line = expandField(dPath, fields[imLineIndex], gArgs, bArgs)
+
+					log.Printf("In '%s', expanded line to '%s'", dPath, line)
+
+					im := g.convertImageLineToImage(line)
+
+					log.Printf("In '%s', converted '%s' to image '%+v'.",
+						dPath, line, im,
+					)
+
 					select {
 					case <-doneCh:
 						return
@@ -135,12 +168,18 @@ func (g *Generator) parseDfile(
 						pos++
 					}
 				}
+
 				// FROM <image> AS <stage>
 				// FROM <stage> AS <another stage>
 				const maxNumFields = 4
 				if len(fields) == maxNumFields {
 					const stageIndex = 3
-					stage := expandField(fields[stageIndex], gArgs, bArgs)
+					stage := fields[stageIndex]
+
+					log.Printf("In '%s', found new build stage '%s'.",
+						dPath, stage,
+					)
+
 					stages[stage] = true
 				}
 			}
@@ -171,6 +210,8 @@ func (g *Generator) parseCfile(
 	doneCh <-chan struct{},
 ) {
 	defer wg.Done()
+
+	log.Printf("Parsing '%s'.", cPath)
 
 	ymlByt, err := ioutil.ReadFile(cPath) // nolint: gosec
 	if err != nil {
@@ -204,9 +245,25 @@ func (g *Generator) parseService(
 ) {
 	defer wg.Done()
 
+	log.Printf("In '%s', parsing service '%s'", cPath, svcName)
+
 	if svc.BuildWrapper == nil {
+		log.Printf("In '%s', service '%s' has an image key with value '%s'.",
+			cPath, svcName, svc.ImageName,
+		)
+
 		imLine := os.ExpandEnv(svc.ImageName)
+
+		log.Printf("In '%s', service '%s' expanded image line '%s' to '%s'.",
+			cPath, svcName, svc.ImageName, imLine,
+		)
+
 		im := g.convertImageLineToImage(imLine)
+
+		log.Printf("In '%s', service '%s' converted '%s' to image '%+v'.",
+			cPath, svcName, imLine, im,
+		)
+
 		select {
 		case <-doneCh:
 		case bImCh <- &BaseImage{
@@ -228,6 +285,10 @@ func (g *Generator) parseService(
 
 		dPath := filepath.ToSlash(filepath.Join(ctx, "Dockerfile"))
 
+		log.Printf("In '%s', service '%s' Dockerfile '%s' found.",
+			cPath, svcName, dPath,
+		)
+
 		wg.Add(1)
 
 		go g.parseDfile(dPath, nil, cPath, svcName, bImCh, wg, doneCh)
@@ -245,6 +306,10 @@ func (g *Generator) parseService(
 		dPath = filepath.ToSlash(filepath.Join(ctx, dPath))
 
 		bArgs := g.cBuildArgs(build)
+
+		log.Printf("In '%s', service '%s' Dockerfile '%s' "+
+			"found with build args '%+v'.", cPath, svcName, dPath, bArgs,
+		)
 
 		wg.Add(1)
 
@@ -297,6 +362,7 @@ loop:
 // expandField expands environment variables in a field according to
 // global args and build args.
 func expandField(
+	dPath string,
 	field string,
 	gArgs map[string]string,
 	bArgs map[string]string,
@@ -304,15 +370,29 @@ func expandField(
 	return os.Expand(field, func(arg string) string {
 		gVal, ok := gArgs[arg]
 		if !ok {
+			log.Printf("In '%s', '%s' not found in global args or build args. "+
+				"Using \"\" as the value.", dPath, arg,
+			)
 			return ""
 		}
 
-		bArg, ok := bArgs[arg]
-		if ok {
-			return bArg
-		}
+		log.Printf("In '%s', ARG '%s' found in global args with value '%s'.",
+			dPath, arg, gVal,
+		)
 
-		return gVal
+		bVal, ok := bArgs[arg]
+		if !ok {
+			log.Printf("In '%s', ARG '%s' not found in build args, "+
+				"using global value '%s'.", dPath, arg, gVal,
+			)
+
+			return gVal
+		}
+		log.Printf("In '%s', ARG '%s' found in build args. "+
+			"Overriding global value with build value '%s'.",
+			dPath, arg, bVal,
+		)
+		return bVal
 	})
 }
 
@@ -324,6 +404,8 @@ func (g *Generator) dBuildArgs() map[string]string {
 	if !g.DockerfileEnvBuildArgs {
 		return bArgs
 	}
+
+	log.Printf("Using environment variables as build args for all Dockerfiles.")
 
 	for _, e := range os.Environ() {
 		argVal := strings.SplitN(e, "=", 2)

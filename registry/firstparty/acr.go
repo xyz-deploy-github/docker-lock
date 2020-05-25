@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"strings"
 
@@ -94,7 +95,7 @@ func (w *ACRWrapper) Digest(repo string, ref string) (string, error) {
 
 	t, err := w.token(repo)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("unable to acquire token for '%s:%s'", repo, ref)
 	}
 
 	url := fmt.Sprintf("%s/%s/manifests/%s", w.client.RegistryURL, repo, ref)
@@ -182,6 +183,22 @@ func (w *ACRWrapper) authCreds(
 
 	for serverName, authInfo := range conf.Auths {
 		if serverName == fmt.Sprintf("%s.azurecr.io", w.registryName) {
+			if _, ok := authInfo["identitytoken"]; ok {
+				log.Printf("ACRWrapper found 'identitytoken' in docker "+
+					"config for registry '%s'. This method of logging in "+
+					"is unsupported. It occurs if you logged in via "+
+					"'az acr login'. To successfully use docker-lock, "+
+					"please login via 'docker login' with a username and "+
+					"password or create a .env file with ACR_USERNAME "+
+					"and ACR_PASSWORD or export ACR_USERNAME and ACR_PASSWORD.",
+					w.registryName,
+				)
+
+				return nil, fmt.Errorf(
+					"invalid login method for '%s'", serverName,
+				)
+			}
+
 			authByt, err = base64.StdEncoding.DecodeString(authInfo["auth"])
 			if err != nil {
 				return nil, err

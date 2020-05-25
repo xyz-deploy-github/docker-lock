@@ -48,7 +48,7 @@ func TestVerifier(t *testing.T) {
 func dDiffNumImages() (*test, error) {
 	lPath := filepath.Join(dTestDir, "diffnumimages", "docker-lock.json")
 
-	flags, err := NewFlags(lPath, defaultConfigPath(), ".env", false)
+	flags, err := NewFlags(lPath, defaultConfigPath(), ".env", false, false)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func dDiffNumImages() (*test, error) {
 func dDiffDigests() (*test, error) {
 	lPath := filepath.Join(dTestDir, "diffdigests", "docker-lock.json")
 
-	flags, err := NewFlags(lPath, defaultConfigPath(), ".env", false)
+	flags, err := NewFlags(lPath, defaultConfigPath(), ".env", false, false)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func dBuildArgs() (*test, error) {
 		return nil, err
 	}
 
-	flags, err := NewFlags(lPath, defaultConfigPath(), envPath, true)
+	flags, err := NewFlags(lPath, defaultConfigPath(), envPath, true, false)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func dBuildArgs() (*test, error) {
 func cDiffNumImages() (*test, error) {
 	lPath := filepath.Join(cTestDir, "diffnumimages", "docker-lock.json")
 
-	flags, err := NewFlags(lPath, defaultConfigPath(), ".env", false)
+	flags, err := NewFlags(lPath, defaultConfigPath(), ".env", false, false)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func cDiffNumImages() (*test, error) {
 func cDiffDigests() (*test, error) {
 	lPath := filepath.Join(cTestDir, "diffdigests", "docker-lock.json")
 
-	flags, err := NewFlags(lPath, defaultConfigPath(), ".env", false)
+	flags, err := NewFlags(lPath, defaultConfigPath(), ".env", false, false)
 	if err != nil {
 		return nil, err
 	}

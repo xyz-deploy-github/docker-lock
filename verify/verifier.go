@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"sync"
 
 	"github.com/michaelperel/docker-lock/generate"
@@ -26,7 +27,11 @@ func NewVerifier(flags *Flags) (*Verifier, error) {
 		return nil, err
 	}
 
+	log.Printf("Read Lockfile '%+v'.", lfile)
+
 	g := makeGenerator(lfile, flags.DockerfileEnvBuildArgs)
+
+	log.Printf("Using Generator '%+v'.", g)
 
 	return &Verifier{Generator: g, Lockfile: lfile}, nil
 }
@@ -53,6 +58,8 @@ func (v *Verifier) VerifyLockfile(wm *registry.WrapperManager) error {
 	if err := json.Unmarshal(lByt.Bytes(), &lfile); err != nil {
 		return err
 	}
+
+	log.Printf("Generated Lockfile '%+v'.", lfile)
 
 	if err := v.verifyNumFiles(&lfile); err != nil {
 		return err
@@ -104,9 +111,9 @@ func (v *Verifier) verifyImages(lfile *generate.Lockfile) error {
 			if *v.Lockfile.DockerfileImages[dPath][i].Image !=
 				*lfile.DockerfileImages[dPath][i].Image {
 				return fmt.Errorf(
-					"got image:\n%+v\nwant image:\n%+v",
-					lfile.DockerfileImages[dPath][i].Image,
-					v.Lockfile.DockerfileImages[dPath][i].Image,
+					"got image:\n%s\nwant image:\n%s",
+					v.pretty(lfile.DockerfileImages[dPath][i].Image),
+					v.pretty(v.Lockfile.DockerfileImages[dPath][i].Image),
 				)
 			}
 		}
@@ -126,15 +133,21 @@ func (v *Verifier) verifyImages(lfile *generate.Lockfile) error {
 			if *v.Lockfile.ComposefileImages[cPath][i].Image !=
 				*lfile.ComposefileImages[cPath][i].Image {
 				return fmt.Errorf(
-					"got image:\n%+v\nwant image:\n%+v",
-					lfile.ComposefileImages[cPath][i].Image,
-					v.Lockfile.ComposefileImages[cPath][i].Image,
+					"got image:\n%s\nwant image:\n%s",
+					v.pretty(lfile.ComposefileImages[cPath][i].Image),
+					v.pretty(v.Lockfile.ComposefileImages[cPath][i].Image),
 				)
 			}
 		}
 	}
 
 	return nil
+}
+
+// pretty formats an Image as indented json.
+func (v *Verifier) pretty(im *generate.Image) string {
+	pretty, _ := json.MarshalIndent(im, "", "\t")
+	return string(pretty)
 }
 
 // readLockfile reads an existing Lockfile from the current directory

@@ -3,6 +3,7 @@ package generate
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"sort"
 	"sync"
 )
@@ -20,8 +21,14 @@ func NewLockfile(
 	dIms map[string][]*DockerfileImage,
 	cIms map[string][]*ComposefileImage,
 ) *Lockfile {
+	log.Printf("Creating Lockfile from Dockerfile Images '%+v' "+
+		"and Composefile Images '%+v'.", dIms, cIms,
+	)
+
 	l := &Lockfile{DockerfileImages: dIms, ComposefileImages: cIms}
 	l.sortImages()
+
+	log.Printf("Sorted images to make Lockfile '%+v'.", l)
 
 	return l
 }
@@ -89,6 +96,8 @@ func (l *Lockfile) Write(w io.Writer) error {
 	if err != nil {
 		return err
 	}
+
+	log.Printf("Writing Lockfile to '%+v'", w)
 
 	if _, err := w.Write(lByt); err != nil {
 		return err

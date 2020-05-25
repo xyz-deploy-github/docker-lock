@@ -2,6 +2,7 @@ package rewrite
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"sort"
 )
@@ -52,6 +53,8 @@ func (r *Rewriter) renameFiles(rnCh <-chan *rnInfo) error {
 
 			return rnErr
 		}
+
+		log.Printf("renamed '%s' to '%s'.", rn.tmpOPath, rn.oPath)
 
 		successRns = append(successRns, rn)
 	}

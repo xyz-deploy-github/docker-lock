@@ -2,6 +2,7 @@ package generate
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,6 +43,10 @@ func collectPaths(flags *Flags) ([]string, []string, error) {
 	}
 
 	if len(dPaths) == 0 && len(cPaths) == 0 {
+		log.Printf("No files found from flags, looking for defaults: " +
+			"'Dockerfile', 'docker-compose.yml', and 'docker-compose.yaml'.",
+		)
+
 		doneCh = make(chan struct{})
 
 		dPathCh = collectDefaultPaths(flags.BaseDir, dBaseSet, doneCh)
@@ -53,6 +58,10 @@ func collectPaths(flags *Flags) ([]string, []string, error) {
 			return nil, nil, err
 		}
 	}
+
+	log.Printf("Found Dockerfile paths: '%s' and docker-compose paths: '%s'.",
+		dPaths, cPaths,
+	)
 
 	if err := validatePaths(dPaths, cPaths); err != nil {
 		return nil, nil, err
@@ -218,6 +227,8 @@ func isRegularFile(p string) bool {
 		}
 	}
 
+	log.Printf("%s is not a regular file.", p)
+
 	return false
 }
 
@@ -254,7 +265,7 @@ func validatePaths(dPaths, cPaths []string) error {
 		for _, p := range paths {
 			if strings.HasPrefix(p, "..") {
 				return fmt.Errorf(
-					"%s is outside the current working directory", p,
+					"'%s' is outside the current working directory", p,
 				)
 			}
 		}

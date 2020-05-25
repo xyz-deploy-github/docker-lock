@@ -66,7 +66,7 @@ func dBuildStage() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), ".env",
 		dfiles, []string{}, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -96,7 +96,7 @@ func dLocalArg() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), ".env",
 		dfiles, []string{}, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -125,7 +125,7 @@ func dMultiple() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), ".env",
 		dfiles, []string{}, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -159,7 +159,7 @@ func dRecursive() (*test, error) {
 	flags, err := NewFlags(
 		rBDir, "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, []string{}, []string{}, []string{},
-		true, false, false,
+		true, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -195,7 +195,7 @@ func dGlobs() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, []string{}, globs, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -234,7 +234,7 @@ func dBuildArgs() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), envPath,
 		dfiles, []string{}, []string{}, []string{},
-		false, false, true,
+		false, false, true, false,
 	)
 	if err != nil {
 		return nil, err
@@ -263,7 +263,7 @@ func dNoFile() (*test, error) {
 	flags, err := NewFlags(
 		bDir, "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, []string{}, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -293,7 +293,7 @@ func cImage() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -325,7 +325,7 @@ func cBuild() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -359,7 +359,7 @@ func cDockerfile() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -395,7 +395,7 @@ func cContext() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -434,7 +434,7 @@ func cRelContext() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -470,7 +470,7 @@ func cAbsContext() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -521,7 +521,7 @@ func cEnv() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), envPath,
 		[]string{}, cfiles, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -566,7 +566,7 @@ func cArgsEnvList() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), envPath,
 		[]string{}, cfiles, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -600,7 +600,7 @@ func cArgsKeyValList() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -634,7 +634,7 @@ func cArgsKeyValMap() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -668,7 +668,7 @@ func cArgsOverride() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -702,7 +702,7 @@ func cArgsEmpty() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -737,7 +737,7 @@ func cArgsNoArg() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -782,7 +782,7 @@ func cMultiple() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -840,7 +840,7 @@ func cRecursive() (*test, error) {
 	flags, err := NewFlags(
 		bDir, "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, []string{}, []string{}, []string{},
-		false, true, false,
+		false, true, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -881,7 +881,7 @@ func cNoFile() (*test, error) {
 	flags, err := NewFlags(
 		bDir, "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, []string{}, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -934,7 +934,7 @@ func cGlobs() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, []string{}, []string{}, globs,
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -984,7 +984,7 @@ func cAssortment() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -1039,7 +1039,7 @@ func cSort() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), ".env",
 		[]string{}, cfiles, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err
@@ -1092,7 +1092,7 @@ func bDuplicates() (*test, error) {
 	flags, err := NewFlags(
 		".", "docker-lock.json", defaultConfigPath(), ".env",
 		dfiles, cfiles, []string{}, []string{},
-		false, false, false,
+		false, false, false, false,
 	)
 	if err != nil {
 		return nil, err

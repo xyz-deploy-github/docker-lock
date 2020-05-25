@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"log"
+
 	"github.com/michaelperel/docker-lock/registry"
 	"github.com/michaelperel/docker-lock/verify"
 	"github.com/spf13/cobra"
@@ -16,6 +18,10 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 			if err != nil {
 				return err
 			}
+
+			configureLogger(flags.Verbose)
+
+			log.Printf("Found flags '%+v'.", flags)
 
 			if err = loadEnv(flags.EnvFile); err != nil {
 				return err
@@ -38,6 +44,9 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 			return nil
 		},
 	}
+	verifyCmd.Flags().BoolP(
+		"verbose", "v", false, "Show logs",
+	)
 	verifyCmd.Flags().StringP(
 		"lockfile-path", "l", "docker-lock.json", "Path to Lockfile",
 	)
@@ -59,6 +68,11 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 // verifierFlags gets values from the command and uses them to
 // create Flags.
 func verifierFlags(cmd *cobra.Command) (*verify.Flags, error) {
+	verbose, err := cmd.Flags().GetBool("verbose")
+	if err != nil {
+		return nil, err
+	}
+
 	lPath, err := cmd.Flags().GetString("lockfile-path")
 	if err != nil {
 		return nil, err
@@ -82,6 +96,6 @@ func verifierFlags(cmd *cobra.Command) (*verify.Flags, error) {
 	}
 
 	return verify.NewFlags(
-		lPath, configFile, envFile, dfileEnvBuildArgs,
+		lPath, configFile, envFile, dfileEnvBuildArgs, verbose,
 	)
 }

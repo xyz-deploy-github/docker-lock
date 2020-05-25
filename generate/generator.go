@@ -44,10 +44,10 @@ type ComposefileImage struct {
 	position       int
 }
 
-// String formats an Image as indented json.
+// String formats an Image as json.
 func (i *Image) String() string {
-	pretty, _ := json.MarshalIndent(i, "", "\t")
-	return string(pretty)
+	j, _ := json.Marshal(i)
+	return string(j)
 }
 
 // NewGenerator creates a Generator from command line flags. If no

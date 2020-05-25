@@ -8,12 +8,13 @@ type Flags struct {
 	ConfigFile             string
 	EnvFile                string
 	DockerfileEnvBuildArgs bool
+	Verbose                bool
 }
 
 // NewFlags creates flags for a Verifier.
 func NewFlags(
 	lPath, configFile, envFile string,
-	dfileEnvBuildArgs bool,
+	dfileEnvBuildArgs, verbose bool,
 ) (*Flags, error) {
 	lPath = convertStrToSlash(lPath)
 	configFile = convertStrToSlash(configFile)
@@ -24,6 +25,7 @@ func NewFlags(
 		ConfigFile:             configFile,
 		EnvFile:                envFile,
 		DockerfileEnvBuildArgs: dfileEnvBuildArgs,
+		Verbose:                verbose,
 	}, nil
 }
 

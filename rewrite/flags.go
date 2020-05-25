@@ -7,10 +7,11 @@ type Flags struct {
 	LockfilePath string
 	Suffix       string
 	TempDir      string
+	Verbose      bool
 }
 
 // NewFlags creates flags for a Rewriter.
-func NewFlags(lPath, suffix, tmpDir string) (*Flags, error) {
+func NewFlags(lPath, suffix, tmpDir string, verbose bool) (*Flags, error) {
 	lPath = convertStrToSlash(lPath)
 	tmpDir = convertStrToSlash(tmpDir)
 
@@ -18,6 +19,7 @@ func NewFlags(lPath, suffix, tmpDir string) (*Flags, error) {
 		LockfilePath: lPath,
 		Suffix:       suffix,
 		TempDir:      tmpDir,
+		Verbose:      verbose,
 	}, nil
 }
 

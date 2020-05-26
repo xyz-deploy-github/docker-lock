@@ -9,7 +9,7 @@ import (
 	"github.com/michaelperel/docker-lock/registry"
 )
 
-// ElasticWrapper is a registry wrapper for the Elasticsearch repository.
+// ElasticWrapper is a registry wrapper for the Elasticsearch registry.
 type ElasticWrapper struct {
 	client *registry.HTTPClient
 }
@@ -36,6 +36,18 @@ func NewElasticWrapper(client *registry.HTTPClient) *ElasticWrapper {
 	}
 
 	return w
+}
+
+// init registers ElasticWrapper for use by docker-lock.
+func init() { //nolint: gochecknoinits
+	constructor := func(
+		client *registry.HTTPClient,
+		_ string,
+	) (registry.Wrapper, error) {
+		return NewElasticWrapper(client), nil
+	}
+
+	constructors = append(constructors, constructor)
 }
 
 // Digest queries the container registry for the digest given a repo and ref.

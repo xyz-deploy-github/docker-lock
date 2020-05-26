@@ -15,10 +15,7 @@ func TestAllWrappers(t *testing.T) {
 
 	client := &registry.HTTPClient{}
 
-	wrappers, err := AllWrappers(client)
-	if err != nil {
-		t.Fatal("could not get wrappers")
-	}
+	wrappers := AllWrappers(client, "")
 
 	expectedNumWrappers := 2
 	numWrappers := len(wrappers)

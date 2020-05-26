@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 
 	"github.com/michaelperel/docker-lock/registry"
@@ -20,6 +22,35 @@ type InternalWrapper struct {
 // query the container registry for a digest.
 type internalTokenResponse struct {
 	Token string `json:"token"`
+}
+
+// init registers InternalWrapper for use by docker-lock
+// if INTERNAL_REGISTRY_URL is set.
+func init() { //nolint: gochecknoinits
+	constructor := func(
+		client *registry.HTTPClient,
+		_ string,
+	) (registry.Wrapper, error) {
+		stripPrefix, err := strconv.ParseBool(
+			os.Getenv("INTERNAL_STRIP_PREFIX"),
+		)
+		if err != nil {
+			err = fmt.Errorf("cannot register InternalWrapper: %s", err)
+			return nil, err
+		}
+
+		w, err := NewInternalWrapper(
+			client, os.Getenv("INTERNAL_PREFIX"), stripPrefix,
+			os.Getenv("INTERNAL_REGISTRY_URL"), os.Getenv("INTERNAL_TOKEN_URL"),
+		)
+		if err != nil {
+			err = fmt.Errorf("cannot register InternalWrapper: %s", err)
+		}
+
+		return w, err
+	}
+
+	constructors = append(constructors, constructor)
 }
 
 // NewInternalWrapper creates an InternalWrapper. If tokenURL is blank,

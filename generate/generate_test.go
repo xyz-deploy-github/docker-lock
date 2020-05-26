@@ -1443,7 +1443,7 @@ func cmpIms(got, want *Image) error {
 func writeLfile(g *Generator) (*Lockfile, error) {
 	configPath := defaultConfigPath()
 
-	wm, err := defaultWrapperManager(configPath, client)
+	wm, err := defaultWrapperManager(client, configPath)
 	if err != nil {
 		return nil, err
 	}
@@ -1462,28 +1462,17 @@ func writeLfile(g *Generator) (*Lockfile, error) {
 }
 
 func defaultWrapperManager(
-	configPath string,
 	client *registry.HTTPClient,
+	configPath string,
 ) (*registry.WrapperManager, error) {
-	dw, err := firstparty.DefaultWrapper(configPath, client)
+	dw, err := firstparty.DefaultWrapper(client, configPath)
 	if err != nil {
 		return nil, err
 	}
 
 	wm := registry.NewWrapperManager(dw)
-
-	fpWrappers, err := firstparty.AllWrappers(configPath, client)
-	if err != nil {
-		return nil, err
-	}
-
-	cWrappers, err := contrib.AllWrappers(client)
-	if err != nil {
-		return nil, err
-	}
-
-	wm.Add(fpWrappers...)
-	wm.Add(cWrappers...)
+	wm.Add(firstparty.AllWrappers(client, configPath)...)
+	wm.Add(contrib.AllWrappers(client, configPath)...)
 
 	return wm, nil
 }

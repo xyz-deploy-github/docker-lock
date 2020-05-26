@@ -29,6 +29,18 @@ func NewMCRWrapper(client *registry.HTTPClient) *MCRWrapper {
 	return w
 }
 
+// init registers MCRWrapper for use by docker-lock.
+func init() { //nolint: gochecknoinits
+	constructor := func(
+		client *registry.HTTPClient,
+		_ string,
+	) (registry.Wrapper, error) {
+		return NewMCRWrapper(client), nil
+	}
+
+	constructors = append(constructors, constructor)
+}
+
 // Digest queries the container registry for the digest given a repo and ref.
 func (w *MCRWrapper) Digest(repo string, ref string) (string, error) {
 	repo = strings.Replace(repo, w.Prefix(), "", 1)

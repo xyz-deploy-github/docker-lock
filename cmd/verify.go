@@ -27,7 +27,7 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 				return err
 			}
 
-			wm, err := defaultWrapperManager(flags.ConfigFile, client)
+			wm, err := defaultWrapperManager(client, flags.ConfigFile)
 			if err != nil {
 				return err
 			}

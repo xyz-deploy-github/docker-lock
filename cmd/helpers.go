@@ -33,28 +33,17 @@ func defaultConfigPath() string {
 // wrapper is the first party's default wrapper (a wrapper for Docker Hub),
 // and all other first party and contrib wrappers are added.
 func defaultWrapperManager(
-	configPath string,
 	client *registry.HTTPClient,
+	configPath string,
 ) (*registry.WrapperManager, error) {
-	dw, err := firstparty.DefaultWrapper(configPath, client)
+	dw, err := firstparty.DefaultWrapper(client, configPath)
 	if err != nil {
 		return nil, err
 	}
 
 	wm := registry.NewWrapperManager(dw)
-
-	fpWrappers, err := firstparty.AllWrappers(configPath, client)
-	if err != nil {
-		return nil, err
-	}
-
-	cWrappers, err := contrib.AllWrappers(client)
-	if err != nil {
-		return nil, err
-	}
-
-	wm.Add(fpWrappers...)
-	wm.Add(cWrappers...)
+	wm.Add(firstparty.AllWrappers(client, configPath)...)
+	wm.Add(contrib.AllWrappers(client, configPath)...)
 
 	return wm, nil
 }

@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	c "github.com/docker/docker-credential-helpers/client"
@@ -38,6 +39,27 @@ type acrConfig struct {
 type acrAuthCreds struct {
 	username string
 	password string
+}
+
+// init registers ACRWrapper for use by docker-lock
+// if ACR_REGISTRY_NAME is set.
+func init() { //nolint: gochecknoinits
+	constructor := func(
+		client *registry.HTTPClient,
+		configPath string,
+	) (registry.Wrapper, error) {
+		w, err := NewACRWrapper(
+			client, configPath, os.Getenv("ACR_USERNAME"),
+			os.Getenv("ACR_PASSWORD"), os.Getenv("ACR_REGISTRY_NAME"),
+		)
+		if err != nil {
+			err = fmt.Errorf("cannot register ACRWrapper: %s", err)
+		}
+
+		return w, err
+	}
+
+	constructors = append(constructors, constructor)
 }
 
 // NewACRWrapper creates an ACRWrapper or returns an error if not possible.

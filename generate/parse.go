@@ -327,6 +327,10 @@ loop:
 		switch c {
 		case ':':
 			tagSeparator = i
+		case '/':
+			// reset tagSeparator
+			// for instance, 'localhost:5000/my-image'
+			tagSeparator = -1
 		case '@':
 			digestSeparator = i
 			break loop

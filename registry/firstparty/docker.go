@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 
 	c "github.com/docker/docker-credential-helpers/client"
@@ -43,6 +44,26 @@ type dockerConfig struct {
 type dockerAuthCreds struct {
 	username string
 	password string
+}
+
+// init registers DockerWrapper for use by docker-lock.
+func init() { //nolint: gochecknoinits
+	constructor := func(
+		client *registry.HTTPClient,
+		configPath string,
+	) (registry.Wrapper, error) {
+		w, err := NewDockerWrapper(
+			client, configPath, os.Getenv("DOCKER_USERNAME"),
+			os.Getenv("DOCKER_PASSWORD"),
+		)
+		if err != nil {
+			err = fmt.Errorf("cannot register DockerWrapper: %s", err)
+		}
+
+		return w, err
+	}
+
+	constructors = append(constructors, constructor)
 }
 
 // NewDockerWrapper creates a DockerWrapper or returns an error

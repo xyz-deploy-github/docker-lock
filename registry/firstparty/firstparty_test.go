@@ -3,72 +3,19 @@ package firstparty
 import (
 	"io/ioutil"
 	"log"
-	"os"
 	"testing"
 
 	"github.com/michaelperel/docker-lock/registry"
 )
 
-// TestAllWrappers ensures that all wrappers officially
-// supported by docker-lock's maintainers are returned.
-func TestAllWrappers(t *testing.T) {
+// TestDefaultWrapper ensures that the default wrapper
+// is one that can handle images without a prefix.
+func TestDefaultWrapper(t *testing.T) {
 	log.SetOutput(ioutil.Discard)
 
 	client := &registry.HTTPClient{}
 
-	// Without any environment variables
-	wrappers, err := AllWrappers("", client)
-	if err != nil {
-		t.Fatal("could not get wrappers")
-	}
-
-	expectedNumWrappers := 1
-	numWrappers := len(wrappers)
-
-	if numWrappers != expectedNumWrappers {
-		t.Fatalf("got '%d' wrappers, want '%d'",
-			numWrappers,
-			expectedNumWrappers,
-		)
-	}
-
-	if _, ok := wrappers[0].(*DockerWrapper); !ok {
-		t.Fatal("expected DockerWrapper")
-	}
-
-	// With all environment variables
-	os.Setenv("ACR_REGISTRY_NAME", "notempty")
-
-	wrappers, err = AllWrappers("", client)
-	if err != nil {
-		t.Fatal("could not get wrappers")
-	}
-
-	expectedNumWrappers = 2
-	numWrappers = len(wrappers)
-
-	if numWrappers != expectedNumWrappers {
-		t.Fatalf("got '%d' wrappers, want '%d'",
-			numWrappers,
-			expectedNumWrappers,
-		)
-	}
-
-	if _, ok := wrappers[0].(*DockerWrapper); !ok {
-		t.Fatal("expected DockerWrapper")
-	}
-
-	if _, ok := wrappers[1].(*ACRWrapper); !ok {
-		t.Fatal("expected ACRWrapper")
-	}
-}
-
-// TestDefaultWrapper ensures that the default wrapper
-// is one that can handle images without a prefix.
-func TestDefaultWrapper(t *testing.T) {
-	client := &registry.HTTPClient{}
-
-	wrapper, err := DefaultWrapper("", client)
+	wrapper, err := DefaultWrapper(client, "")
 	if err != nil {
 		t.Fatal("could not get default wrapper")
 	}

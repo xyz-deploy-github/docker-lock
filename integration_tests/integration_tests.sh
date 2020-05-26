@@ -19,11 +19,7 @@
         unset $(cut -d= -f1 .envreplacewithcreds)
     }
 
-    after_test () {
-        cd "${integration_tests_dir}"
-    }
-
-    run_integration_tests() {
+    run_external_tests() {
         docker logout > /dev/null 2>&1
         # docker logged out with no creds in .env, generate should fail
         if ! docker lock verify --env-file .envwithoutcreds > /dev/null 2>&1; then
@@ -53,28 +49,56 @@
         docker logout "$3" > /dev/null 2>&1
     }
 
+    run_internal_tests() {
+        docker logout > /dev/null 2>&1
+
+        docker login --username "$1" --password "$2" "$3" > /dev/null 2>&1
+
+        docker run -d -p 5000:5000 --restart=always --name registry registry:2
+
+        docker pull dockerlocktestaccount/busybox
+
+        docker tag dockerlocktestaccount/busybox localhost:5000/busybox
+
+        docker push localhost:5000/busybox
+
+        docker lock verify --env-file .envwithcreds > /dev/null 2>&1
+    }
+
     main() {
         trap cleanup EXIT
 
-        cd docker/
-        USERNAME="${DOCKER_USERNAME}"
-        PASSWORD="${DOCKER_PASSWORD}"
-        before_test
-        run_integration_tests "${USERNAME}" "${PASSWORD}" ""
-        after_test
+        (
+            cd docker/
+            USERNAME="${DOCKER_USERNAME}"
+            PASSWORD="${DOCKER_PASSWORD}"
+            before_test
+            run_external_tests "${USERNAME}" "${PASSWORD}" ""
+            echo "------ PASSED PRIVATE DOCKER TESTS ------"
+        )
 
-        echo "------ PASSED PRIVATE DOCKER TESTS ------"
+        (
+            cd acr/
+            USERNAME="${ACR_USERNAME}"
+            PASSWORD="${ACR_PASSWORD}"
+            SERVER="${ACR_REGISTRY_NAME}.azurecr.io"
+            before_test
+            run_external_tests "${USERNAME}" "${PASSWORD}" "${SERVER}"
+            echo "------ PASSED PRIVATE ACR TESTS ------"
+        )
 
-        cd acr/
-        USERNAME="${ACR_USERNAME}"
-        PASSWORD="${ACR_PASSWORD}"
-        SERVER="${ACR_REGISTRY_NAME}.azurecr.io"
-        before_test
-        run_integration_tests "${USERNAME}" "${PASSWORD}" "${SERVER}"
-        after_test
-
-        echo "------ PASSED PRIVATE ACR TESTS ------"
+        (
+            # only linux build agent has docker daemon
+            if [[ "${1}" == "linux" ]]; then
+                cd internal/
+                USERNAME="${DOCKER_USERNAME}"
+                PASSWORD="${DOCKER_PASSWORD}"
+                before_test
+                run_internal_tests "${USERNAME}" "${PASSWORD}" ""
+                echo "------ PASSED INTERNAL REGISTRY TESTS  ------"
+            fi
+        )
     }
 
-    main
+    main "${1}"
 )

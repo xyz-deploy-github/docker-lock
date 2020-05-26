@@ -10,8 +10,8 @@ implementation for internal registries whose behavior can be controlled
 through environment variables.
 
 > Note: If `docker-lock`'s implementation for internal registries does not
-suffice for your use case, you can easily extend `docker-lock` to support
-any registry by [implementing a simple interface](../../registry/wrapper.go).
+suffice for your use case, you can easily
+[bring your own registry](./bring-your-own-registry.md).
 
 # Example
 In this example, we will:
@@ -104,7 +104,7 @@ Finally, there is one environment variable we have not defined,
 that URL for a bearer token, expecting a json response with the key `token`.
 This token will be used when querying for the digest.
 
-Typically, requests for the authorization token happens per repository. If
+Typically, requests for the authorization token happen per repository. If
 this is the case, the variable could be:
 ```
 INTERNAL_TOKEN_URL="https://localhost:5000/v2/auth?scope=repository:<REPO>:pull"

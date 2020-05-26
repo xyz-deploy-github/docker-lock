@@ -22,7 +22,7 @@ func (m *WrapperManager) Add(wrappers ...Wrapper) {
 
 // Wrapper selects a registry wrapper if the line starts with
 // the wrapper's prefix. If no match is found, the default wrapper
-// is used. In this context, a line means the image+repo+tag, as in
+// is used. In this context, a line means the prefix+repo+tag, as in
 // dockerlocktestaccount.azurecr.io/helloworld:latest.
 func (m *WrapperManager) Wrapper(line string) Wrapper {
 	for _, wrapper := range m.wrappers {

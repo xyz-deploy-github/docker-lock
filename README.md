@@ -92,6 +92,7 @@ in the future.
 # Documentation
 ## Tutorials
 * [Using Internal Registries](./docs/tutorials/internal-registry.md)
+* [Bring Your Own Registry](./docs/tutorials/bring-your-own-registry.md)
 * [Tags Vs. Digests](./docs/tutorials/tags-vs-digests.md)
 
 ## Contributing

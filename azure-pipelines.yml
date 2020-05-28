@@ -173,8 +173,18 @@ jobs:
   - download: current
     artifact: docker-lock-windows
     displayName: Download docker-lock-windows
+  - bash: |
+      latest_tag="$(git tag -l | tail -n 1)"
+      if ! curl -fsSL "https://github.com/michaelperel/docker-lock/releases/download/${latest_tag}/docker-lock-linux" -o /dev/null; then
+        echo "##vso[task.setVariable variable=release]true"
+      else
+        echo "Skipping release because latest tag: ${latest_tag} already exists."
+      fi
+    displayName: Check if should create github release
+  # only runs if tag associated with commit
   - task: GithubRelease@0 
     displayName: Create github release
+    condition: eq(variables.release, 'true')
     inputs:
       gitHubConnection: docker-lock-release
       repositoryName: michaelperel/docker-lock

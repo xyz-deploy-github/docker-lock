@@ -4,7 +4,7 @@
 			{
 				"name": "dockerlocktestaccount.azurecr.io/busybox",
 				"tag": "v1",
-				"digest": "dd97a3fe6d721c5cf03abac0f50e2848dc583f7c4e41bf39102ceb42edfd1808"
+				"digest": "fd4a8673d0344c3a7f427fe4440d4b8dfd4fa59cfabbd9098f9eb0cb4ba905d0"
 			}
 		]
 	},

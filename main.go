@@ -27,7 +27,7 @@ import (
 )
 
 func main() {
-	if os.Args[1] == "docker-cli-plugin-metadata" {
+	if len(os.Args) > 1 && os.Args[1] == "docker-cli-plugin-metadata" {
 		m := map[string]string{
 			"SchemaVersion":    "0.1.0",
 			"Vendor":           "https://github.com/michaelperel/docker-lock",

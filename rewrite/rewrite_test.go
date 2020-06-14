@@ -32,7 +32,7 @@ func TestRewriter(t *testing.T) {
 		tc := tc
 
 		t.Run(name, func(t *testing.T) {
-			flags, err := NewFlags(tc.lPath, "got", tmpDir, false)
+			flags, err := NewFlags(tc.lPath, "got", tmpDir, false, false)
 			if err != nil {
 				t.Fatal(err)
 			}

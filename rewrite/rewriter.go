@@ -16,9 +16,10 @@ import (
 // Rewriter is used to rewrite base images in docker and docker-compose files
 // with their digests.
 type Rewriter struct {
-	Lockfile *generate.Lockfile
-	Suffix   string
-	TempDir  string
+	Lockfile    *generate.Lockfile
+	Suffix      string
+	TempDir     string
+	ExcludeTags bool
 }
 
 // NewRewriter creates a Rewriter from command line flags.
@@ -40,9 +41,10 @@ func NewRewriter(flags *Flags) (*Rewriter, error) {
 	log.Printf("Deduplicated Dockerfiles to create Lockfile '%+v'.", lfile)
 
 	return &Rewriter{
-		Lockfile: lfile,
-		Suffix:   flags.Suffix,
-		TempDir:  flags.TempDir,
+		Lockfile:    lfile,
+		Suffix:      flags.Suffix,
+		TempDir:     flags.TempDir,
+		ExcludeTags: flags.ExcludeTags,
 	}, nil
 }
 

@@ -137,10 +137,7 @@ func (r *Rewriter) writeDfile(
 					return
 				}
 
-				newLine := fmt.Sprintf(
-					"%s:%s@sha256:%s", ims[imIndex].Name,
-					ims[imIndex].Tag, ims[imIndex].Digest,
-				)
+				newLine := r.convertImToLine(ims[imIndex].Image)
 
 				log.Printf("In '%s', replacing line '%s' with '%s'.",
 					dPath, line, newLine,
@@ -322,9 +319,7 @@ func (r *Rewriter) writeDfileOrGetCImageLine(
 		case <-doneCh:
 		case cilCh <- &composeImageLine{
 			serviceName: im.ServiceName,
-			line: fmt.Sprintf(
-				"%s:%s@sha256:%s", im.Name, im.Tag, im.Digest,
-			),
+			line:        r.convertImToLine(im.Image),
 		}:
 		}
 	}
@@ -487,5 +482,18 @@ func (r *Rewriter) dPathWithSuffix(dPath string) string {
 		return dPath
 	default:
 		return fmt.Sprintf("%s-%s", dPath, r.Suffix)
+	}
+}
+
+func (r *Rewriter) convertImToLine(im *generate.Image) string {
+	switch {
+	case im.Tag == "" || r.ExcludeTags:
+		return fmt.Sprintf(
+			"%s@sha256:%s", im.Name, im.Digest,
+		)
+	default:
+		return fmt.Sprintf(
+			"%s:%s@sha256:%s", im.Name, im.Tag, im.Digest,
+		)
 	}
 }

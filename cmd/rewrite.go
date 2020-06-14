@@ -34,9 +34,6 @@ func NewRewriteCmd() *cobra.Command {
 			return nil
 		},
 	}
-	rewriteCmd.Flags().BoolP(
-		"verbose", "v", false, "Show logs",
-	)
 	rewriteCmd.Flags().StringP(
 		"lockfile-path", "l", "docker-lock.json", "Path to Lockfile",
 	)
@@ -50,6 +47,12 @@ func NewRewriteCmd() *cobra.Command {
 		"Directory where a temporary directory will be created/deleted "+
 			"during a rewrite transaction",
 	)
+	rewriteCmd.Flags().BoolP(
+		"exclude-tags", "e", false, "Exclude image tags from rewritten files",
+	)
+	rewriteCmd.Flags().BoolP(
+		"verbose", "v", false, "Show logs",
+	)
 
 	return rewriteCmd
 }
@@ -57,11 +60,6 @@ func NewRewriteCmd() *cobra.Command {
 // rewriterFlags gets values from the command and uses them to
 // create Flags.
 func rewriterFlags(cmd *cobra.Command) (*rewrite.Flags, error) {
-	verbose, err := cmd.Flags().GetBool("verbose")
-	if err != nil {
-		return nil, err
-	}
-
 	lPath, err := cmd.Flags().GetString("lockfile-path")
 	if err != nil {
 		return nil, err
@@ -77,5 +75,15 @@ func rewriterFlags(cmd *cobra.Command) (*rewrite.Flags, error) {
 		return nil, err
 	}
 
-	return rewrite.NewFlags(lPath, suffix, tmpDir, verbose)
+	verbose, err := cmd.Flags().GetBool("verbose")
+	if err != nil {
+		return nil, err
+	}
+
+	excludeTags, err := cmd.Flags().GetBool("exclude-tags")
+	if err != nil {
+		return nil, err
+	}
+
+	return rewrite.NewFlags(lPath, suffix, tmpDir, excludeTags, verbose)
 }

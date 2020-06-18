@@ -55,6 +55,9 @@ func (w *MCRWrapper) Digest(repo string, ref string) (string, error) {
 	req.Header.Add(
 		"Accept", "application/vnd.docker.distribution.manifest.v2+json",
 	)
+	req.Header.Add(
+		"Accept", "application/vnd.docker.distribution.manifest.list.v2+json",
+	)
 
 	resp, err := w.client.Do(req)
 	if err != nil {

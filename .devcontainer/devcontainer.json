@@ -16,32 +16,32 @@
 	"settings": {
 		"files.eol": "\n",
 		"terminal.integrated.shell.linux": "/bin/bash",
-		// Go recommended settings with modules: https://github.com/golang/tools/blob/master/gopls/doc/vscode.md#vscode
-		"go.useLanguageServer": true,
 		"go.lintTool": "golangci-lint",
 		"go.lintFlags": [
 			"--fast"
 		],
+		// Go recommended settings with modules: https://github.com/golang/tools/blob/master/gopls/doc/vscode.md#vscode
+		"go.useLanguageServer": true,
 		"[go]": {
 			"editor.formatOnSave": true,
 			"editor.codeActionsOnSave": {
-				"source.organizeImports": true
+				"source.organizeImports": true,
 			},
 			// Optional: Disable snippets, as they conflict with completion ranking.
-			"editor.snippetSuggestions": "none"
+			"editor.snippetSuggestions": "none",
 		},
 		"[go.mod]": {
 			"editor.formatOnSave": true,
 			"editor.codeActionsOnSave": {
-				"source.organizeImports": true
-			}
+				"source.organizeImports": true,
+			},
 		},
 		"gopls": {
 			// Add parameter placeholders when completing a function.
-			"usePlaceholders": true
+			"usePlaceholders": true,
 		}
 	},
 	"extensions": [
-		"ms-vscode.go"
+		"golang.go"
 	]
 }

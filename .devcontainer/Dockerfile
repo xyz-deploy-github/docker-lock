@@ -10,14 +10,6 @@ RUN apt-get update && \
     chmod +x /usr/local/bin/docker-compose && \
     curl -fSsL "https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz" | tar -xz -C /usr/local && \
     curl -fSsL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | bash -s -- -b /usr/local/bin v"${GOLANGCI_LINT_VERSION}" && \
-    git clone --depth=1 https://github.com/amix/vimrc.git ~/.vim_runtime && \
-    bash ~/.vim_runtime/install_basic_vimrc.sh && \
-    git clone https://github.com/fatih/vim-go.git ~/.vim/pack/plugins/start/vim-go && \
-    git clone https://github.com/preservim/nerdtree.git ~/.vim/pack/vendor/start/nerdtree && \
-    echo ":nnoremap <C-g> :NERDTreeToggle<CR>" >> ~/.vimrc && \
-    echo "imap jj <Esc>" >> ~/.vimrc && \
-    echo "set number" >> ~/.vimrc && \
-    echo "set colorcolumn=80" >> ~/.vimrc && \
     rm -rf /var/lib/apt/lists/*
 ENV PATH="${PATH}:/usr/local/go/bin"
 WORKDIR /workspaces/docker-lock

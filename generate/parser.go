@@ -13,6 +13,13 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// parser extracts base images from Dockerfiles and docker-compose files.
+type parser struct {
+	dPaths            []string
+	cPaths            []string
+	dfileEnvBuildArgs bool
+}
+
 // BaseImage represents an image in a Dockerfile's FROM instruction
 // or a docker-compose file's image key.
 type BaseImage struct {
@@ -24,19 +31,19 @@ type BaseImage struct {
 	err             error
 }
 
-// parseFiles finds all base images in the generator's Dockerfiles and
+// parseFiles finds all base images in the parser's Dockerfiles and
 // docker-compose files.
-func (g *Generator) parseFiles(doneCh <-chan struct{}) chan *BaseImage {
+func (p *parser) parseFiles(doneCh <-chan struct{}) chan *BaseImage {
 	bImCh := make(chan *BaseImage)
 	wg := sync.WaitGroup{}
 
 	wg.Add(1)
 
-	go g.parseDfiles(bImCh, &wg, doneCh)
+	go p.parseDfiles(bImCh, &wg, doneCh)
 
 	wg.Add(1)
 
-	go g.parseCfiles(bImCh, &wg, doneCh)
+	go p.parseCfiles(bImCh, &wg, doneCh)
 
 	go func() {
 		wg.Wait()
@@ -47,24 +54,24 @@ func (g *Generator) parseFiles(doneCh <-chan struct{}) chan *BaseImage {
 }
 
 // parseDfiles finds base images in Dockerfiles.
-func (g *Generator) parseDfiles(
+func (p *parser) parseDfiles(
 	bImCh chan<- *BaseImage,
 	wg *sync.WaitGroup,
 	doneCh <-chan struct{},
 ) {
 	defer wg.Done()
 
-	bArgs := g.dBuildArgs()
+	bArgs := p.dBuildArgs()
 
-	for _, dPath := range g.DockerfilePaths {
+	for _, dPath := range p.dPaths {
 		wg.Add(1)
 
-		go g.parseDfile(dPath, bArgs, "", "", bImCh, wg, doneCh)
+		go p.parseDfile(dPath, bArgs, "", "", bImCh, wg, doneCh)
 	}
 }
 
 // parseDfile finds base images in a Dockerfile.
-func (g *Generator) parseDfile(
+func (p *parser) parseDfile(
 	dPath string,
 	bArgs map[string]string,
 	cPath string,
@@ -79,7 +86,7 @@ func (g *Generator) parseDfile(
 
 	dfile, err := os.Open(dPath) // nolint: gosec
 	if err != nil {
-		g.addErrToBiCh(err, bImCh, doneCh)
+		p.addErrToBiCh(err, bImCh, doneCh)
 		return
 	}
 	defer dfile.Close()
@@ -114,8 +121,8 @@ func (g *Generator) parseDfile(
 
 						const valIndex = 1
 
-						strpVar := g.stripQuotes(vv[varIndex])
-						strpVal := g.stripQuotes(vv[valIndex])
+						strpVar := p.stripQuotes(vv[varIndex])
+						strpVal := p.stripQuotes(vv[valIndex])
 
 						gArgs[strpVar] = strpVal
 
@@ -124,7 +131,7 @@ func (g *Generator) parseDfile(
 						)
 					} else {
 						// ARG VAR1
-						strpVar := g.stripQuotes(fields[imLineIndex])
+						strpVar := p.stripQuotes(fields[imLineIndex])
 
 						gArgs[strpVar] = ""
 
@@ -149,7 +156,7 @@ func (g *Generator) parseDfile(
 
 					log.Printf("In '%s', expanded line to '%s'", dPath, line)
 
-					im := g.convertImageLineToImage(line)
+					im := p.convertImageLineToImage(line)
 
 					log.Printf("In '%s', converted '%s' to image '%+v'.",
 						dPath, line, im,
@@ -188,22 +195,22 @@ func (g *Generator) parseDfile(
 }
 
 // parseCfiles finds base images in docker-compose files.
-func (g *Generator) parseCfiles(
+func (p *parser) parseCfiles(
 	bImCh chan<- *BaseImage,
 	wg *sync.WaitGroup,
 	doneCh <-chan struct{},
 ) {
 	defer wg.Done()
 
-	for _, cPath := range g.ComposefilePaths {
+	for _, cPath := range p.cPaths {
 		wg.Add(1)
 
-		go g.parseCfile(cPath, bImCh, wg, doneCh)
+		go p.parseCfile(cPath, bImCh, wg, doneCh)
 	}
 }
 
 // parseCfile finds base images in a docker-compose file.
-func (g *Generator) parseCfile(
+func (p *parser) parseCfile(
 	cPath string,
 	bImCh chan<- *BaseImage,
 	wg *sync.WaitGroup,
@@ -215,14 +222,14 @@ func (g *Generator) parseCfile(
 
 	ymlByt, err := ioutil.ReadFile(cPath) // nolint: gosec
 	if err != nil {
-		g.addErrToBiCh(err, bImCh, doneCh)
+		p.addErrToBiCh(err, bImCh, doneCh)
 		return
 	}
 
 	comp := compose{}
 	if err := yaml.Unmarshal(ymlByt, &comp); err != nil {
 		err = fmt.Errorf("from '%s': %v", cPath, err)
-		g.addErrToBiCh(err, bImCh, doneCh)
+		p.addErrToBiCh(err, bImCh, doneCh)
 
 		return
 	}
@@ -230,12 +237,12 @@ func (g *Generator) parseCfile(
 	for svcName, svc := range comp.Services {
 		wg.Add(1)
 
-		go g.parseService(svcName, svc, cPath, bImCh, wg, doneCh)
+		go p.parseService(svcName, svc, cPath, bImCh, wg, doneCh)
 	}
 }
 
 // parseService finds base images in a service.
-func (g *Generator) parseService(
+func (p *parser) parseService(
 	svcName string,
 	svc *service,
 	cPath string,
@@ -258,7 +265,7 @@ func (g *Generator) parseService(
 			cPath, svcName, svc.ImageName, imLine,
 		)
 
-		im := g.convertImageLineToImage(imLine)
+		im := p.convertImageLineToImage(imLine)
 
 		log.Printf("In '%s', service '%s' converted '%s' to image '%+v'.",
 			cPath, svcName, imLine, im,
@@ -291,7 +298,7 @@ func (g *Generator) parseService(
 
 		wg.Add(1)
 
-		go g.parseDfile(dPath, nil, cPath, svcName, bImCh, wg, doneCh)
+		go p.parseDfile(dPath, nil, cPath, svcName, bImCh, wg, doneCh)
 	case verbose:
 		ctx := filepath.ToSlash(os.ExpandEnv(build.Context))
 		if !filepath.IsAbs(ctx) {
@@ -305,7 +312,7 @@ func (g *Generator) parseService(
 
 		dPath = filepath.ToSlash(filepath.Join(ctx, dPath))
 
-		bArgs := g.cBuildArgs(build)
+		bArgs := p.cBuildArgs(build)
 
 		log.Printf("In '%s', service '%s' Dockerfile '%s' "+
 			"found with build args '%+v'.", cPath, svcName, dPath, bArgs,
@@ -313,12 +320,12 @@ func (g *Generator) parseService(
 
 		wg.Add(1)
 
-		go g.parseDfile(dPath, bArgs, cPath, svcName, bImCh, wg, doneCh)
+		go p.parseDfile(dPath, bArgs, cPath, svcName, bImCh, wg, doneCh)
 	}
 }
 
 // convertLineToIm converts a line such as ubuntu:bionic into an Image.
-func (g *Generator) convertImageLineToImage(line string) *Image {
+func (p *parser) convertImageLineToImage(line string) *Image {
 	tagSeparator := -1
 	digestSeparator := -1
 
@@ -402,10 +409,10 @@ func expandField(
 
 // dBuildArgs returns build args for Dockerfiles from environment variables if
 // set via the flag --dockerfile-env-build-args.
-func (g *Generator) dBuildArgs() map[string]string {
+func (p *parser) dBuildArgs() map[string]string {
 	bArgs := map[string]string{}
 
-	if !g.DockerfileEnvBuildArgs {
+	if !p.dfileEnvBuildArgs {
 		return bArgs
 	}
 
@@ -421,7 +428,7 @@ func (g *Generator) dBuildArgs() map[string]string {
 
 // cBuildArgs returns build args for a docker-compose service if the args key
 // in the docker-compose file has a value.
-func (g *Generator) cBuildArgs(build verbose) map[string]string {
+func (p *parser) cBuildArgs(build verbose) map[string]string {
 	bArgs := map[string]string{}
 
 	if build.ArgsWrapper == nil {
@@ -457,7 +464,7 @@ func (g *Generator) cBuildArgs(build verbose) map[string]string {
 
 // stripQuotes strips valid quotes from an ARG instruction's keys
 // and values.
-func (g *Generator) stripQuotes(s string) string {
+func (p *parser) stripQuotes(s string) string {
 	// Valid in a Dockerfile - any number of quotes if quote is on either side.
 	// ARG "IMAGE"="busybox"
 	// ARG "IMAGE"""""="busybox"""""""""""""
@@ -470,7 +477,7 @@ func (g *Generator) stripQuotes(s string) string {
 
 // addErrToBiCh adds an error to a base image channel, ensuring the goroutine
 // will not leak if the done channel is closed.
-func (g *Generator) addErrToBiCh(
+func (p *parser) addErrToBiCh(
 	err error,
 	bImCh chan<- *BaseImage,
 	doneCh <-chan struct{},

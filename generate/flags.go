@@ -7,56 +7,125 @@ import (
 	"strings"
 )
 
-// Flags are all possible flags to initialize a Generator.
-type Flags struct {
-	BaseDir                string
-	LockfileName           string
-	ConfigFile             string
-	EnvFile                string
-	Dockerfiles            []string
-	Composefiles           []string
-	DockerfileGlobs        []string
-	ComposefileGlobs       []string
-	DockerfileRecursive    bool
-	ComposefileRecursive   bool
-	DockerfileEnvBuildArgs bool
-	Verbose                bool
+// SharedFlags are flags that do not differ between Dockerfiles
+// and docker-compose files.
+type SharedFlags struct {
+	BaseDir      string
+	LockfileName string
+	ConfigFile   string
+	EnvFile      string
+	Verbose      bool
 }
 
-// NewFlags creates flags for a Generator.
+// SpecificFlags are flags whose values differ between Dockerfiles and
+// docker-compose files.
+type SpecificFlags struct {
+	Paths     []string
+	Globs     []string
+	Recursive bool
+}
+
+// DockerfileFlags are flags that determine how Dockerfiles are processed.
+type DockerfileFlags struct {
+	*SpecificFlags
+	UseEnvAsBuildArgs bool
+}
+
+// ComposefileFlags are flags that determine how docker-compose files
+// are processed.
+type ComposefileFlags struct {
+	*SpecificFlags
+}
+
+// Flags consist of SharedFlags, DockerfileFlags, and ComposefileFlags.
+type Flags struct {
+	*SharedFlags
+	DockerfileFlags  *DockerfileFlags
+	ComposefileFlags *ComposefileFlags
+}
+
+// NewSharedFlags preprocesses and validates the fields of SharedFlags.
+func NewSharedFlags(
+	bDir string,
+	lName string,
+	configFile string,
+	envFile string,
+	verbose bool,
+) (*SharedFlags, error) {
+	bDir = convertStrToSlash(bDir)
+	configFile = convertStrToSlash(configFile)
+	envFile = convertStrToSlash(envFile)
+
+	if err := validateBaseDirectory(bDir); err != nil {
+		return nil, err
+	}
+
+	if err := validateLockfileName(lName); err != nil {
+		return nil, err
+	}
+
+	return &SharedFlags{
+		BaseDir:      bDir,
+		LockfileName: lName,
+		ConfigFile:   configFile,
+		EnvFile:      envFile,
+		Verbose:      verbose,
+	}, nil
+}
+
+// NewSpecificFlags preprocesses and validates the fields of SpecificFlags.
+func NewSpecificFlags(
+	bDir string,
+	paths []string,
+	globs []string,
+	recursive bool,
+) (*SpecificFlags, error) {
+	paths = convertStrSlToSlash(paths)
+	globs = convertStrSlToSlash(globs)
+
+	if err := validateSuppliedPaths(bDir, paths); err != nil {
+		return nil, err
+	}
+
+	if err := validateGlobs(globs); err != nil {
+		return nil, err
+	}
+
+	return &SpecificFlags{
+		Paths:     paths,
+		Globs:     globs,
+		Recursive: recursive,
+	}, nil
+}
+
+// NewFlags preprocesses and validates flags for Dockerfiles and
+// docker-compose files.
 func NewFlags(
 	bDir, lName, configFile, envFile string,
 	dfiles, cfiles, dGlobs, cGlobs []string,
 	dRecursive, cRecursive, dfileEnvBuildArgs, verbose bool,
 ) (*Flags, error) {
-	bDir = convertStrToSlash(bDir)
-	configFile = convertStrToSlash(configFile)
-	envFile = convertStrToSlash(envFile)
+	sharedFlags, err := NewSharedFlags(
+		bDir, lName, configFile, envFile, verbose,
+	)
+	if err != nil {
+		return nil, err
+	}
 
-	dfiles = convertStrSlToSlash(dfiles)
-	cfiles = convertStrSlToSlash(cfiles)
-	dGlobs = convertStrSlToSlash(dGlobs)
-	cGlobs = convertStrSlToSlash(cGlobs)
+	dFlags, err := NewSpecificFlags(bDir, dfiles, dGlobs, dRecursive)
+	if err != nil {
+		return nil, err
+	}
 
-	if err := validateFlags(
-		bDir, lName, dfiles, cfiles, dGlobs, cGlobs,
-	); err != nil {
+	cFlags, err := NewSpecificFlags(bDir, cfiles, cGlobs, cRecursive)
+	if err != nil {
 		return nil, err
 	}
 
 	return &Flags{
-		BaseDir:                bDir,
-		LockfileName:           lName,
-		ConfigFile:             configFile,
-		EnvFile:                envFile,
-		Dockerfiles:            dfiles,
-		Composefiles:           cfiles,
-		DockerfileGlobs:        dGlobs,
-		ComposefileGlobs:       cGlobs,
-		DockerfileRecursive:    dRecursive,
-		ComposefileRecursive:   cRecursive,
-		DockerfileEnvBuildArgs: dfileEnvBuildArgs,
-		Verbose:                verbose,
+		SharedFlags:      sharedFlags,
+		DockerfileFlags:  &DockerfileFlags{dFlags, dfileEnvBuildArgs},
+		ComposefileFlags: &ComposefileFlags{cFlags},
 	}, nil
 }
 
@@ -77,34 +146,6 @@ func convertStrSlToSlash(s []string) []string {
 	}
 
 	return sl
-}
-
-// validateFlags validates legal values for command line flags.
-func validateFlags(
-	bDir, lName string,
-	dfiles, cfiles, dGlobs, cGlobs []string,
-) error {
-	if err := validateBaseDirectory(bDir); err != nil {
-		return err
-	}
-
-	if err := validateLockfileName(lName); err != nil {
-		return err
-	}
-
-	for _, ps := range [][]string{dfiles, cfiles} {
-		if err := validateSuppliedPaths(bDir, ps); err != nil {
-			return err
-		}
-	}
-
-	for _, gs := range [][]string{dGlobs, cGlobs} {
-		if err := validateGlobs(gs); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // validateBaseDirectory ensures that the base directory is not an

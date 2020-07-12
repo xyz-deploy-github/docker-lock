@@ -8,6 +8,10 @@ import (
 	"github.com/michaelperel/docker-lock/registry"
 )
 
+// updater updates base images' digests to their most recent digests
+// according to the appropriate container registry.
+type updater struct{}
+
 // digestUpdate is used to update an Image's digest in a
 // concurrently safe manner.
 type digestUpdate struct {
@@ -21,7 +25,7 @@ type digestUpdate struct {
 // If there are base images with duplicate names and tags, the registry
 // will only be queried once. If the base image already has a digest,
 // the registry will not be queried.
-func (g *Generator) updateDigest(
+func (u *updater) updateDigest(
 	wm *registry.WrapperManager,
 	bImCh <-chan *BaseImage,
 	doneCh <-chan struct{},
@@ -59,7 +63,7 @@ func (g *Generator) updateDigest(
 			if b.Image.Digest == "" {
 				wg.Add(1)
 
-				go g.queryContainerRegisty(b, wm, digUpCh, doneCh, &wg)
+				go u.queryContainerRegisty(b, wm, digUpCh, doneCh, &wg)
 			}
 		}
 
@@ -102,7 +106,7 @@ func (g *Generator) updateDigest(
 
 // queryContainerRegistry queries the appropriate container registry
 // for the most recent digest based off of the wrapper manager.
-func (g *Generator) queryContainerRegisty(
+func (u *updater) queryContainerRegisty(
 	bIm *BaseImage,
 	wm *registry.WrapperManager,
 	digUpCh chan<- digestUpdate,

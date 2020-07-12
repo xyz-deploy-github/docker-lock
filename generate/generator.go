@@ -56,7 +56,16 @@ func (i *Image) String() string {
 // "docker-compose.yaml" will be used. If files are specified in
 // command line flags, only those files will be used.
 func NewGenerator(flags *Flags) (*Generator, error) {
-	dPaths, cPaths, err := collectPaths(flags)
+	c := &collector{
+		Flags:    flags,
+		dBaseSet: map[string]struct{}{"Dockerfile": {}},
+		cBaseSet: map[string]struct{}{
+			"docker-compose.yml":  {},
+			"docker-compose.yaml": {},
+		},
+	}
+
+	dPaths, cPaths, err := c.collectPaths()
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +73,7 @@ func NewGenerator(flags *Flags) (*Generator, error) {
 	return &Generator{
 		DockerfilePaths:        dPaths,
 		ComposefilePaths:       cPaths,
-		DockerfileEnvBuildArgs: flags.DockerfileEnvBuildArgs,
+		DockerfileEnvBuildArgs: flags.DockerfileFlags.UseEnvAsBuildArgs,
 		LockfileName:           flags.LockfileName,
 	}, nil
 }
@@ -74,10 +83,18 @@ func (g *Generator) GenerateLockfile(
 	wm *registry.WrapperManager,
 	w io.Writer,
 ) error {
-	doneCh := make(chan struct{})
-	bImCh := g.parseFiles(doneCh)
+	p := &parser{
+		dPaths:            g.DockerfilePaths,
+		cPaths:            g.ComposefilePaths,
+		dfileEnvBuildArgs: g.DockerfileEnvBuildArgs,
+	}
 
-	dIms, cIms, err := g.updateDigest(wm, bImCh, doneCh)
+	doneCh := make(chan struct{})
+	bImCh := p.parseFiles(doneCh)
+
+	u := &updater{}
+
+	dIms, cIms, err := u.updateDigest(wm, bImCh, doneCh)
 	if err != nil {
 		close(doneCh)
 		return err

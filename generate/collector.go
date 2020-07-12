@@ -9,6 +9,14 @@ import (
 	"sync"
 )
 
+// collector finds and returns Dockerfiles and docker-compose files,
+// according to flags.
+type collector struct {
+	*Flags
+	dBaseSet map[string]struct{}
+	cBaseSet map[string]struct{}
+}
+
 // pathResult is used to collect paths concurrently.
 type pathResult struct {
 	path string
@@ -16,27 +24,13 @@ type pathResult struct {
 }
 
 // collectPaths collects Dockerfile and docker-compose paths.
-func collectPaths(flags *Flags) ([]string, []string, error) {
+func (c *collector) collectPaths() ([]string, []string, error) {
 	doneCh := make(chan struct{})
 
-	dBaseSet := map[string]struct{}{"Dockerfile": {}}
-	dPathCh := collectNonDefaultPaths(
-		flags.BaseDir, flags.Dockerfiles, dBaseSet,
-		flags.DockerfileGlobs, flags.DockerfileRecursive,
-		doneCh,
-	)
+	dPathCh := c.collectNonDefaultDPaths(doneCh)
+	cPathCh := c.collectNonDefaultCPaths(doneCh)
 
-	cBaseSet := map[string]struct{}{
-		"docker-compose.yml":  {},
-		"docker-compose.yaml": {},
-	}
-	cPathCh := collectNonDefaultPaths(
-		flags.BaseDir, flags.Composefiles, cBaseSet,
-		flags.ComposefileGlobs, flags.ComposefileRecursive,
-		doneCh,
-	)
-
-	dPaths, cPaths, err := convertPathChsToSls(dPathCh, cPathCh)
+	dPaths, cPaths, err := c.convertPathChsToSls(dPathCh, cPathCh)
 	if err != nil {
 		close(doneCh)
 		return nil, nil, err
@@ -49,10 +43,10 @@ func collectPaths(flags *Flags) ([]string, []string, error) {
 
 		doneCh = make(chan struct{})
 
-		dPathCh = collectDefaultPaths(flags.BaseDir, dBaseSet, doneCh)
-		cPathCh = collectDefaultPaths(flags.BaseDir, cBaseSet, doneCh)
+		dPathCh = c.collectDefaultDPaths(doneCh)
+		cPathCh = c.collectDefaultCPaths(doneCh)
 
-		dPaths, cPaths, err = convertPathChsToSls(dPathCh, cPathCh)
+		dPaths, cPaths, err = c.convertPathChsToSls(dPathCh, cPathCh)
 		if err != nil {
 			close(doneCh)
 			return nil, nil, err
@@ -63,22 +57,39 @@ func collectPaths(flags *Flags) ([]string, []string, error) {
 		dPaths, cPaths,
 	)
 
-	if err := validatePaths(dPaths, cPaths); err != nil {
+	if err := c.validatePaths(dPaths, cPaths); err != nil {
 		return nil, nil, err
 	}
 
 	return dPaths, cPaths, nil
 }
 
+// collectNonDefaultDPaths collects Dockerfile paths other than "Dockerfile".
+func (c *collector) collectNonDefaultDPaths(
+	doneCh <-chan struct{},
+) chan *pathResult {
+	return c.collectNonDefaultPaths(
+		c.DockerfileFlags.SpecificFlags, c.SharedFlags, c.dBaseSet, doneCh,
+	)
+}
+
+// collectNonDefaultCPaths collects docker-compose paths other than
+// "docker-compose.yml" and "docker-compose.yaml".
+func (c *collector) collectNonDefaultCPaths(
+	doneCh <-chan struct{},
+) chan *pathResult {
+	return c.collectNonDefaultPaths(
+		c.ComposefileFlags.SpecificFlags, c.SharedFlags, c.cBaseSet, doneCh,
+	)
+}
+
 // collectNonDefaultPaths collects paths other than those that would be
-// collected if no paths are specified (Dockerfile, docker-compose.yaml,
+// collected if no paths were specified (Dockerfile, docker-compose.yaml,
 // and docker-compose.yml).
-func collectNonDefaultPaths(
-	bDir string,
-	paths []string,
+func (c *collector) collectNonDefaultPaths(
+	specificFlags *SpecificFlags,
+	sharedFlags *SharedFlags,
 	bSet map[string]struct{},
-	globs []string,
-	recursive bool,
 	doneCh <-chan struct{},
 ) chan *pathResult {
 	pathCh := make(chan *pathResult)
@@ -89,22 +100,28 @@ func collectNonDefaultPaths(
 	go func() {
 		defer wg.Done()
 
-		if len(paths) != 0 {
+		if len(specificFlags.Paths) != 0 {
 			wg.Add(1)
 
-			go collectSuppliedPaths(bDir, paths, pathCh, doneCh, &wg)
+			go c.collectSuppliedPaths(
+				sharedFlags.BaseDir, specificFlags.Paths, pathCh, doneCh, &wg,
+			)
 		}
 
-		if len(globs) != 0 {
+		if len(specificFlags.Globs) != 0 {
 			wg.Add(1)
 
-			go collectGlobPaths(bDir, globs, pathCh, doneCh, &wg)
+			go c.collectGlobPaths(
+				sharedFlags.BaseDir, specificFlags.Globs, pathCh, doneCh, &wg,
+			)
 		}
 
-		if recursive {
+		if specificFlags.Recursive {
 			wg.Add(1)
 
-			go collectRecursivePaths(bDir, bSet, pathCh, doneCh, &wg)
+			go c.collectRecursivePaths(
+				sharedFlags.BaseDir, bSet, pathCh, doneCh, &wg,
+			)
 		}
 	}()
 
@@ -118,7 +135,7 @@ func collectNonDefaultPaths(
 
 // collectSuppliedPaths collects paths from the flags
 // --dockerfiles and --composefiles.
-func collectSuppliedPaths(
+func (c *collector) collectSuppliedPaths(
 	bDir string,
 	paths []string,
 	pathCh chan<- *pathResult,
@@ -129,13 +146,13 @@ func collectSuppliedPaths(
 
 	for _, p := range paths {
 		p = filepath.ToSlash(filepath.Join(bDir, p))
-		addPathToPathCh(p, pathCh, doneCh)
+		c.addPathToPathCh(p, pathCh, doneCh)
 	}
 }
 
 // collectGlobPaths collects paths from the flags
 // --dockerfile-globs and --composefile-globs.
-func collectGlobPaths(
+func (c *collector) collectGlobPaths(
 	bDir string,
 	globs []string,
 	pathCh chan<- *pathResult,
@@ -147,22 +164,22 @@ func collectGlobPaths(
 	for _, g := range globs {
 		paths, err := filepath.Glob(g)
 		if err != nil {
-			addErrToPathCh(err, pathCh, doneCh)
+			c.addErrToPathCh(err, pathCh, doneCh)
 			return
 		}
 
 		for _, p := range paths {
 			p = filepath.ToSlash(filepath.Join(bDir, filepath.ToSlash(p)))
-			addPathToPathCh(p, pathCh, doneCh)
+			c.addPathToPathCh(p, pathCh, doneCh)
 		}
 	}
 }
 
 // collectRecursivePaths collects paths from the flags
 // --dockerfile-recursive and --composefile-recursive.
-func collectRecursivePaths(
+func (c *collector) collectRecursivePaths(
 	bDir string,
-	defaultNames map[string]struct{},
+	bSet map[string]struct{},
 	pathCh chan<- *pathResult,
 	doneCh <-chan struct{},
 	wg *sync.WaitGroup,
@@ -176,20 +193,35 @@ func collectRecursivePaths(
 			}
 
 			p = filepath.ToSlash(p)
-			if _, ok := defaultNames[filepath.Base(p)]; ok {
-				addPathToPathCh(p, pathCh, doneCh)
+			if _, ok := bSet[filepath.Base(p)]; ok {
+				c.addPathToPathCh(p, pathCh, doneCh)
 			}
 
 			return nil
 		},
 	); err != nil {
-		addErrToPathCh(err, pathCh, doneCh)
+		c.addErrToPathCh(err, pathCh, doneCh)
 	}
+}
+
+// collectDefaultDPaths collects the path "Dockerfile".
+func (c *collector) collectDefaultDPaths(
+	doneCh <-chan struct{},
+) chan *pathResult {
+	return c.collectDefaultPaths(c.BaseDir, c.dBaseSet, doneCh)
+}
+
+// collectDefaultCPaths collects the paths "docker-compose.yml" and
+// "docker-compose.yaml".
+func (c *collector) collectDefaultCPaths(
+	doneCh <-chan struct{},
+) chan *pathResult {
+	return c.collectDefaultPaths(c.BaseDir, c.cBaseSet, doneCh)
 }
 
 // collectDefaultPaths collects the paths Dockerfile, docker-compose.yml, and
 // docker-compose.yaml.
-func collectDefaultPaths(
+func (c *collector) collectDefaultPaths(
 	bDir string,
 	bSet map[string]struct{},
 	doneCh <-chan struct{},
@@ -204,8 +236,8 @@ func collectDefaultPaths(
 
 		for p := range bSet {
 			p = filepath.ToSlash(filepath.Join(bDir, p))
-			if isRegularFile(p) {
-				addPathToPathCh(p, pathCh, doneCh)
+			if c.isRegularFile(p) {
+				c.addPathToPathCh(p, pathCh, doneCh)
 			}
 		}
 	}()
@@ -219,7 +251,7 @@ func collectDefaultPaths(
 }
 
 // isRegularFile checks that a file exists and no mode type bits are set.
-func isRegularFile(p string) bool {
+func (c *collector) isRegularFile(p string) bool {
 	fi, err := os.Stat(p)
 	if err == nil {
 		if mode := fi.Mode(); mode.IsRegular() {
@@ -234,7 +266,7 @@ func isRegularFile(p string) bool {
 
 // addPathToPathCh adds a path to the path channel, ensuring not to block
 // the calling goroutine.
-func addPathToPathCh(
+func (c *collector) addPathToPathCh(
 	p string,
 	pathCh chan<- *pathResult,
 	doneCh <-chan struct{},
@@ -247,7 +279,7 @@ func addPathToPathCh(
 
 // addErrToPathCh adds an error to the path channel, ensuring not to block
 // the calling goroutine.
-func addErrToPathCh(
+func (c *collector) addErrToPathCh(
 	err error,
 	pathCh chan<- *pathResult,
 	doneCh <-chan struct{},
@@ -260,7 +292,7 @@ func addErrToPathCh(
 
 // validatePaths ensures that paths are not outside of the current working
 // directory.
-func validatePaths(dPaths, cPaths []string) error {
+func (c *collector) validatePaths(dPaths, cPaths []string) error {
 	for _, paths := range [][]string{dPaths, cPaths} {
 		for _, p := range paths {
 			if strings.HasPrefix(p, "..") {
@@ -276,7 +308,7 @@ func validatePaths(dPaths, cPaths []string) error {
 
 // convertPathChsToSls converts the paths channels to slices, deduplicating
 // the paths while checking for errors.
-func convertPathChsToSls(
+func (c *collector) convertPathChsToSls(
 	dPathCh,
 	cPathCh <-chan *pathResult,
 ) ([]string, []string, error) {
@@ -286,13 +318,13 @@ func convertPathChsToSls(
 	for {
 		select {
 		case pathRes, ok := <-dPathCh:
-			if err := handlePathResult(
+			if err := c.handlePathResult(
 				&dPathCh, pathRes, dPathSet, ok,
 			); err != nil {
 				return nil, nil, err
 			}
 		case pathRes, ok := <-cPathCh:
-			if err := handlePathResult(
+			if err := c.handlePathResult(
 				&cPathCh, pathRes, cPathSet, ok,
 			); err != nil {
 				return nil, nil, err
@@ -326,7 +358,7 @@ func convertPathChsToSls(
 
 // handlePathResult adds the path result to its appropriate set, checking
 // for error.
-func handlePathResult(
+func (c *collector) handlePathResult(
 	pathCh *<-chan *pathResult,
 	pathRes *pathResult,
 	pathSet map[string]struct{},

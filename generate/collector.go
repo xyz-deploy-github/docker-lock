@@ -67,7 +67,7 @@ func (c *collector) collectPaths() ([]string, []string, error) {
 // collectNonDefaultDPaths collects Dockerfile paths other than "Dockerfile".
 func (c *collector) collectNonDefaultDPaths(
 	doneCh <-chan struct{},
-) chan *pathResult {
+) <-chan *pathResult {
 	return c.collectNonDefaultPaths(
 		c.DockerfileFlags.SpecificFlags, c.SharedFlags, c.dBaseSet, doneCh,
 	)
@@ -77,7 +77,7 @@ func (c *collector) collectNonDefaultDPaths(
 // "docker-compose.yml" and "docker-compose.yaml".
 func (c *collector) collectNonDefaultCPaths(
 	doneCh <-chan struct{},
-) chan *pathResult {
+) <-chan *pathResult {
 	return c.collectNonDefaultPaths(
 		c.ComposefileFlags.SpecificFlags, c.SharedFlags, c.cBaseSet, doneCh,
 	)
@@ -91,7 +91,7 @@ func (c *collector) collectNonDefaultPaths(
 	sharedFlags *SharedFlags,
 	bSet map[string]struct{},
 	doneCh <-chan struct{},
-) chan *pathResult {
+) <-chan *pathResult {
 	pathCh := make(chan *pathResult)
 	wg := sync.WaitGroup{}
 
@@ -309,7 +309,7 @@ func (c *collector) validatePaths(dPaths, cPaths []string) error {
 // convertPathChsToSls converts the paths channels to slices, deduplicating
 // the paths while checking for errors.
 func (c *collector) convertPathChsToSls(
-	dPathCh,
+	dPathCh <-chan *pathResult,
 	cPathCh <-chan *pathResult,
 ) ([]string, []string, error) {
 	dPathSet := map[string]struct{}{}

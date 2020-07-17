@@ -21,7 +21,8 @@ jobs:
   steps:
   - bash: docker build -t devcontainer ./.devcontainer
     displayName: Build Dev Container
-  - bash: docker run -v ${PWD}:/app devcontainer /app/tools/lint.sh
+
+  - bash: docker run -v "${PWD}:/app" devcontainer /app/tools/lint.sh
     displayName: Run linters
 
 - job: Build
@@ -31,103 +32,134 @@ jobs:
     vmImage: ubuntu-18.04
   steps:
   - bash: |
+      set -euo pipefail
       latest_git_tag="$(git tag -l | tail -n 1)"
       latest_git_tag="${latest_git_tag:-v0.0.1}"
-      CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-w -s -X github.com/michaelperel/docker-lock/cmd.Version="${latest_git_tag}"" -o docker-lock-linux
+      CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-w -s -X github.com/michaelperel/docker-lock/cmd.Version=${latest_git_tag}" -o docker-lock-linux
     displayName: Build linux
+
   - bash: |
+      set -euo pipefail
       latest_git_tag="$(git tag -l | tail -n 1)"
       latest_git_tag="${latest_git_tag:-v0.0.1}"
-      CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "-w -s -X github.com/michaelperel/docker-lock/cmd.Version="${latest_git_tag}"" -o docker-lock-mac
+      CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "-w -s -X github.com/michaelperel/docker-lock/cmd.Version=${latest_git_tag}" -o docker-lock-mac
     displayName: Build mac
+
   - bash: |
+      set -euo pipefail
       latest_git_tag="$(git tag -l | tail -n 1)"
       latest_git_tag="${latest_git_tag:-v0.0.1}"
-      CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-w -s -X github.com/michaelperel/docker-lock/cmd.Version="${latest_git_tag}"" -o docker-lock-windows.exe
+      CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-w -s -X github.com/michaelperel/docker-lock/cmd.Version=${latest_git_tag}" -o docker-lock-windows.exe
     displayName: Build windows
-  - publish: $(System.DefaultWorkingDirectory)/docker-lock-linux
+
+  - publish: "$(System.DefaultWorkingDirectory)/docker-lock-linux"
     artifact: docker-lock-linux
     displayName: Publish docker-lock-linux
-  - publish: $(System.DefaultWorkingDirectory)/docker-lock-mac
+
+  - publish: "$(System.DefaultWorkingDirectory)/docker-lock-mac"
     artifact: docker-lock-mac
     displayName: Publish docker-lock-mac
-  - publish: $(System.DefaultWorkingDirectory)/docker-lock-windows.exe
+
+  - publish: "$(System.DefaultWorkingDirectory)/docker-lock-windows.exe"
     artifact: docker-lock-windows
     displayName: Publish docker-lock-windows
 
 - job: TestWindows
   dependsOn: Build
   condition: succeeded()
+  variables:
+    WINCRED_VERSION: '0.6.3'
   pool: 
     vmImage: windows-2019
   steps:
   - bash: find . -type f -print0 | xargs -0 dos2unix
     displayName: Convert CLRF to LF
+
   - bash: |
-      curl -sSL https://github.com/docker/docker-credential-helpers/releases/download/v0.6.3/docker-credential-wincred-v0.6.3-amd64.zip -o docker-credential-wincred.zip
+      set -euo pipefail
+      curl -sSL "https://github.com/docker/docker-credential-helpers/releases/download/v$(WINCRED_VERSION)/docker-credential-wincred-v$(WINCRED_VERSION)-amd64.zip" -o docker-credential-wincred.zip
       unzip docker-credential-wincred.zip
       mkdir -p /usr/bin
       mv docker-credential-wincred.exe /usr/bin
-      mkdir -p ""$USERPROFILE"/.docker"
-      echo '{"credsStore":"wincred"}' > ""$USERPROFILE"/.docker/config.json"
+      mkdir -p "${USERPROFILE}/.docker"
+      echo '{"credsStore":"wincred"}' > "${USERPROFILE}/.docker/config.json"
     displayName: Configure wincred
+
   - bash: |
+      set -euo pipefail
       # run without -race, because it requires gcc
       go test ./...
     displayName: Run unit tests
+
   - download: current
     artifact: docker-lock-windows
     displayName: Download docker-lock-windows
+
   - script: |
       # $(Pipeline.Workspace) git bash bug, using cmd as workaround
-      move $(Pipeline.Workspace)\docker-lock-windows\docker-lock-windows.exe docker-lock.exe
+      move "$(Pipeline.Workspace)\docker-lock-windows\docker-lock-windows.exe" docker-lock.exe
     displayName: Move artifact to current directory
+
   - bash: |
+      set -euo pipefail
       chmod +x docker-lock.exe
-      mkdir -p ""$USERPROFILE"/.docker/cli-plugins/"
-      mv docker-lock.exe ""$USERPROFILE"/.docker/cli-plugins/"
-      ./integration_tests/integration_tests.sh "windows"
+      mkdir -p "${USERPROFILE}/.docker/cli-plugins/"
+      mv docker-lock.exe "${USERPROFILE}/.docker/cli-plugins/"
+      ./integration_tests/integration_tests.sh windows
     displayName: Run Integration Tests
+
     env:
-      DOCKER_USERNAME: $(DOCKER_USERNAME)
-      DOCKER_PASSWORD: $(DOCKER_PASSWORD)
-      ACR_USERNAME: $(ACR_USERNAME)
-      ACR_PASSWORD: $(ACR_PASSWORD)
-      ACR_REGISTRY_NAME: $(ACR_REGISTRY_NAME)
+      DOCKER_USERNAME: "$(DOCKER_USERNAME)"
+      DOCKER_PASSWORD: "$(DOCKER_PASSWORD)"
+      ACR_USERNAME: "$(ACR_USERNAME)"
+      ACR_PASSWORD: "$(ACR_PASSWORD)"
+      ACR_REGISTRY_NAME: "$(ACR_REGISTRY_NAME)"
 
 - job: TestMacOS
   dependsOn: Build
   condition: succeeded()
+  variables:
+    OSXKEYCHAIN_VERSION: '0.6.3'
+    DOCKER_VERSION: '19.03.9'
   pool:
     vmImage: macOS-10.14
   steps:
   - bash: |
-      mkdir homebrew
-      curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip 1 -C homebrew
-      brew install docker-credential-helper
-      brew install docker
-      mkdir -p ""$HOME"/.docker"
-      echo '{"credsStore":"osxkeychain"}' > ""$HOME"/.docker/config.json"
+      set -euo pipefail
+      curl -fsSL "https://github.com/docker/docker-credential-helpers/releases/download/v$(OSXKEYCHAIN_VERSION)/docker-credential-osxkeychain-v$(OSXKEYCHAIN_VERSION)-amd64.tar.gz" | gunzip | tar xopf -
+      mv docker-credential-osxkeychain /usr/local/bin
+      # docker cli does not come installed by default on the build agent
+      curl -fsSL "https://download.docker.com/mac/static/stable/x86_64/docker-$(DOCKER_VERSION).tgz" | gunzip | tar xopf -
+      mv docker/docker /usr/local/bin
+      mkdir -p "${HOME}/.docker"
+      echo '{"credsStore":"osxkeychain"}' > "${HOME}/.docker/config.json"
     displayName: Configure osxkeychain
-  - bash: ./tools/unittest.sh
+
+  - bash: |
+      set -euo pipefail
+      ./tools/unittest.sh
     displayName: Run unit tests
+
   - download: current
     artifact: docker-lock-mac
     displayName: Download docker-lock-mac
+
   - bash: |
-      mv $(Pipeline.Workspace)/docker-lock-mac/docker-lock-mac docker-lock
+      set -euo pipefail
+      mv "$(Pipeline.Workspace)/docker-lock-mac/docker-lock-mac" docker-lock
       chmod +x docker-lock
-      mkdir -p ""$HOME"/.docker/cli-plugins/"
-      mv docker-lock ""$HOME"/.docker/cli-plugins/"
-      export PATH="/usr/local/opt/gettext/bin:$PATH"
-      ./integration_tests/integration_tests.sh "mac"
+      mkdir -p "${HOME}/.docker/cli-plugins/"
+      mv docker-lock "${HOME}/.docker/cli-plugins/"
+      export PATH="/usr/local/opt/gettext/bin:${PATH}"
+      ./integration_tests/integration_tests.sh mac
     displayName: Run Integration Tests
+
     env:
-      DOCKER_USERNAME: $(DOCKER_USERNAME)
-      DOCKER_PASSWORD: $(DOCKER_PASSWORD)
-      ACR_USERNAME: $(ACR_USERNAME)
-      ACR_PASSWORD: $(ACR_PASSWORD)
-      ACR_REGISTRY_NAME: $(ACR_REGISTRY_NAME)
+      DOCKER_USERNAME: "$(DOCKER_USERNAME)"
+      DOCKER_PASSWORD: "$(DOCKER_PASSWORD)"
+      ACR_USERNAME: "$(ACR_USERNAME)"
+      ACR_PASSWORD: "$(ACR_PASSWORD)"
+      ACR_REGISTRY_NAME: "$(ACR_REGISTRY_NAME)"
 
 - job: TestLinux
   dependsOn: Build
@@ -135,24 +167,30 @@ jobs:
   pool:
     vmImage: ubuntu-18.04
   steps:
-  - bash: ./tools/unittest.sh
+  - bash: |
+      set -euo pipefail
+      ./tools/unittest.sh
     displayName: Run unit tests
+
   - download: current
     artifact: docker-lock-linux
     displayName: Download docker-lock-linux
+
   - bash: |
-      mv $(Pipeline.Workspace)/docker-lock-linux/docker-lock-linux docker-lock
+      set -euo pipefail
+      mv "$(Pipeline.Workspace)/docker-lock-linux/docker-lock-linux" docker-lock
       chmod +x docker-lock
-      mkdir -p ""$HOME"/.docker/cli-plugins/"
-      mv docker-lock ""$HOME"/.docker/cli-plugins/"
-      ./integration_tests/integration_tests.sh "linux"
+      mkdir -p "${HOME}/.docker/cli-plugins/"
+      mv docker-lock "${HOME}/.docker/cli-plugins/"
+      ./integration_tests/integration_tests.sh linux
     displayName: Run Integration Tests
+
     env:
-      DOCKER_USERNAME: $(DOCKER_USERNAME)
-      DOCKER_PASSWORD: $(DOCKER_PASSWORD)
-      ACR_USERNAME: $(ACR_USERNAME)
-      ACR_PASSWORD: $(ACR_PASSWORD)
-      ACR_REGISTRY_NAME: $(ACR_REGISTRY_NAME)
+      DOCKER_USERNAME: "$(DOCKER_USERNAME)"
+      DOCKER_PASSWORD: "$(DOCKER_PASSWORD)"
+      ACR_USERNAME: "$(ACR_USERNAME)"
+      ACR_PASSWORD: "$(ACR_PASSWORD)"
+      ACR_REGISTRY_NAME: "$(ACR_REGISTRY_NAME)"
 
 # create a release by pushing a semver git tag such as v0.0.1 
 - job: Release
@@ -167,13 +205,17 @@ jobs:
   - download: current
     artifact: docker-lock-linux
     displayName: Download docker-lock-linux
+
   - download: current
     artifact: docker-lock-mac
     displayName: Download docker-lock-mac
+
   - download: current
     artifact: docker-lock-windows
     displayName: Download docker-lock-windows
+
   - bash: |
+      set -euo pipefail
       latest_tag="$(git tag -l | tail -n 1)"
       if ! curl -fsSL "https://github.com/michaelperel/docker-lock/releases/download/${latest_tag}/docker-lock-linux" -o /dev/null; then
         echo "##vso[task.setVariable variable=release]true"
@@ -181,7 +223,7 @@ jobs:
         echo "Skipping release because latest tag: ${latest_tag} already exists."
       fi
     displayName: Check if should create github release
-  # only runs if tag associated with commit
+
   - task: GithubRelease@0 
     displayName: Create github release
     condition: eq(variables.release, 'true')
@@ -189,6 +231,6 @@ jobs:
       gitHubConnection: docker-lock-release
       repositoryName: michaelperel/docker-lock
       assets: |
-        $(Pipeline.Workspace)/docker-lock-linux/docker-lock-linux
-        $(Pipeline.Workspace)/docker-lock-mac/docker-lock-mac
-        $(Pipeline.Workspace)/docker-lock-windows/docker-lock-windows.exe
+        "$(Pipeline.Workspace)/docker-lock-linux/docker-lock-linux"
+        "$(Pipeline.Workspace)/docker-lock-mac/docker-lock-mac"
+        "$(Pipeline.Workspace)/docker-lock-windows/docker-lock-windows.exe"

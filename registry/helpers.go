@@ -12,10 +12,10 @@ type HTTPClient struct {
 	TokenURL    string
 }
 
-// WrapperConstructor is an alias for a function that can create a wrapper.
+// WrapperConstructor is a type for a function that can create a wrapper.
 // Each Wrapper has an init function that registers a WrapperConstructor so
 // it can be found at runtime.
-type WrapperConstructor = func(
+type WrapperConstructor func(
 	client *HTTPClient,
 	configPath string,
 ) (Wrapper, error)

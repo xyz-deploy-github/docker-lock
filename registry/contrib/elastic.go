@@ -1,7 +1,6 @@
 package contrib
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -12,12 +11,6 @@ import (
 // ElasticWrapper is a registry wrapper for the Elasticsearch registry.
 type ElasticWrapper struct {
 	client *registry.HTTPClient
-}
-
-// elasticTokenResponse contains the bearer token required to
-// query the container registry for a digest.
-type elasticTokenResponse struct {
-	Token string `json:"token"`
 }
 
 // NewElasticWrapper creates an ElasticWrapper.
@@ -51,68 +44,26 @@ func init() { //nolint: gochecknoinits
 }
 
 // Digest queries the container registry for the digest given a repo and ref.
-func (w *ElasticWrapper) Digest(repo string, ref string) (string, error) {
-	repo = strings.Replace(repo, w.Prefix(), "", 1)
+func (e *ElasticWrapper) Digest(repo string, ref string) (string, error) {
+	repo = strings.Replace(repo, e.Prefix(), "", 1)
 
-	t, err := w.token(repo)
+	tokenURL := fmt.Sprintf(e.client.TokenURL, repo)
+
+	r, err := registry.NewV2(e.client)
 	if err != nil {
 		return "", err
 	}
 
-	url := fmt.Sprintf("%s/%s/manifests/%s", w.client.RegistryURL, repo, ref)
-
-	req, err := http.NewRequest("GET", url, nil)
+	token, err := r.Token(tokenURL, "", "", &registry.DefaultTokenExtractor{})
 	if err != nil {
 		return "", err
 	}
 
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", t))
-	req.Header.Add(
-		"Accept", "application/vnd.docker.distribution.manifest.v2+json",
-	)
-	req.Header.Add(
-		"Accept", "application/vnd.docker.distribution.manifest.list.v2+json",
-	)
-
-	resp, err := w.client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	digest := resp.Header.Get("Docker-Content-Digest")
-
-	if digest == "" {
-		return "", fmt.Errorf("no digest found for '%s:%s'", repo, ref)
-	}
-
-	return strings.TrimPrefix(digest, "sha256:"), nil
-}
-
-// token queries the container registry for a bearer token that is later
-// required to query the container registry for a digest.
-func (w *ElasticWrapper) token(repo string) (string, error) {
-	// example repo -> "elasticsearch/elasticsearch-oss"
-	url := fmt.Sprintf(w.client.TokenURL, repo)
-
-	resp, err := http.Get(url) // nolint: gosec
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	d := json.NewDecoder(resp.Body)
-
-	t := elasticTokenResponse{}
-	if err = d.Decode(&t); err != nil {
-		return "", err
-	}
-
-	return t.Token, nil
+	return r.Digest(repo, ref, token)
 }
 
 // Prefix returns the registry prefix that identifies the Elasticsearch
 // registry.
-func (w *ElasticWrapper) Prefix() string {
+func (e *ElasticWrapper) Prefix() string {
 	return "docker.elastic.co/"
 }

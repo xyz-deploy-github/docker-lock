@@ -42,39 +42,18 @@ func init() { //nolint: gochecknoinits
 }
 
 // Digest queries the container registry for the digest given a repo and ref.
-func (w *MCRWrapper) Digest(repo string, ref string) (string, error) {
-	repo = strings.Replace(repo, w.Prefix(), "", 1)
+func (m *MCRWrapper) Digest(repo string, ref string) (string, error) {
+	repo = strings.Replace(repo, m.Prefix(), "", 1)
 
-	url := fmt.Sprintf("%s/%s/manifests/%s", w.client.RegistryURL, repo, ref)
-
-	req, err := http.NewRequest("GET", url, nil)
+	r, err := registry.NewV2(m.client)
 	if err != nil {
 		return "", err
 	}
 
-	req.Header.Add(
-		"Accept", "application/vnd.docker.distribution.manifest.v2+json",
-	)
-	req.Header.Add(
-		"Accept", "application/vnd.docker.distribution.manifest.list.v2+json",
-	)
-
-	resp, err := w.client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	digest := resp.Header.Get("Docker-Content-Digest")
-
-	if digest == "" {
-		return "", fmt.Errorf("no digest found for '%s:%s'", repo, ref)
-	}
-
-	return strings.TrimPrefix(digest, "sha256:"), nil
+	return r.Digest(repo, ref, "")
 }
 
 // Prefix returns the registry prefix that identifies MCR.
-func (w *MCRWrapper) Prefix() string {
+func (m *MCRWrapper) Prefix() string {
 	return "mcr.microsoft.com/"
 }

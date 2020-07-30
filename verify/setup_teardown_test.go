@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/michaelperel/docker-lock/registry"
+	"github.com/safe-waters/docker-lock/registry"
 )
 
 var server = mockServer()          //nolint: gochecknoglobals

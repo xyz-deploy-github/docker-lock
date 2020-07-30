@@ -5,7 +5,7 @@ import (
 	"log"
 	"sync"
 
-	"github.com/michaelperel/docker-lock/registry"
+	"github.com/safe-waters/docker-lock/registry"
 )
 
 // updater updates base images' digests to their most recent digests

@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/joho/godotenv"
-	"github.com/michaelperel/docker-lock/registry"
-	"github.com/michaelperel/docker-lock/registry/contrib"
-	"github.com/michaelperel/docker-lock/registry/firstparty"
+	"github.com/safe-waters/docker-lock/registry"
+	"github.com/safe-waters/docker-lock/registry/contrib"
+	"github.com/safe-waters/docker-lock/registry/firstparty"
 )
 
 var dTestDir = filepath.Join("testdata", "docker")  //nolint: gochecknoglobals

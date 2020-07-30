@@ -1,4 +1,4 @@
-module github.com/michaelperel/docker-lock
+module github.com/safe-waters/docker-lock
 
 go 1.12
 

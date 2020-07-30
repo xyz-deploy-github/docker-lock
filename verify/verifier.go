@@ -10,8 +10,8 @@ import (
 	"log"
 	"sync"
 
-	"github.com/michaelperel/docker-lock/generate"
-	"github.com/michaelperel/docker-lock/registry"
+	"github.com/safe-waters/docker-lock/generate"
+	"github.com/safe-waters/docker-lock/registry"
 )
 
 // Verifier ensures that a Lockfile contains up-to-date information.

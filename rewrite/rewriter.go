@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/michaelperel/docker-lock/generate"
+	"github.com/safe-waters/docker-lock/generate"
 )
 
 // Rewriter is used to rewrite base images in docker and docker-compose files

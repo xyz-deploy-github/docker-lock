@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/michaelperel/docker-lock/registry"
+	"github.com/safe-waters/docker-lock/registry"
 )
 
 // DockerWrapper is a registry wrapper for Docker Hub. It supports public

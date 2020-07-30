@@ -4,8 +4,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/michaelperel/docker-lock/generate"
-	"github.com/michaelperel/docker-lock/registry"
+	"github.com/safe-waters/docker-lock/generate"
+	"github.com/safe-waters/docker-lock/registry"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

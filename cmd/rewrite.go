@@ -3,7 +3,7 @@ package cmd
 import (
 	"log"
 
-	"github.com/michaelperel/docker-lock/rewrite"
+	"github.com/safe-waters/docker-lock/rewrite"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

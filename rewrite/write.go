@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/michaelperel/docker-lock/generate"
+	"github.com/safe-waters/docker-lock/generate"
 	"gopkg.in/yaml.v2"
 )
 

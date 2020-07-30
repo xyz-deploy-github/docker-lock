@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/michaelperel/docker-lock/registry"
+	"github.com/safe-waters/docker-lock/registry"
 )
 
 // ElasticWrapper is a registry wrapper for the Elasticsearch registry.

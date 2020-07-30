@@ -1,7 +1,7 @@
 package contrib
 
 import (
-	"github.com/michaelperel/docker-lock/registry"
+	"github.com/safe-waters/docker-lock/registry"
 )
 
 // constructors hold all constructor functions for registries. It is

@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/michaelperel/docker-lock/registry"
+	"github.com/safe-waters/docker-lock/registry"
 )
 
 // ACRWrapper is a registry wrapper for Azure Container Registry.

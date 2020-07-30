@@ -5,7 +5,7 @@ import (
 	"log"
 	"testing"
 
-	"github.com/michaelperel/docker-lock/registry"
+	"github.com/safe-waters/docker-lock/registry"
 )
 
 // TestAllWrappers ensures that all wrappers maintained by the

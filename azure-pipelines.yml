@@ -35,21 +35,21 @@ jobs:
       set -euo pipefail
       latest_git_tag="$(git tag -l | tail -n 1)"
       latest_git_tag="${latest_git_tag:-v0.0.1}"
-      CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-w -s -X github.com/michaelperel/docker-lock/cmd.Version=${latest_git_tag}" -o docker-lock-linux
+      CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-w -s -X github.com/safe-waters/docker-lock/cmd.Version=${latest_git_tag}" -o docker-lock-linux
     displayName: Build linux
 
   - bash: |
       set -euo pipefail
       latest_git_tag="$(git tag -l | tail -n 1)"
       latest_git_tag="${latest_git_tag:-v0.0.1}"
-      CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "-w -s -X github.com/michaelperel/docker-lock/cmd.Version=${latest_git_tag}" -o docker-lock-mac
+      CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "-w -s -X github.com/safe-waters/docker-lock/cmd.Version=${latest_git_tag}" -o docker-lock-mac
     displayName: Build mac
 
   - bash: |
       set -euo pipefail
       latest_git_tag="$(git tag -l | tail -n 1)"
       latest_git_tag="${latest_git_tag:-v0.0.1}"
-      CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-w -s -X github.com/michaelperel/docker-lock/cmd.Version=${latest_git_tag}" -o docker-lock-windows.exe
+      CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-w -s -X github.com/safe-waters/docker-lock/cmd.Version=${latest_git_tag}" -o docker-lock-windows.exe
     displayName: Build windows
 
   - publish: "$(System.DefaultWorkingDirectory)/docker-lock-linux"
@@ -217,7 +217,7 @@ jobs:
   - bash: |
       set -euo pipefail
       latest_tag="$(git tag -l | tail -n 1)"
-      if ! curl -fsSL "https://github.com/michaelperel/docker-lock/releases/download/${latest_tag}/docker-lock-linux" -o /dev/null; then
+      if ! curl -fsSL "https://github.com/safe-waters/docker-lock/releases/download/${latest_tag}/docker-lock-linux" -o /dev/null; then
         echo "##vso[task.setVariable variable=release]true"
       else
         echo "Skipping release because latest tag: ${latest_tag} already exists."

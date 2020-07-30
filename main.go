@@ -23,14 +23,14 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/michaelperel/docker-lock/cmd"
+	"github.com/safe-waters/docker-lock/cmd"
 )
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "docker-cli-plugin-metadata" {
 		m := map[string]string{
 			"SchemaVersion":    "0.1.0",
-			"Vendor":           "https://github.com/michaelperel/docker-lock",
+			"Vendor":           "https://github.com/safe-waters/docker-lock",
 			"Version":          cmd.Version,
 			"ShortDescription": "Manage Lockfiles",
 		}

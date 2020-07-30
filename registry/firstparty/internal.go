@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/michaelperel/docker-lock/registry"
+	"github.com/safe-waters/docker-lock/registry"
 )
 
 // InternalWrapper is a registry wrapper for internal registries.

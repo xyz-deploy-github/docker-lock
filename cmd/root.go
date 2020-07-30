@@ -4,7 +4,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/michaelperel/docker-lock/registry"
+	"github.com/safe-waters/docker-lock/registry"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

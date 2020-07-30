@@ -1,8 +1,8 @@
 ![Docker-Lock-Banner](./static/readme-banner.png)
 # About
-[![Go Report Card](https://goreportcard.com/badge/github.com/michaelperel/docker-lock)](https://goreportcard.com/report/github.com/michaelperel/docker-lock)
+[![Go Report Card](https://goreportcard.com/badge/github.com/safe-waters/docker-lock)](https://goreportcard.com/report/github.com/safe-waters/docker-lock)
 [![Build Status](https://dev.azure.com/michaelsethperel/docker-lock/_apis/build/status/michaelperel.docker-lock?branchName=master)](https://dev.azure.com/michaelsethperel/docker-lock/_build?definitionId=4&branchName=master)
-[![Documentation](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/michaelperel/docker-lock)
+[![Documentation](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/safe-waters/docker-lock)
 
 `docker-lock` is a cli tool that automates managing image digests by tracking
 them in a separate Lockfile (think package-lock.json or Pipfile.lock). With
@@ -95,7 +95,7 @@ Ensure `docker` cli version >= 19.03 is installed by running `docker --version`.
 
 ### Linux / Mac
 * `mkdir -p ~/.docker/cli-plugins`
-* `curl -fsSL https://github.com/michaelperel/docker-lock/releases/download/{VERSION}/docker-lock-{OS} -o ~/.docker/cli-plugins/docker-lock`
+* `curl -fsSL https://github.com/safe-waters/docker-lock/releases/download/{VERSION}/docker-lock-{OS} -o ~/.docker/cli-plugins/docker-lock`
 * `chmod +x ~/.docker/cli-plugins/docker-lock`
 ### Windows
 * Create the folder `%USERPROFILE%\.docker\cli-plugins`
@@ -120,4 +120,4 @@ the name of the executable, `docker-lock`, as in `docker-lock lock`.
 ## Contributing
 * [Development Environment](./docs/contributing/development-environment.md)
 * [Code Quality](./docs/contributing/code-quality.md)
-* [Go.dev](https://pkg.go.dev/github.com/michaelperel/docker-lock)
+* [Go.dev](https://pkg.go.dev/github.com/safe-waters/docker-lock)

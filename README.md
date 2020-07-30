@@ -1,7 +1,7 @@
 ![Docker-Lock-Banner](./static/readme-banner.png)
 # About
 [![Go Report Card](https://goreportcard.com/badge/github.com/safe-waters/docker-lock)](https://goreportcard.com/report/github.com/safe-waters/docker-lock)
-[![Build Status](https://dev.azure.com/michaelsethperel/docker-lock/_apis/build/status/michaelperel.docker-lock?branchName=master)](https://dev.azure.com/michaelsethperel/docker-lock/_build?definitionId=4&branchName=master)
+[![Build Status](https://dev.azure.com/michaelsethperel/docker-lock/_apis/build/status/safe-waters.docker-lock?branchName=master)](https://dev.azure.com/michaelsethperel/docker-lock/_build/latest?definitionId=6&branchName=master)
 [![Documentation](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/safe-waters/docker-lock)
 
 `docker-lock` is a cli tool that automates managing image digests by tracking

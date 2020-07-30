@@ -5,10 +5,11 @@ import (
 
 	"github.com/michaelperel/docker-lock/rewrite"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // NewRewriteCmd creates the command 'rewrite' used in 'docker lock rewrite'.
-func NewRewriteCmd() *cobra.Command {
+func NewRewriteCmd() (*cobra.Command, error) {
 	rewriteCmd := &cobra.Command{
 		Use:   "rewrite",
 		Short: "Rewrite files referenced by a Lockfile to use image digests",
@@ -54,35 +55,54 @@ func NewRewriteCmd() *cobra.Command {
 		"verbose", "v", false, "Show logs",
 	)
 
-	return rewriteCmd
+	if err := viper.BindPFlags(rewriteCmd.Flags()); err != nil {
+		return nil, err
+	}
+
+	return rewriteCmd, nil
 }
 
 // rewriterFlags gets values from the command and uses them to
 // create Flags.
-func rewriterFlags(cmd *cobra.Command) (*rewrite.Flags, error) {
-	lPath, err := cmd.Flags().GetString("lockfile-path")
-	if err != nil {
-		return nil, err
-	}
+func rewriterFlags(cmd *cobra.Command) (*rewrite.Flags, error) { //nolint: dupl
+	var (
+		lPath, suffix, tmpDir string
+		excludeTags, verbose  bool
+		err                   error
+	)
 
-	suffix, err := cmd.Flags().GetString("suffix")
-	if err != nil {
-		return nil, err
-	}
+	switch viper.ConfigFileUsed() {
+	case "":
+		lPath, err = cmd.Flags().GetString("lockfile-path")
+		if err != nil {
+			return nil, err
+		}
 
-	tmpDir, err := cmd.Flags().GetString("tempdir")
-	if err != nil {
-		return nil, err
-	}
+		suffix, err = cmd.Flags().GetString("suffix")
+		if err != nil {
+			return nil, err
+		}
 
-	verbose, err := cmd.Flags().GetBool("verbose")
-	if err != nil {
-		return nil, err
-	}
+		tmpDir, err = cmd.Flags().GetString("tempdir")
+		if err != nil {
+			return nil, err
+		}
 
-	excludeTags, err := cmd.Flags().GetBool("exclude-tags")
-	if err != nil {
-		return nil, err
+		verbose, err = cmd.Flags().GetBool("verbose")
+		if err != nil {
+			return nil, err
+		}
+
+		excludeTags, err = cmd.Flags().GetBool("exclude-tags")
+		if err != nil {
+			return nil, err
+		}
+	default:
+		lPath = viper.GetString("lockfile-path")
+		suffix = viper.GetString("suffix")
+		tmpDir = viper.GetString("tempdir")
+		excludeTags = viper.GetBool("exclude-tags")
+		verbose = viper.GetBool("verbose")
 	}
 
 	return rewrite.NewFlags(lPath, suffix, tmpDir, excludeTags, verbose)

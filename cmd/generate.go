@@ -7,10 +7,11 @@ import (
 	"github.com/michaelperel/docker-lock/generate"
 	"github.com/michaelperel/docker-lock/registry"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // NewGenerateCmd creates the command 'generate' used in 'docker lock generate'.
-func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
+func NewGenerateCmd(client *registry.HTTPClient) (*cobra.Command, error) {
 	generateCmd := &cobra.Command{
 		Use:   "generate",
 		Short: "Generate a Lockfile to track image digests",
@@ -51,9 +52,6 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 			return nil
 		},
 	}
-	generateCmd.Flags().BoolP(
-		"verbose", "v", false, "Show logs",
-	)
 	generateCmd.Flags().StringP(
 		"base-dir", "b", ".", "Top level directory to collect files from",
 	)
@@ -92,73 +90,103 @@ func NewGenerateCmd(client *registry.HTTPClient) *cobra.Command {
 		"dockerfile-env-build-args", false,
 		"Use environment vars as build args for Dockerfiles",
 	)
+	generateCmd.Flags().BoolP(
+		"verbose", "v", false, "Show logs",
+	)
 
-	return generateCmd
+	if err := viper.BindPFlags(generateCmd.Flags()); err != nil {
+		return nil, err
+	}
+
+	return generateCmd, nil
 }
 
 // generatorFlags gets values from the command and uses them to
 // create Flags.
 func generatorFlags(cmd *cobra.Command) (*generate.Flags, error) {
-	verbose, err := cmd.Flags().GetBool("verbose")
-	if err != nil {
-		return nil, err
-	}
-
-	bDir, err := cmd.Flags().GetString("base-dir")
-	if err != nil {
-		return nil, err
-	}
-
-	lName, err := cmd.Flags().GetString("lockfile-name")
-	if err != nil {
-		return nil, err
-	}
-
-	configFile, err := cmd.Flags().GetString("config-file")
-	if err != nil {
-		return nil, err
-	}
-
-	envFile, err := cmd.Flags().GetString("env-file")
-	if err != nil {
-		return nil, err
-	}
-
-	dfiles, err := cmd.Flags().GetStringSlice("dockerfiles")
-	if err != nil {
-		return nil, err
-	}
-
-	cfiles, err := cmd.Flags().GetStringSlice("composefiles")
-	if err != nil {
-		return nil, err
-	}
-
-	dGlobs, err := cmd.Flags().GetStringSlice("dockerfile-globs")
-	if err != nil {
-		return nil, err
-	}
-
-	cGlobs, err := cmd.Flags().GetStringSlice("composefile-globs")
-	if err != nil {
-		return nil, err
-	}
-
-	dRecursive, err := cmd.Flags().GetBool("dockerfile-recursive")
-	if err != nil {
-		return nil, err
-	}
-
-	cRecursive, err := cmd.Flags().GetBool("composefile-recursive")
-	if err != nil {
-		return nil, err
-	}
-
-	dfileEnvBuildArgs, err := cmd.Flags().GetBool(
-		"dockerfile-env-build-args",
+	var (
+		bDir, lName, configFile, envFile                   string
+		dfiles, cfiles, dGlobs, cGlobs                     []string
+		dRecursive, cRecursive, dfileEnvBuildArgs, verbose bool
+		err                                                error
 	)
-	if err != nil {
-		return nil, err
+
+	switch viper.ConfigFileUsed() {
+	case "":
+		verbose, err = cmd.Flags().GetBool("verbose")
+		if err != nil {
+			return nil, err
+		}
+
+		bDir, err = cmd.Flags().GetString("base-dir")
+		if err != nil {
+			return nil, err
+		}
+
+		lName, err = cmd.Flags().GetString("lockfile-name")
+		if err != nil {
+			return nil, err
+		}
+
+		configFile, err = cmd.Flags().GetString("config-file")
+		if err != nil {
+			return nil, err
+		}
+
+		envFile, err = cmd.Flags().GetString("env-file")
+		if err != nil {
+			return nil, err
+		}
+
+		dfiles, err = cmd.Flags().GetStringSlice("dockerfiles")
+		if err != nil {
+			return nil, err
+		}
+
+		cfiles, err = cmd.Flags().GetStringSlice("composefiles")
+		if err != nil {
+			return nil, err
+		}
+
+		dGlobs, err = cmd.Flags().GetStringSlice("dockerfile-globs")
+		if err != nil {
+			return nil, err
+		}
+
+		cGlobs, err = cmd.Flags().GetStringSlice("composefile-globs")
+		if err != nil {
+			return nil, err
+		}
+
+		dRecursive, err = cmd.Flags().GetBool("dockerfile-recursive")
+		if err != nil {
+			return nil, err
+		}
+
+		cRecursive, err = cmd.Flags().GetBool("composefile-recursive")
+		if err != nil {
+			return nil, err
+		}
+
+		dfileEnvBuildArgs, err = cmd.Flags().GetBool(
+			"dockerfile-env-build-args",
+		)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		bDir = viper.GetString("base-dir")
+		lName = viper.GetString("lockfile-name")
+		configFile = viper.GetString("config-file")
+		envFile = viper.GetString("env-file")
+		dfiles = viper.GetStringSlice("dockerfiles")
+		cfiles = viper.GetStringSlice("composefiles")
+		dGlobs = viper.GetStringSlice("dockerfile-globs")
+		cGlobs = viper.GetStringSlice("composefile-globs")
+		dRecursive = viper.GetBool("dockerfile-recursive")
+		cRecursive = viper.GetBool("composefile-recursive")
+		dfileEnvBuildArgs = viper.GetBool("dockerfile-env-build-args")
+		verbose = viper.GetBool("verbose")
 	}
 
 	return generate.NewFlags(

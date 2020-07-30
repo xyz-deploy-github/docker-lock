@@ -112,6 +112,7 @@ the name of the executable, `docker-lock`, as in `docker-lock lock`.
 
 # Documentation
 ## Tutorials
+* [Command Line Flags/Configuration File](./docs/tutorials/command-line-flags-configuration-file.md)
 * [Using Internal Registries](./docs/tutorials/internal-registry.md)
 * [Bring Your Own Registry](./docs/tutorials/bring-your-own-registry.md)
 * [Tags Vs. Digests](./docs/tutorials/tags-vs-digests.md)

@@ -6,10 +6,11 @@ import (
 	"github.com/michaelperel/docker-lock/registry"
 	"github.com/michaelperel/docker-lock/verify"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // NewVerifyCmd creates the command 'verify' used in 'docker lock verify'.
-func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
+func NewVerifyCmd(client *registry.HTTPClient) (*cobra.Command, error) {
 	verifyCmd := &cobra.Command{
 		Use:   "verify",
 		Short: "Verify that a Lockfile is up-to-date",
@@ -44,9 +45,6 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 			return nil
 		},
 	}
-	verifyCmd.Flags().BoolP(
-		"verbose", "v", false, "Show logs",
-	)
 	verifyCmd.Flags().StringP(
 		"lockfile-path", "l", "docker-lock.json", "Path to Lockfile",
 	)
@@ -61,38 +59,60 @@ func NewVerifyCmd(client *registry.HTTPClient) *cobra.Command {
 		"dockerfile-env-build-args", false,
 		"Use environment vars as build args for Dockerfiles",
 	)
+	verifyCmd.Flags().BoolP(
+		"verbose", "v", false, "Show logs",
+	)
 
-	return verifyCmd
+	if err := viper.BindPFlags(verifyCmd.Flags()); err != nil {
+		return nil, err
+	}
+
+	return verifyCmd, nil
 }
 
 // verifierFlags gets values from the command and uses them to
 // create Flags.
-func verifierFlags(cmd *cobra.Command) (*verify.Flags, error) {
-	verbose, err := cmd.Flags().GetBool("verbose")
-	if err != nil {
-		return nil, err
-	}
-
-	lPath, err := cmd.Flags().GetString("lockfile-path")
-	if err != nil {
-		return nil, err
-	}
-
-	configFile, err := cmd.Flags().GetString("config-file")
-	if err != nil {
-		return nil, err
-	}
-
-	envFile, err := cmd.Flags().GetString("env-file")
-	if err != nil {
-		return nil, err
-	}
-
-	dfileEnvBuildArgs, err := cmd.Flags().GetBool(
-		"dockerfile-env-build-args",
+func verifierFlags(cmd *cobra.Command) (*verify.Flags, error) { //nolint: dupl
+	var (
+		lPath, configFile, envFile string
+		dfileEnvBuildArgs, verbose bool
+		err                        error
 	)
-	if err != nil {
-		return nil, err
+
+	switch viper.ConfigFileUsed() {
+	case "":
+		verbose, err = cmd.Flags().GetBool("verbose")
+		if err != nil {
+			return nil, err
+		}
+
+		lPath, err = cmd.Flags().GetString("lockfile-path")
+		if err != nil {
+			return nil, err
+		}
+
+		configFile, err = cmd.Flags().GetString("config-file")
+		if err != nil {
+			return nil, err
+		}
+
+		envFile, err = cmd.Flags().GetString("env-file")
+		if err != nil {
+			return nil, err
+		}
+
+		dfileEnvBuildArgs, err = cmd.Flags().GetBool(
+			"dockerfile-env-build-args",
+		)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		lPath = viper.GetString("lockfile-path")
+		configFile = viper.GetString("config-file")
+		envFile = viper.GetString("env-file")
+		dfileEnvBuildArgs = viper.GetBool("dockerfile-env-build-args")
+		verbose = viper.GetBool("verbose")
 	}
 
 	return verify.NewFlags(

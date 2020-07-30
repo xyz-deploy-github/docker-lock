@@ -231,6 +231,6 @@ jobs:
       gitHubConnection: docker-lock-release
       repositoryName: michaelperel/docker-lock
       assets: |
-        "$(Pipeline.Workspace)/docker-lock-linux/docker-lock-linux"
-        "$(Pipeline.Workspace)/docker-lock-mac/docker-lock-mac"
-        "$(Pipeline.Workspace)/docker-lock-windows/docker-lock-windows.exe"
+        $(Pipeline.Workspace)/docker-lock-linux/docker-lock-linux
+        $(Pipeline.Workspace)/docker-lock-mac/docker-lock-mac
+        $(Pipeline.Workspace)/docker-lock-windows/docker-lock-windows.exe

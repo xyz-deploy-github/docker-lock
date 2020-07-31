@@ -229,7 +229,7 @@ jobs:
     condition: eq(variables.release, 'true')
     inputs:
       gitHubConnection: docker-lock-release
-      repositoryName: michaelperel/docker-lock
+      repositoryName: safe-waters/docker-lock
       assets: |
         $(Pipeline.Workspace)/docker-lock-linux/docker-lock-linux
         $(Pipeline.Workspace)/docker-lock-mac/docker-lock-mac

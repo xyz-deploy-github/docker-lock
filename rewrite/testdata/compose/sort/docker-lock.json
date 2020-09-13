@@ -1,33 +1,32 @@
 {
-	"dockerfiles": {},
 	"composefiles": {
 		"testdata/compose/sort/docker-compose.yml": [
 			{
 				"name": "busybox",
 				"tag": "latest",
 				"digest": "679b1c1058c1f2dc59a3ee70eed986a88811c0205c8ceea57cec5f22d2c3fbb1",
-				"serviceName": "svc-one",
+				"service": "svc-one",
 				"dockerfile": "testdata/compose/sort/sort/Dockerfile-one"
 			},
 			{
 				"name": "golang",
 				"tag": "latest",
 				"digest": "80bf73289b856e9a9cb518e76380575b4328b031dd9f593c7c7b3c75c5598048",
-				"serviceName": "svc-one",
+				"service": "svc-one",
 				"dockerfile": "testdata/compose/sort/sort/Dockerfile-one"
 			},
 			{
 				"name": "ubuntu",
 				"tag": "latest",
 				"digest": "134c7fe821b9d359490cd009ce7ca322453f4f2d018623f849e580a89a685e5d",
-				"serviceName": "svc-two",
+				"service": "svc-two",
 				"dockerfile": "testdata/compose/sort/sort/Dockerfile-two"
 			},
 			{
 				"name": "java",
 				"tag": "latest",
 				"digest": "c1ff613e8ba25833d2e1940da0940c3824f03f802c449f3d1815a66b7f8c0e9d",
-				"serviceName": "svc-two",
+				"service": "svc-two",
 				"dockerfile": "testdata/compose/sort/sort/Dockerfile-two"
 			}
 		]

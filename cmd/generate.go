@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"log"
+	"errors"
 	"os"
 
 	"github.com/safe-waters/docker-lock/generate"
@@ -21,35 +21,20 @@ func NewGenerateCmd(client *registry.HTTPClient) (*cobra.Command, error) {
 				return err
 			}
 
-			configureLogger(flags.Verbose)
-
-			log.Printf("Found flags '%+v'.", flags)
-
-			if err = loadEnv(flags.EnvFile); err != nil {
-				return err
-			}
-
-			wm, err := defaultWrapperManager(client, flags.ConfigFile)
+			generator, err := SetupGenerator(client, flags)
 			if err != nil {
 				return err
 			}
 
-			g, err := generate.NewGenerator(flags)
+			writer, err := os.Create(
+				flags.FlagsWithSharedValues.LockfileName,
+			)
 			if err != nil {
 				return err
 			}
+			defer writer.Close()
 
-			lfile, err := os.Create(g.LockfileName)
-			if err != nil {
-				return err
-			}
-			defer lfile.Close()
-
-			if err := g.GenerateLockfile(wm, lfile); err != nil {
-				return err
-			}
-
-			return nil
+			return generator.GenerateLockfile(writer)
 		},
 	}
 	generateCmd.Flags().StringP(
@@ -87,11 +72,12 @@ func NewGenerateCmd(client *registry.HTTPClient) (*cobra.Command, error) {
 		"env-file", "e", ".env", "Path to .env file",
 	)
 	generateCmd.Flags().Bool(
-		"dockerfile-env-build-args", false,
-		"Use environment vars as build args for Dockerfiles",
+		"exclude-all-dockerfiles", false,
+		"Do not collect Dockerfiles unless referenced by docker-compose files",
 	)
-	generateCmd.Flags().BoolP(
-		"verbose", "v", false, "Show logs",
+	generateCmd.Flags().Bool(
+		"exclude-all-composefiles", false,
+		"Do not collect docker-compose files",
 	)
 
 	if err := viper.BindPFlags(generateCmd.Flags()); err != nil {
@@ -101,97 +87,160 @@ func NewGenerateCmd(client *registry.HTTPClient) (*cobra.Command, error) {
 	return generateCmd, nil
 }
 
-// generatorFlags gets values from the command and uses them to
-// create Flags.
+// SetupGenerator creates a Generator configured for docker-lock's cli.
+func SetupGenerator(
+	client *registry.HTTPClient,
+	flags *generate.Flags,
+) (*generate.Generator, error) {
+	if flags == nil {
+		return nil, errors.New("flags cannot be nil")
+	}
+
+	var err error
+
+	if err = loadEnv(flags.FlagsWithSharedValues.EnvPath); err != nil {
+		return nil, err
+	}
+
+	var dockerfileCollector *generate.Collector
+
+	if !flags.DockerfileFlags.ExcludePaths {
+		dockerfileCollector, err = generate.DockerfileCollector(flags)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var composefileCollector *generate.Collector
+
+	if !flags.ComposefileFlags.ExcludePaths {
+		composefileCollector, err = generate.ComposefileCollector(flags)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	wrapperManager, err := defaultWrapperManager(
+		client, flags.FlagsWithSharedValues.ConfigPath,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	updater, err := generate.NewUpdater(wrapperManager)
+	if err != nil {
+		return nil, err
+	}
+
+	dockerfileParser := &generate.DockerfileParser{}
+	composefileParser := &generate.ComposefileParser{}
+
+	generator, err := generate.NewGenerator(
+		dockerfileCollector, composefileCollector,
+		dockerfileParser, composefileParser, updater,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return generator, nil
+}
+
 func generatorFlags(cmd *cobra.Command) (*generate.Flags, error) {
 	var (
-		bDir, lName, configFile, envFile                   string
-		dfiles, cfiles, dGlobs, cGlobs                     []string
-		dRecursive, cRecursive, dfileEnvBuildArgs, verbose bool
-		err                                                error
+		baseDir, lockfileName, configPath, envPath  string
+		dockerfilePaths, composefilePaths           []string
+		dockerfileGlobs, composefileGlobs           []string
+		dockerfileRecursive, composefileRecursive   bool
+		dockerfileExcludeAll, composefileExcludeAll bool
+		err                                         error
 	)
 
 	switch viper.ConfigFileUsed() {
 	case "":
-		verbose, err = cmd.Flags().GetBool("verbose")
+		baseDir, err = cmd.Flags().GetString("base-dir")
 		if err != nil {
 			return nil, err
 		}
 
-		bDir, err = cmd.Flags().GetString("base-dir")
+		lockfileName, err = cmd.Flags().GetString("lockfile-name")
 		if err != nil {
 			return nil, err
 		}
 
-		lName, err = cmd.Flags().GetString("lockfile-name")
+		configPath, err = cmd.Flags().GetString("config-file")
 		if err != nil {
 			return nil, err
 		}
 
-		configFile, err = cmd.Flags().GetString("config-file")
+		envPath, err = cmd.Flags().GetString("env-file")
 		if err != nil {
 			return nil, err
 		}
 
-		envFile, err = cmd.Flags().GetString("env-file")
+		dockerfilePaths, err = cmd.Flags().GetStringSlice("dockerfiles")
 		if err != nil {
 			return nil, err
 		}
 
-		dfiles, err = cmd.Flags().GetStringSlice("dockerfiles")
+		composefilePaths, err = cmd.Flags().GetStringSlice("composefiles")
 		if err != nil {
 			return nil, err
 		}
 
-		cfiles, err = cmd.Flags().GetStringSlice("composefiles")
+		dockerfileGlobs, err = cmd.Flags().GetStringSlice("dockerfile-globs")
 		if err != nil {
 			return nil, err
 		}
 
-		dGlobs, err = cmd.Flags().GetStringSlice("dockerfile-globs")
+		composefileGlobs, err = cmd.Flags().GetStringSlice("composefile-globs")
 		if err != nil {
 			return nil, err
 		}
 
-		cGlobs, err = cmd.Flags().GetStringSlice("composefile-globs")
+		dockerfileRecursive, err = cmd.Flags().GetBool("dockerfile-recursive")
 		if err != nil {
 			return nil, err
 		}
 
-		dRecursive, err = cmd.Flags().GetBool("dockerfile-recursive")
+		composefileRecursive, err = cmd.Flags().GetBool("composefile-recursive")
 		if err != nil {
 			return nil, err
 		}
 
-		cRecursive, err = cmd.Flags().GetBool("composefile-recursive")
-		if err != nil {
-			return nil, err
-		}
-
-		dfileEnvBuildArgs, err = cmd.Flags().GetBool(
-			"dockerfile-env-build-args",
+		dockerfileExcludeAll, err = cmd.Flags().GetBool(
+			"exclude-all-dockerfiles",
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		composefileExcludeAll, err = cmd.Flags().GetBool(
+			"exclude-all-composefiles",
+		)
+		if err != nil {
+			return nil, err
+		}
+
 	default:
-		bDir = viper.GetString("base-dir")
-		lName = viper.GetString("lockfile-name")
-		configFile = viper.GetString("config-file")
-		envFile = viper.GetString("env-file")
-		dfiles = viper.GetStringSlice("dockerfiles")
-		cfiles = viper.GetStringSlice("composefiles")
-		dGlobs = viper.GetStringSlice("dockerfile-globs")
-		cGlobs = viper.GetStringSlice("composefile-globs")
-		dRecursive = viper.GetBool("dockerfile-recursive")
-		cRecursive = viper.GetBool("composefile-recursive")
-		dfileEnvBuildArgs = viper.GetBool("dockerfile-env-build-args")
-		verbose = viper.GetBool("verbose")
+		baseDir = viper.GetString("base-dir")
+		lockfileName = viper.GetString("lockfile-name")
+		configPath = viper.GetString("config-file")
+		envPath = viper.GetString("env-file")
+		dockerfilePaths = viper.GetStringSlice("dockerfiles")
+		composefilePaths = viper.GetStringSlice("composefiles")
+		dockerfileGlobs = viper.GetStringSlice("dockerfile-globs")
+		composefileGlobs = viper.GetStringSlice("composefile-globs")
+		dockerfileRecursive = viper.GetBool("dockerfile-recursive")
+		composefileRecursive = viper.GetBool("composefile-recursive")
+		dockerfileExcludeAll = viper.GetBool("exclude-all-dockerfiles")
+		composefileExcludeAll = viper.GetBool("exclude-all-composefiles")
 	}
 
 	return generate.NewFlags(
-		bDir, lName, configFile, envFile,
-		dfiles, cfiles, dGlobs, cGlobs,
-		dRecursive, cRecursive, dfileEnvBuildArgs, verbose,
+		baseDir, lockfileName, configPath, envPath,
+		dockerfilePaths, composefilePaths, dockerfileGlobs, composefileGlobs,
+		dockerfileRecursive, composefileRecursive,
+		dockerfileExcludeAll, composefileExcludeAll,
 	)
 }

@@ -7,206 +7,193 @@ import (
 	"strings"
 )
 
-// SharedFlags are flags that do not differ between Dockerfiles
-// and docker-compose files.
-type SharedFlags struct {
+// FlagsWithSharedValues represents flags whose values
+// are the same for DockerfileParser and ComposefileParser.
+type FlagsWithSharedValues struct {
 	BaseDir      string
 	LockfileName string
-	ConfigFile   string
-	EnvFile      string
-	Verbose      bool
+	ConfigPath   string
+	EnvPath      string
 }
 
-// SpecificFlags are flags whose values differ between Dockerfiles and
-// docker-compose files.
-type SpecificFlags struct {
-	Paths     []string
-	Globs     []string
-	Recursive bool
+// FlagsWithSharedNames represents flags whose values
+// differ for DockerfileParser and ComposefileParser.
+type FlagsWithSharedNames struct {
+	ManualPaths  []string
+	Globs        []string
+	Recursive    bool
+	ExcludePaths bool
 }
 
-// DockerfileFlags are flags that determine how Dockerfiles are processed.
-type DockerfileFlags struct {
-	*SpecificFlags
-	UseEnvAsBuildArgs bool
-}
-
-// ComposefileFlags are flags that determine how docker-compose files
-// are processed.
-type ComposefileFlags struct {
-	*SpecificFlags
-}
-
-// Flags consist of SharedFlags, DockerfileFlags, and ComposefileFlags.
+// Flags holds all values needed for the components that
+// comprise a Generator.
 type Flags struct {
-	*SharedFlags
-	DockerfileFlags  *DockerfileFlags
-	ComposefileFlags *ComposefileFlags
+	FlagsWithSharedValues *FlagsWithSharedValues
+	DockerfileFlags       *FlagsWithSharedNames
+	ComposefileFlags      *FlagsWithSharedNames
 }
 
-// NewSharedFlags preprocesses and validates the fields of SharedFlags.
-func NewSharedFlags(
-	bDir string,
-	lName string,
-	configFile string,
-	envFile string,
-	verbose bool,
-) (*SharedFlags, error) {
-	bDir = convertStrToSlash(bDir)
-	configFile = convertStrToSlash(configFile)
-	envFile = convertStrToSlash(envFile)
-
-	if err := validateBaseDirectory(bDir); err != nil {
-		return nil, err
+// NewFlagsWithSharedValues returns NewFlagsWithSharedValues after
+// validating its fields.
+func NewFlagsWithSharedValues(
+	baseDir string,
+	lockfileName string,
+	configPath string,
+	envPath string,
+) (*FlagsWithSharedValues, error) {
+	if baseDir != "" {
+		if err := validateBaseDirectory(baseDir); err != nil {
+			return nil, err
+		}
 	}
 
-	if err := validateLockfileName(lName); err != nil {
-		return nil, err
+	if lockfileName != "" {
+		if err := validateLockfileName(lockfileName); err != nil {
+			return nil, err
+		}
 	}
 
-	return &SharedFlags{
-		BaseDir:      bDir,
-		LockfileName: lName,
-		ConfigFile:   configFile,
-		EnvFile:      envFile,
-		Verbose:      verbose,
+	return &FlagsWithSharedValues{
+		BaseDir:      baseDir,
+		LockfileName: lockfileName,
+		ConfigPath:   configPath,
+		EnvPath:      envPath,
 	}, nil
 }
 
-// NewSpecificFlags preprocesses and validates the fields of SpecificFlags.
-func NewSpecificFlags(
-	bDir string,
-	paths []string,
+// NewFlagsWithSharedNames returns NewFlagsWithSharedNames after
+// validating its fields.
+func NewFlagsWithSharedNames(
+	baseDir string,
+	manualPaths []string,
 	globs []string,
 	recursive bool,
-) (*SpecificFlags, error) {
-	paths = convertStrSlToSlash(paths)
-	globs = convertStrSlToSlash(globs)
-
-	if err := validateSuppliedPaths(bDir, paths); err != nil {
-		return nil, err
+	excludePaths bool,
+) (*FlagsWithSharedNames, error) {
+	if baseDir != "" {
+		if err := validateBaseDirectory(baseDir); err != nil {
+			return nil, err
+		}
 	}
 
-	if err := validateGlobs(globs); err != nil {
-		return nil, err
+	if len(manualPaths) != 0 {
+		if err := validateManualPaths(baseDir, manualPaths); err != nil {
+			return nil, err
+		}
 	}
 
-	return &SpecificFlags{
-		Paths:     paths,
-		Globs:     globs,
-		Recursive: recursive,
+	if len(globs) != 0 {
+		if err := validateGlobs(globs); err != nil {
+			return nil, err
+		}
+	}
+
+	return &FlagsWithSharedNames{
+		ManualPaths:  manualPaths,
+		Globs:        globs,
+		Recursive:    recursive,
+		ExcludePaths: excludePaths,
 	}, nil
 }
 
-// NewFlags preprocesses and validates flags for Dockerfiles and
-// docker-compose files.
+// NewFlags returns Flags used by Generator for Dockerfiles
+// and docker-compose files.
 func NewFlags(
-	bDir, lName, configFile, envFile string,
-	dfiles, cfiles, dGlobs, cGlobs []string,
-	dRecursive, cRecursive, dfileEnvBuildArgs, verbose bool,
+	baseDir string,
+	lockfileName string,
+	configPath string,
+	envPath string,
+	dockerfilePaths []string,
+	composefilePaths []string,
+	dockerfileGlobs []string,
+	composefileGlobs []string,
+	dockerfileRecursive bool,
+	composefileRecursive bool,
+	dockerfileExcludeAll bool,
+	composefileExcludeAll bool,
 ) (*Flags, error) {
-	sharedFlags, err := NewSharedFlags(
-		bDir, lName, configFile, envFile, verbose,
+	sharedFlags, err := NewFlagsWithSharedValues(
+		baseDir, lockfileName, configPath, envPath,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	dFlags, err := NewSpecificFlags(bDir, dfiles, dGlobs, dRecursive)
+	dockerfileFlags, err := NewFlagsWithSharedNames(
+		baseDir, dockerfilePaths, dockerfileGlobs,
+		dockerfileRecursive, dockerfileExcludeAll,
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	cFlags, err := NewSpecificFlags(bDir, cfiles, cGlobs, cRecursive)
+	composefileFlags, err := NewFlagsWithSharedNames(
+		baseDir, composefilePaths, composefileGlobs,
+		composefileRecursive, composefileExcludeAll,
+	)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Flags{
-		SharedFlags:      sharedFlags,
-		DockerfileFlags:  &DockerfileFlags{dFlags, dfileEnvBuildArgs},
-		ComposefileFlags: &ComposefileFlags{cFlags},
+		FlagsWithSharedValues: sharedFlags,
+		DockerfileFlags:       dockerfileFlags,
+		ComposefileFlags:      composefileFlags,
 	}, nil
 }
 
-// convertStrToSlash converts a filepath string to use forward slashes.
-func convertStrToSlash(s string) string {
-	return filepath.ToSlash(s)
-}
-
-// convertStrSlToSlash converts a slice of filepath strings to use forward
-// slashes.
-func convertStrSlToSlash(s []string) []string {
-	sl := make([]string, len(s))
-
-	copy(sl, s)
-
-	for i := range sl {
-		sl[i] = filepath.ToSlash(sl[i])
-	}
-
-	return sl
-}
-
-// validateBaseDirectory ensures that the base directory is not an
-// absolute path and that it is a directory inside the current working
-// directory.
-func validateBaseDirectory(bDir string) error {
-	if filepath.IsAbs(bDir) {
+func validateBaseDirectory(baseDir string) error {
+	if filepath.IsAbs(baseDir) {
 		return fmt.Errorf(
-			"'%s' base-dir does not support absolute paths", bDir,
+			"'%s' base-dir does not support absolute paths", baseDir,
 		)
 	}
 
-	if strings.HasPrefix(filepath.Join(".", bDir), "..") {
+	if strings.HasPrefix(filepath.Join(".", baseDir), "..") {
 		return fmt.Errorf(
-			"'%s' base-dir is outside the current working directory", bDir,
+			"'%s' base-dir is outside the current working directory", baseDir,
 		)
 	}
 
-	fi, err := os.Stat(bDir)
+	fileInfo, err := os.Stat(baseDir)
 	if err != nil {
 		return err
 	}
 
-	if mode := fi.Mode(); !mode.IsDir() {
+	if mode := fileInfo.Mode(); !mode.IsDir() {
 		return fmt.Errorf(
 			"'%s' base-dir is not sub directory "+
 				"of the current working directory",
-			bDir,
+			baseDir,
 		)
 	}
 
 	return nil
 }
 
-// validateLockfileName ensures that the lockfile name does not
-// contain slashes.
-func validateLockfileName(lName string) error {
-	if strings.Contains(lName, "/") {
+func validateLockfileName(lockfileName string) error {
+	if strings.Contains(lockfileName, string(filepath.Separator)) {
 		return fmt.Errorf(
-			"'%s' lockfile-name cannot contain slashes", lName,
+			"'%s' lockfile-name cannot contain slashes", lockfileName,
 		)
 	}
 
 	return nil
 }
 
-// validateSuppliedPaths ensures that supplied paths are not absolute paths
-// and that they are inside the current working directory.
-func validateSuppliedPaths(bDir string, suppliedPaths []string) error {
-	for _, p := range suppliedPaths {
-		if filepath.IsAbs(p) {
+func validateManualPaths(baseDir string, manualPaths []string) error {
+	for _, path := range manualPaths {
+		if filepath.IsAbs(path) {
 			return fmt.Errorf(
-				"'%s' input paths do not support absolute paths", p,
+				"'%s' input paths do not support absolute paths", path,
 			)
 		}
 
-		p = filepath.Join(bDir, p)
+		path = filepath.Join(baseDir, path)
 
-		if strings.HasPrefix(p, "..") {
+		if strings.HasPrefix(path, "..") {
 			return fmt.Errorf(
-				"'%s' is outside the current working directory", p,
+				"'%s' is outside the current working directory", path,
 			)
 		}
 	}
@@ -214,11 +201,10 @@ func validateSuppliedPaths(bDir string, suppliedPaths []string) error {
 	return nil
 }
 
-// validateGlobs ensures that globs are not absolute paths.
 func validateGlobs(globs []string) error {
-	for _, g := range globs {
-		if filepath.IsAbs(g) {
-			return fmt.Errorf("'%s' globs do not support absolute paths", g)
+	for _, glob := range globs {
+		if filepath.IsAbs(glob) {
+			return fmt.Errorf("'%s' globs do not support absolute paths", glob)
 		}
 	}
 

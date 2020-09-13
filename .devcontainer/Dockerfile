@@ -1,7 +1,7 @@
 FROM ubuntu:bionic
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ARG GO_VERSION=1.14
-ARG GOLANGCI_LINT_VERSION=1.24.0
+ARG GOLANGCI_LINT_VERSION=1.27.0
 RUN apt-get update && \
     apt-get install curl gcc git vim tree tmux shellcheck -y && \
     curl -fsSL https://get.docker.com | bash && \

@@ -1,4 +1,4 @@
-// Package rewrite provides functions to rewrite Dockerfiles
+// Package rewrite provides functionality to rewrite Dockerfiles
 // and docker-compose files from a Lockfile.
 package rewrite
 
@@ -197,7 +197,7 @@ func dImsNotInCfiles(
 
 // readLockfile returns a Lockfile from its file path.
 func readLockfile(lPath string) (*generate.Lockfile, error) {
-	lByt, err := ioutil.ReadFile(lPath) // nolint: gosec
+	lByt, err := ioutil.ReadFile(lPath)
 	if err != nil {
 		return nil, err
 	}

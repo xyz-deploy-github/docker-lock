@@ -1,8 +1,6 @@
 package contrib
 
 import (
-	"io/ioutil"
-	"log"
 	"testing"
 
 	"github.com/safe-waters/docker-lock/registry"
@@ -11,8 +9,6 @@ import (
 // TestAllWrappers ensures that all wrappers maintained by the
 // community are returned.
 func TestAllWrappers(t *testing.T) {
-	log.SetOutput(ioutil.Discard)
-
 	client := &registry.HTTPClient{}
 
 	wrappers := AllWrappers(client, "")

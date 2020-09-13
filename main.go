@@ -1,21 +1,9 @@
-// Package docker-lock is a cli-plugin for docker that automates managing
-// image digests by tracking them in a separate Lockfile (think
-// package-lock.json or Pipfile.lock) -
-// with docker-lock, you can refer to images in Dockerfiles or
-// docker-compose files by mutable tags (as in python:3.6)
-// yet receive the same benefits as if you had specified immutable digests
-// (as in python:3.6@sha256:25a189a536...).
-//
-// To build docker-lock from source on unix, run:
-// 	mkdir -p ~/.docker/cli-plugins
-//	go build
-//	chmod +x docker-lock
-//	mv docker-lock ~/.docker/cli-plugins
-//
-// To build docker-lock from source on windows, create the folder
-// 	%USERPROFILE%\.docker\cli-plugins
-// and run:
-//	go build -o %USERPROFILE%\.docker\cli-plugins\docker-lock.exe
+// Package docker-lock is a cli tool that automates managing image digests
+// by tracking them in a separate Lockfile
+// (think package-lock.json or Pipfile.lock) - with docker-lock,
+// you can refer to images in Dockerfiles or docker-compose files by
+// mutable tags (as in python:3.6) yet receive the same benefits as if you
+// had specified immutable digests (as in python:3.6@sha256:25a189a536ae4d...).
 package main
 
 import (

@@ -1,7 +1,6 @@
 package registry
 
 import (
-	"log"
 	"net/http"
 )
 
@@ -31,7 +30,6 @@ func AllWrappers(
 	for _, c := range constructors {
 		w, err := c(client, configPath)
 		if err != nil {
-			log.Printf("%s", err)
 			continue
 		}
 

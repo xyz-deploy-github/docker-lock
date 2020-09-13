@@ -28,7 +28,6 @@ linters:
     - golint
     - gomnd
     - goprintffuncname
-    - gosec
     - interfacer
     - lll
     - maligned
@@ -48,6 +47,7 @@ linters:
 
     # useless
     # - funlen
+    # - gosec
 
 run:
 linters-settings:

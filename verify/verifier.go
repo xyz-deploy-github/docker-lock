@@ -1,212 +1,91 @@
-// Package verify provides functions for verifying that an existing
+// Package verify provides functionality for verifying that an existing
 // Lockfile is up-to-date.
 package verify
 
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io/ioutil"
-	"log"
-	"sync"
+	"io"
+	"reflect"
 
 	"github.com/safe-waters/docker-lock/generate"
-	"github.com/safe-waters/docker-lock/registry"
 )
 
-// Verifier ensures that a Lockfile contains up-to-date information.
+// Verifier verifies that the Lockfile is the same as one that would
+// be generated if a new one were generated.
 type Verifier struct {
-	Generator *generate.Generator
-	Lockfile  *generate.Lockfile
+	Generator generate.IGenerator
 }
 
-// NewVerifier creates a Verifier from command line flags.
-func NewVerifier(flags *Flags) (*Verifier, error) {
-	lfile, err := readLockfile(flags.LockfilePath)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Printf("Read Lockfile '%+v'.", lfile)
-
-	g := makeGenerator(lfile, flags.DockerfileEnvBuildArgs)
-
-	log.Printf("Using Generator '%+v'.", g)
-
-	return &Verifier{Generator: g, Lockfile: lfile}, nil
+// IVerifier provides an interface for Verifiers's exported methods.
+type IVerifier interface {
+	VerifyLockfile(reader io.Reader) error
 }
 
-// VerifyLockfile generates bytes for a new Lockfile and ensures that
-// the existing Lockfile contains the same information. Specifically,
-// the existing Lockfile must have:
-//
-// (1) the same number of Dockerfiles and docker-compose files
-//
-// (2) the same number of images in each Dockerfile and docker-compose file
-//
-// (3) the same image in the proper order in each Dockerfile and docker-compose
-// file
-//
-// If any of these checks fail, VerifyLockfile will return an error.
-func (v *Verifier) VerifyLockfile(wm *registry.WrapperManager) error {
-	lByt := bytes.Buffer{}
-	if err := v.Generator.GenerateLockfile(wm, &lByt); err != nil {
-		return err
+// NewVerifier returns a Verifier after validating its fields.
+func NewVerifier(
+	generator generate.IGenerator,
+) (*Verifier, error) {
+	if generator == nil || reflect.ValueOf(generator).IsNil() {
+		return nil, errors.New("generator cannot be nil")
 	}
 
-	lfile := generate.Lockfile{}
-	if err := json.Unmarshal(lByt.Bytes(), &lfile); err != nil {
-		return err
-	}
-
-	log.Printf("Generated Lockfile '%+v'.", lfile)
-
-	if err := v.verifyNumFiles(&lfile); err != nil {
-		return err
-	}
-
-	if err := v.verifyImages(&lfile); err != nil {
-		return err
-	}
-
-	return nil
+	return &Verifier{
+		Generator: generator,
+	}, nil
 }
 
-// verifyNumFiles ensures that the existing Lockfile and newly
-// generated Lockfile have the same number of Dockerfiles and
-// docker-compose files.
-func (v *Verifier) verifyNumFiles(lfile *generate.Lockfile) error {
-	if len(v.Lockfile.DockerfileImages) != len(lfile.DockerfileImages) {
+// VerifyLockfile reads an existing Lockfile and generates a new one
+// for the specified paths. If it is different, the differences are
+// returned as an error.
+func (v *Verifier) VerifyLockfile(reader io.Reader) error {
+	if reader == nil || reflect.ValueOf(reader).IsNil() {
+		return errors.New("reader cannot be nil")
+	}
+
+	var existingLockfile generate.Lockfile
+	if err := json.NewDecoder(reader).Decode(&existingLockfile); err != nil {
+		return err
+	}
+
+	var newLByt bytes.Buffer
+	if err := v.Generator.GenerateLockfile(&newLByt); err != nil {
+		return err
+	}
+
+	var newLockfile generate.Lockfile
+	if err := json.Unmarshal(newLByt.Bytes(), &newLockfile); err != nil {
+		return err
+	}
+
+	if !reflect.DeepEqual(existingLockfile, newLockfile) {
+		existingPrettyLockfile, err := jsonPrettyPrint(&existingLockfile)
+		if err != nil {
+			return err
+		}
+
+		newPrettyLockfile, err := jsonPrettyPrint(&newLockfile)
+		if err != nil {
+			return err
+		}
+
 		return fmt.Errorf(
-			"got '%d' Dockerfiles, want '%d'", len(lfile.DockerfileImages),
-			len(v.Lockfile.DockerfileImages),
-		)
-	}
-
-	if len(v.Lockfile.ComposefileImages) != len(lfile.ComposefileImages) {
-		return fmt.Errorf(
-			"got '%d' docker-compose files, want '%d'",
-			len(lfile.ComposefileImages),
-			len(v.Lockfile.ComposefileImages),
+			"got:\n%s\nwant:\n%s",
+			newPrettyLockfile,
+			existingPrettyLockfile,
 		)
 	}
 
 	return nil
 }
 
-// verifyImages ensures that the existing Lockfile and newly generated Lockfile
-// have the same images in order for each Dockerfile and docker-compose file.
-func (v *Verifier) verifyImages(lfile *generate.Lockfile) error {
-	for dPath := range v.Lockfile.DockerfileImages {
-		if len(v.Lockfile.DockerfileImages[dPath]) !=
-			len(lfile.DockerfileImages[dPath]) {
-			return fmt.Errorf(
-				"got '%d' images in file '%s', want '%d'",
-				len(lfile.DockerfileImages[dPath]), dPath,
-				len(v.Lockfile.DockerfileImages[dPath]),
-			)
-		}
-
-		for i := range v.Lockfile.DockerfileImages[dPath] {
-			if *v.Lockfile.DockerfileImages[dPath][i].Image !=
-				*lfile.DockerfileImages[dPath][i].Image {
-				return fmt.Errorf(
-					"got image:\n%s\nwant image:\n%s",
-					v.pretty(lfile.DockerfileImages[dPath][i].Image),
-					v.pretty(v.Lockfile.DockerfileImages[dPath][i].Image),
-				)
-			}
-		}
-	}
-
-	for cPath := range v.Lockfile.ComposefileImages {
-		if len(v.Lockfile.ComposefileImages[cPath]) !=
-			len(lfile.ComposefileImages[cPath]) {
-			return fmt.Errorf(
-				"got '%d' images in file '%s', want '%d'",
-				len(lfile.ComposefileImages[cPath]), cPath,
-				len(v.Lockfile.ComposefileImages[cPath]),
-			)
-		}
-
-		for i := range v.Lockfile.ComposefileImages[cPath] {
-			if *v.Lockfile.ComposefileImages[cPath][i].Image !=
-				*lfile.ComposefileImages[cPath][i].Image {
-				return fmt.Errorf(
-					"got image:\n%s\nwant image:\n%s",
-					v.pretty(lfile.ComposefileImages[cPath][i].Image),
-					v.pretty(v.Lockfile.ComposefileImages[cPath][i].Image),
-				)
-			}
-		}
-	}
-
-	return nil
-}
-
-// pretty formats an Image as indented json.
-func (v *Verifier) pretty(im *generate.Image) string {
-	pretty, _ := json.MarshalIndent(im, "", "\t")
-	return string(pretty)
-}
-
-// readLockfile reads an existing Lockfile from the current directory
-// given the Lockfile's name.
-func readLockfile(lName string) (*generate.Lockfile, error) {
-	lByt, err := ioutil.ReadFile(lName) // nolint: gosec
+func jsonPrettyPrint(lockfile *generate.Lockfile) (string, error) {
+	byt, err := json.MarshalIndent(lockfile, "", "\t")
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	lfile := generate.Lockfile{}
-	if err := json.Unmarshal(lByt, &lfile); err != nil {
-		return nil, err
-	}
-
-	return &lfile, nil
-}
-
-// makeGenerator creates a *Generator. It initializes the generator
-// with the values from the Lockfile, rather than using the constructor.
-// This enables the rewrite command to take fewer flags.
-func makeGenerator(
-	lfile *generate.Lockfile,
-	dfileEnvBuildArgs bool,
-) *generate.Generator {
-	dPaths := make([]string, len(lfile.DockerfileImages))
-	cPaths := make([]string, len(lfile.ComposefileImages))
-
-	var i, j int
-
-	wg := sync.WaitGroup{}
-
-	wg.Add(1)
-
-	go func() {
-		defer wg.Done()
-
-		for p := range lfile.DockerfileImages {
-			dPaths[i] = p
-			i++
-		}
-	}()
-
-	wg.Add(1)
-
-	go func() {
-		defer wg.Done()
-
-		for p := range lfile.ComposefileImages {
-			cPaths[j] = p
-			j++
-		}
-	}()
-
-	wg.Wait()
-
-	return &generate.Generator{
-		DockerfilePaths:        dPaths,
-		ComposefilePaths:       cPaths,
-		DockerfileEnvBuildArgs: dfileEnvBuildArgs,
-	}
+	return string(byt), nil
 }

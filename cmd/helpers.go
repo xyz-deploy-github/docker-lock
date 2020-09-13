@@ -16,9 +16,7 @@ import (
 // for all platforms.
 func defaultConfigPath() string {
 	if homeDir, err := os.UserHomeDir(); err == nil {
-		cPath := filepath.ToSlash(
-			filepath.Join(homeDir, ".docker", "config.json"),
-		)
+		cPath := filepath.Join(homeDir, ".docker", "config.json")
 		if _, err := os.Stat(cPath); err != nil {
 			return ""
 		}

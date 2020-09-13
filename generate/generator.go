@@ -1,106 +1,123 @@
-// Package generate provides functions to generate a Lockfile.
+// Package generate provides functionality to generate a Lockfile.
 package generate
 
 import (
-	"encoding/json"
+	"errors"
 	"io"
-
-	"github.com/safe-waters/docker-lock/registry"
+	"reflect"
 )
 
-// Generator generates Lockfiles. DockerfileEnvBuildArgs determines whether
-// environment variables should be used as build args in Dockerfiles.
+// Generator creates a Lockfile.
 type Generator struct {
-	DockerfilePaths        []string
-	ComposefilePaths       []string
-	DockerfileEnvBuildArgs bool
-	LockfileName           string
+	DockerfileCollector  ICollector
+	ComposefileCollector ICollector
+	DockerfileParser     IDockerfileParser
+	ComposefileParser    IComposefileParser
+	Updater              IUpdater
 }
 
-// Image contains information extracted from 'FROM' instructions in Dockerfiles
-// or 'image:' keys in docker-compose files. For instance,
-// FROM busybox:latest@sha256:dd97a3f...
-// could be represented as:
-// Image{Name: busybox, Tag: latest, Digest: dd97a3f...}.
-type Image struct {
-	Name   string `json:"name"`
-	Tag    string `json:"tag"`
-	Digest string `json:"digest"`
+// IGenerator provides an interface for Generator's exported
+// methods, which are used by docker-lock's cli as well as Verifier.
+type IGenerator interface {
+	GenerateLockfile(writer io.Writer) error
 }
 
-// DockerfileImage contains an Image along with metadata used to generate
-// a Lockfile.
-type DockerfileImage struct {
-	*Image
-	position int
-}
-
-// ComposefileImage contains an Image along with metadata used to generate
-// a Lockfile.
-type ComposefileImage struct {
-	*Image
-	ServiceName    string `json:"serviceName"`
-	DockerfilePath string `json:"dockerfile"`
-	position       int
-}
-
-// String formats an Image as json.
-func (i *Image) String() string {
-	j, _ := json.Marshal(i)
-	return string(j)
-}
-
-// NewGenerator creates a Generator from command line flags. If no
-// Dockerfiles or docker-compose files are specified as flags,
-// files that match "Dockerfile", "docker-compose.yml", and
-// "docker-compose.yaml" will be used. If files are specified in
-// command line flags, only those files will be used.
-func NewGenerator(flags *Flags) (*Generator, error) {
-	c := &collector{
-		Flags:    flags,
-		dBaseSet: map[string]struct{}{"Dockerfile": {}},
-		cBaseSet: map[string]struct{}{
-			"docker-compose.yml":  {},
-			"docker-compose.yaml": {},
-		},
+// NewGenerator returns a Generator after validating its fields.
+func NewGenerator(
+	dockerfileCollector ICollector,
+	composefileCollector ICollector,
+	dockerfileParser IDockerfileParser,
+	composefileParser IComposefileParser,
+	updater IUpdater,
+) (*Generator, error) {
+	if dockerfileParser == nil || reflect.ValueOf(dockerfileParser).IsNil() {
+		return nil, errors.New("dockerfileParser may not be nil")
 	}
 
-	dPaths, cPaths, err := c.collectPaths()
-	if err != nil {
-		return nil, err
+	if composefileParser == nil || reflect.ValueOf(composefileParser).IsNil() {
+		return nil, errors.New("composefileParser may not be nil")
+	}
+
+	if updater == nil || reflect.ValueOf(updater).IsNil() {
+		return nil, errors.New("updater may not be nil")
 	}
 
 	return &Generator{
-		DockerfilePaths:        dPaths,
-		ComposefilePaths:       cPaths,
-		DockerfileEnvBuildArgs: flags.DockerfileFlags.UseEnvAsBuildArgs,
-		LockfileName:           flags.LockfileName,
+		DockerfileCollector:  dockerfileCollector,
+		ComposefileCollector: composefileCollector,
+		DockerfileParser:     dockerfileParser,
+		ComposefileParser:    composefileParser,
+		Updater:              updater,
 	}, nil
 }
 
-// GenerateLockfile creates a Lockfile and writes its bytes to an io.Writer.
-func (g *Generator) GenerateLockfile(
-	wm *registry.WrapperManager,
-	w io.Writer,
-) error {
-	p := &parser{
-		dPaths:            g.DockerfilePaths,
-		cPaths:            g.ComposefilePaths,
-		dfileEnvBuildArgs: g.DockerfileEnvBuildArgs,
+// GenerateLockfile creates a Lockfile and writes it to an io.Writer.
+func (g *Generator) GenerateLockfile(writer io.Writer) error {
+	if writer == nil || reflect.ValueOf(writer).IsNil() {
+		return errors.New("writer cannot be nil")
 	}
 
-	doneCh := make(chan struct{})
-	bImCh := p.parseFiles(doneCh)
+	done := make(chan struct{})
 
-	u := &updater{}
+	var dockerfilePaths <-chan *PathResult
 
-	dIms, cIms, err := u.updateDigest(wm, bImCh, doneCh)
+	if g.DockerfileCollector != nil &&
+		!reflect.ValueOf(g.DockerfileCollector).IsNil() {
+		dockerfilePaths = g.DockerfileCollector.Paths(done)
+	}
+
+	var composefilePaths <-chan *PathResult
+
+	if g.ComposefileCollector != nil &&
+		!reflect.ValueOf(g.ComposefileCollector).IsNil() {
+		composefilePaths = g.ComposefileCollector.Paths(done)
+	}
+
+	dockerfileImages := g.DockerfileParser.ParseFiles(dockerfilePaths, done)
+	composefileImages := g.ComposefileParser.ParseFiles(composefilePaths, done)
+
+	dockerfileImages, composefileImages = g.Updater.UpdateDigests(
+		dockerfileImages, composefileImages, done,
+	)
+
+	lockfile, err := NewLockfile(dockerfileImages, composefileImages, done)
 	if err != nil {
-		close(doneCh)
+		close(done)
 		return err
 	}
 
-	lfile := NewLockfile(dIms, cIms)
+	return lockfile.Write(writer)
+}
 
-	return lfile.Write(w)
+// DockerfileCollector provides an easy to use Collector for
+// collecting Dockerfiles.
+func DockerfileCollector(
+	flags *Flags,
+) (*Collector, error) {
+	if flags == nil {
+		return nil, errors.New("flags cannot be nil")
+	}
+
+	return NewCollector(
+		flags.FlagsWithSharedValues.BaseDir, []string{"Dockerfile"},
+		flags.DockerfileFlags.ManualPaths, flags.DockerfileFlags.Globs,
+		flags.DockerfileFlags.Recursive,
+	)
+}
+
+// ComposefileCollector provides an easy to use Collector for
+// collecting docker-compose files.
+func ComposefileCollector(
+	flags *Flags,
+) (*Collector, error) {
+	if flags == nil {
+		return nil, errors.New("flags cannot be nil")
+	}
+
+	return NewCollector(
+		flags.FlagsWithSharedValues.BaseDir,
+		[]string{"docker-compose.yml", "docker-compose.yaml"},
+		flags.ComposefileFlags.ManualPaths, flags.ComposefileFlags.Globs,
+		flags.ComposefileFlags.Recursive,
+	)
 }

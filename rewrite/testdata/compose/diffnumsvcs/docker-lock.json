@@ -1,20 +1,17 @@
 {
-	"dockerfiles": {},
 	"composefiles": {
 		"testdata/compose/diffnumsvcs/docker-compose.yml": [
 			{
 				"name": "busybox",
 				"tag": "latest",
 				"digest": "afe605d272837ce1732f390966166c2afff5391208ddd57de10942748694049d",
-				"serviceName": "svc",
-				"dockerfile": ""
+				"service": "svc"
 			},
 			{
 				"name": "busybox",
 				"tag": "latest",
 				"digest": "afe605d272837ce1732f390966166c2afff5391208ddd57de10942748694049d",
-				"serviceName": "svc2",
-				"dockerfile": ""
+				"service": "svc2"
 			}
 		]
 	}

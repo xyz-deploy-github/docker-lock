@@ -1,6 +1,8 @@
 package generate
 
-import "fmt"
+import (
+	"errors"
+)
 
 // compose contains the services in a docker-compose file.
 type compose struct {
@@ -49,6 +51,10 @@ type argsMap map[string]string
 // UnmarshalYAML unmarshals the "build" section of a service into either
 // a simple or verbose build.
 func (b *buildWrapper) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	if unmarshal == nil {
+		return errors.New("unmarshal cannot be nil")
+	}
+
 	*b = buildWrapper{}
 
 	var v verbose
@@ -63,12 +69,16 @@ func (b *buildWrapper) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return nil
 	}
 
-	return fmt.Errorf("unable to unmarshal service")
+	return errors.New("unable to unmarshal service")
 }
 
 // UnmarshalYAML unmarshals the "args" section of a verbose service. Args can
 // be either slices or maps.
 func (a *argsWrapper) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	if unmarshal == nil {
+		return errors.New("unmarshal cannot be nil")
+	}
+
 	*a = argsWrapper{}
 
 	var as argsSlice
@@ -83,5 +93,5 @@ func (a *argsWrapper) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return nil
 	}
 
-	return fmt.Errorf("unable to unmarshal build args")
+	return errors.New("unable to unmarshal build args")
 }

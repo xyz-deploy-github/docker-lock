@@ -32,7 +32,7 @@ func NewElasticWrapper(client *registry.HTTPClient) *ElasticWrapper {
 }
 
 // init registers ElasticWrapper for use by docker-lock.
-func init() { //nolint: gochecknoinits
+func init() { // nolint: gochecknoinits
 	constructor := func(
 		client *registry.HTTPClient,
 		_ string,

@@ -1,4 +1,4 @@
-// Package firstparty provides functions for getting digests from
+// Package firstparty provides functionality for getting digests from
 // registries supported by docker-lock's maintainers.
 package firstparty
 
@@ -34,7 +34,7 @@ type dockerConfig struct {
 }
 
 // init registers DockerWrapper for use by docker-lock.
-func init() { //nolint: gochecknoinits
+func init() { // nolint: gochecknoinits
 	constructor := func(
 		client *registry.HTTPClient,
 		configPath string,

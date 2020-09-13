@@ -1,5 +1,4 @@
 {
-	"dockerfiles": {},
 	"composefiles": {
 		"testdata/compose/diffdigests/docker-compose.yml": [
 			{

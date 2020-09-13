@@ -96,7 +96,7 @@ func (r *Rewriter) writeDfile(
 
 	log.Printf("Begin handling Dockerfile '%s'.", dPath)
 
-	dByt, err := ioutil.ReadFile(dPath) // nolint: gosec
+	dByt, err := ioutil.ReadFile(dPath)
 	if err != nil {
 		addErrToRnCh(err, rnCh, doneCh)
 		return
@@ -194,7 +194,7 @@ func (r *Rewriter) writeCfile(
 
 	log.Printf("Begin handling docker-compose file '%s'.", cPath)
 
-	cByt, err := ioutil.ReadFile(cPath) // nolint: gosec
+	cByt, err := ioutil.ReadFile(cPath)
 	if err != nil {
 		addErrToRnCh(err, rnCh, doneCh)
 		return
@@ -437,7 +437,7 @@ func (r *Rewriter) origByt(oPath string) ([]byte, error) {
 		return nil, fmt.Errorf("'%s' is not a regular file", oPath)
 	}
 
-	origByt, err := ioutil.ReadFile(oPath) // nolint: gosec
+	origByt, err := ioutil.ReadFile(oPath)
 	if err != nil {
 		return nil, err
 	}

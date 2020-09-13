@@ -1,154 +1,273 @@
 package generate
 
 import (
-	"fmt"
-	"log"
+	"errors"
 	"sync"
 
 	"github.com/safe-waters/docker-lock/registry"
 )
 
-// updater updates base images' digests to their most recent digests
-// according to the appropriate container registry.
-type updater struct{}
+// Updater replaces image digests with the most recent ones
+// from their registries.
+type Updater struct {
+	WrapperManager *registry.WrapperManager
+}
 
-// digestUpdate is used to update an Image's digest in a
-// concurrently safe manner.
+// IUpdater provides an interface for Updater's exported
+// methods, which are used by Generator.
+type IUpdater interface {
+	UpdateDigests(
+		dockerfileImages <-chan *DockerfileImage,
+		composefileImages <-chan *ComposefileImage,
+		done <-chan struct{},
+	) (<-chan *DockerfileImage, <-chan *ComposefileImage)
+}
+
 type digestUpdate struct {
 	image  *Image
 	digest string
 	err    error
 }
 
-// updateDigest updates base images' digests to their most recent digests
-// according to the container registries selected by the wrapper manager.
-// If there are base images with duplicate names and tags, the registry
-// will only be queried once. If the base image already has a digest,
-// the registry will not be queried.
-func (u *updater) updateDigest(
-	wm *registry.WrapperManager,
-	bImCh <-chan *BaseImage,
-	doneCh <-chan struct{},
-) (map[string][]*DockerfileImage, map[string][]*ComposefileImage, error) {
-	dIms := map[string][]*DockerfileImage{}
-	cIms := map[string][]*ComposefileImage{}
-
-	// Each Image saves a pointer to an Image with the same values in its
-	// fields. This saved *Image is used to update the digests of all the
-	// Images that have the same values.
-	// For instance, if the line 'python:3.6' appears multiple times, we only
-	// want to query the registry one time. When the registry is queried,
-	// the digest field pointed to by all Images with that line will be
-	// updated.
-	uniqBIms := map[Image]*Image{}
-
-	// A channel whose values are consumed in a single goroutine so that
-	// all digest updates are concurrently safe.
-	digUpCh := make(chan digestUpdate)
-
-	wg := sync.WaitGroup{}
-
-	for b := range bImCh {
-		if b.err != nil {
-			return nil, nil, b.err
-		}
-
-		log.Printf("Found '%+v'.", b)
-
-		// Only query the registry once per image.
-		if uniqBIms[*b.Image] == nil {
-			uniqBIms[*b.Image] = b.Image
-
-			// Only query the registry if the digest is empty.
-			if b.Image.Digest == "" {
-				wg.Add(1)
-
-				go u.queryContainerRegisty(b, wm, digUpCh, doneCh, &wg)
-			}
-		}
-
-		// DockerfileImages and ComposefileImages' Image fields are set
-		// to *Images whose digests will be updated with the result
-		// from querying the container registries, if the digests are not
-		// already present.
-		switch im := uniqBIms[*b.Image]; b.composefilePath {
-		case "":
-			dIm := &DockerfileImage{Image: im, position: b.position}
-			dIms[b.dockerfilePath] = append(dIms[b.dockerfilePath], dIm)
-		default:
-			cIm := &ComposefileImage{
-				Image:          im,
-				ServiceName:    b.serviceName,
-				DockerfilePath: b.dockerfilePath,
-				position:       b.position,
-			}
-			cIms[b.composefilePath] = append(cIms[b.composefilePath], cIm)
-		}
+// NewUpdater returns an Updater after validating its fields.
+func NewUpdater(wrapperManger *registry.WrapperManager) (*Updater, error) {
+	if wrapperManger == nil {
+		return nil, errors.New("wrapperManager cannot be nil")
 	}
 
-	go func() {
-		wg.Wait()
-		close(digUpCh)
-	}()
-
-	// Update the digests of *Images in the DockerfileImages and
-	// ComposefileImages' Image fields in a concurrent safe manner.
-	for up := range digUpCh {
-		if up.err != nil {
-			return nil, nil, up.err
-		}
-
-		up.image.Digest = up.digest
-	}
-
-	return dIms, cIms, nil
+	return &Updater{WrapperManager: wrapperManger}, nil
 }
 
-// queryContainerRegistry queries the appropriate container registry
-// for the most recent digest based off of the wrapper manager.
-func (u *updater) queryContainerRegisty(
-	bIm *BaseImage,
-	wm *registry.WrapperManager,
-	digUpCh chan<- digestUpdate,
-	doneCh <-chan struct{},
-	wg *sync.WaitGroup,
+// UpdateDigests queries registries for digests of images that do not
+// already specify their digests. It updates images with those
+// digests.
+func (u *Updater) UpdateDigests( // nolint: gocyclo
+	dockerfileImages <-chan *DockerfileImage,
+	composefileImages <-chan *ComposefileImage,
+	done <-chan struct{},
+) (<-chan *DockerfileImage, <-chan *ComposefileImage) {
+	outputDockerfileImages := make(chan *DockerfileImage)
+	outputComposefileImages := make(chan *ComposefileImage)
+	waitGroup := &sync.WaitGroup{}
+
+	waitGroup.Add(1)
+
+	go func() {
+		defer waitGroup.Done()
+
+		dockerfileImagesCache := map[Image][]*DockerfileImage{}
+		composefileImagesCache := map[Image][]*ComposefileImage{}
+
+		imagesToUpdate := map[Image]*Image{}
+		digestUpdateCh := make(chan digestUpdate)
+
+		var updateWaitGroup sync.WaitGroup
+
+		var numChannels int
+		if dockerfileImages != nil {
+			numChannels++
+		}
+
+		if composefileImages != nil {
+			numChannels++
+		}
+
+		var numChannelsDrained int
+
+		for {
+			select {
+			case dockerfileImage, ok := <-dockerfileImages:
+				if !ok {
+					dockerfileImages = nil
+					numChannelsDrained++
+
+					break
+				}
+
+				if dockerfileImage.Err != nil {
+					select {
+					case <-done:
+					case outputDockerfileImages <- &DockerfileImage{
+						Err: dockerfileImage.Err,
+					}:
+					}
+
+					return
+				}
+
+				if imagesToUpdate[*dockerfileImage.Image] == nil {
+					imagesToUpdate[*dockerfileImage.Image] = dockerfileImage.Image // nolint: lll
+
+					if dockerfileImage.Image.Digest == "" {
+						updateWaitGroup.Add(1)
+
+						go u.queryRegistry(
+							dockerfileImage.Image, digestUpdateCh,
+							done, &updateWaitGroup,
+						)
+					}
+				}
+
+				dockerfileImage = &DockerfileImage{
+					Image:    imagesToUpdate[*dockerfileImage.Image],
+					Position: dockerfileImage.Position,
+					Path:     dockerfileImage.Path,
+				}
+
+				dockerfileImagesCache[*dockerfileImage.Image] = append(
+					dockerfileImagesCache[*dockerfileImage.Image],
+					dockerfileImage,
+				)
+			case composefileImage, ok := <-composefileImages:
+				if !ok {
+					composefileImages = nil
+					numChannelsDrained++
+
+					break
+				}
+
+				if composefileImage.Err != nil {
+					select {
+					case <-done:
+					case outputComposefileImages <- &ComposefileImage{
+						Err: composefileImage.Err,
+					}:
+					}
+
+					return
+				}
+
+				if imagesToUpdate[*composefileImage.Image] == nil {
+					imagesToUpdate[*composefileImage.Image] = composefileImage.Image // nolint: lll
+
+					if composefileImage.Image.Digest == "" {
+						updateWaitGroup.Add(1)
+
+						go u.queryRegistry(
+							composefileImage.Image, digestUpdateCh,
+							done, &updateWaitGroup,
+						)
+					}
+				}
+
+				composefileImage = &ComposefileImage{
+					Image:          imagesToUpdate[*composefileImage.Image],
+					DockerfilePath: composefileImage.DockerfilePath,
+					Position:       composefileImage.Position,
+					ServiceName:    composefileImage.ServiceName,
+					Path:           composefileImage.Path,
+				}
+
+				composefileImagesCache[*composefileImage.Image] = append(
+					composefileImagesCache[*composefileImage.Image],
+					composefileImage,
+				)
+			}
+
+			if numChannelsDrained >= numChannels {
+				break
+			}
+		}
+
+		go func() {
+			updateWaitGroup.Wait()
+			close(digestUpdateCh)
+		}()
+
+		for update := range digestUpdateCh {
+			if update.err != nil {
+				if _, ok := dockerfileImagesCache[*update.image]; ok {
+					select {
+					case <-done:
+					case outputDockerfileImages <- &DockerfileImage{
+						Err: update.err,
+					}:
+					}
+
+					return
+				}
+
+				if _, ok := composefileImagesCache[*update.image]; ok {
+					select {
+					case <-done:
+					case outputComposefileImages <- &ComposefileImage{
+						Err: update.err,
+					}:
+					}
+
+					return
+				}
+			}
+
+			update.image.Digest = update.digest
+		}
+
+		var cacheWaitGroup sync.WaitGroup
+
+		cacheWaitGroup.Add(1)
+
+		go func() {
+			defer cacheWaitGroup.Done()
+
+			for _, dockerfileImages := range dockerfileImagesCache {
+				for _, dockerfileImage := range dockerfileImages {
+					select {
+					case <-done:
+					case outputDockerfileImages <- dockerfileImage:
+					}
+				}
+			}
+		}()
+
+		cacheWaitGroup.Add(1)
+
+		go func() {
+			defer cacheWaitGroup.Done()
+
+			for _, composefileImages := range composefileImagesCache {
+				for _, composefileImage := range composefileImages {
+					select {
+					case <-done:
+					case outputComposefileImages <- composefileImage:
+					}
+				}
+			}
+		}()
+
+		cacheWaitGroup.Wait()
+	}()
+
+	go func() {
+		waitGroup.Wait()
+		close(outputDockerfileImages)
+		close(outputComposefileImages)
+	}()
+
+	return outputDockerfileImages, outputComposefileImages
+}
+
+func (u *Updater) queryRegistry(
+	image *Image,
+	digestUpdateCh chan<- digestUpdate,
+	done <-chan struct{},
+	waitGroup *sync.WaitGroup,
 ) {
-	defer wg.Done()
+	defer waitGroup.Done()
 
-	log.Printf("Querying '%+v' for a digest.", bIm)
+	wrapper := u.WrapperManager.Wrapper(image.Name)
 
-	w := wm.Wrapper(bIm.Image.Name)
-
-	d, err := w.Digest(bIm.Image.Name, bIm.Image.Tag)
+	digest, err := wrapper.Digest(image.Name, image.Tag)
 	if err != nil {
-		log.Printf("Unable to find digest for '%+v'.", bIm)
-
-		errMsg := ""
-		if bIm.dockerfilePath != "" {
-			errMsg = fmt.Sprintf("from '%s': ", bIm.dockerfilePath)
-		}
-
-		if bIm.composefilePath != "" {
-			errMsg = fmt.Sprintf(
-				"%sfrom '%s': from service '%s': ", errMsg, bIm.composefilePath,
-				bIm.serviceName,
-			)
-		}
-
-		err = fmt.Errorf("%s%v", errMsg, err)
-
 		select {
-		case <-doneCh:
-		case digUpCh <- digestUpdate{err: err}:
+		case <-done:
+		case digestUpdateCh <- digestUpdate{err: err, image: image}:
 		}
 
 		return
 	}
 
-	log.Printf("Found digest '%s' for '%+v'.", d, bIm)
-
 	select {
-	case <-doneCh:
-	case digUpCh <- digestUpdate{image: bIm.Image, digest: d}:
+	case <-done:
+	case digestUpdateCh <- digestUpdate{image: image, digest: digest}:
 	}
 }

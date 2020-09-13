@@ -25,13 +25,18 @@ var cTestDir = filepath.Join("testdata", "compose") //nolint: gochecknoglobals
 var tmpDir = filepath.Join("testdata", "tmp")       //nolint: gochecknoglobals
 
 func TestRewriter(t *testing.T) {
+	t.Parallel()
+
 	log.SetOutput(ioutil.Discard)
 
 	tests := getTests()
 	for name, tc := range tests {
+		name := name
 		tc := tc
 
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			flags, err := NewFlags(tc.lPath, "got", tmpDir, false, false)
 			if err != nil {
 				t.Fatal(err)

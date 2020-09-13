@@ -2,106 +2,184 @@ package generate
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
-	"log"
+	"path/filepath"
+	"reflect"
 	"sort"
 	"sync"
 )
 
-// Lockfile contains DockerfileImages and ComposefileImages identified by
-// their filepaths.
+// Lockfile represents the canonical 'docker-lock.json'. It provides
+// the capability to write its contents in JSON format.
 type Lockfile struct {
-	DockerfileImages  map[string][]*DockerfileImage  `json:"dockerfiles"`
-	ComposefileImages map[string][]*ComposefileImage `json:"composefiles"`
+	DockerfileImages  map[string][]*DockerfileImage  `json:"dockerfiles,omitempty"`  // nolint: lll
+	ComposefileImages map[string][]*ComposefileImage `json:"composefiles,omitempty"` // nolint: lll
 }
 
-// NewLockfile creates a Lockfile, first sorting DockerfileImages
-// and ComposefileImages.
+// NewLockfile sorts DockerfileImages and Composefile images and
+// returns a Lockfile.
 func NewLockfile(
-	dIms map[string][]*DockerfileImage,
-	cIms map[string][]*ComposefileImage,
-) *Lockfile {
-	log.Printf("Creating Lockfile from Dockerfile Images '%+v' "+
-		"and Composefile Images '%+v'.", dIms, cIms,
-	)
-
-	l := &Lockfile{DockerfileImages: dIms, ComposefileImages: cIms}
-	l.sortImages()
-
-	log.Printf("Sorted images to make Lockfile '%+v'.", l)
-
-	return l
-}
-
-// sortImages sorts DockerfileImages and ComposefileImages.
-func (l *Lockfile) sortImages() {
-	wg := sync.WaitGroup{}
-
-	wg.Add(1)
-
-	go l.sortDockerfileImages(&wg)
-
-	wg.Add(1)
-
-	go l.sortComposefileImages(&wg)
-
-	wg.Wait()
-}
-
-// sortDockerfileImages sorts by position.
-func (l *Lockfile) sortDockerfileImages(wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	for _, ims := range l.DockerfileImages {
-		wg.Add(1)
-
-		go func(ims []*DockerfileImage) {
-			defer wg.Done()
-
-			sort.Slice(ims, func(i, j int) bool {
-				return ims[i].position < ims[j].position
-			})
-		}(ims)
+	dockerfileImages <-chan *DockerfileImage,
+	composefileImages <-chan *ComposefileImage,
+	done <-chan struct{},
+) (*Lockfile, error) {
+	if dockerfileImages == nil && composefileImages == nil {
+		return &Lockfile{}, nil
 	}
-}
 
-// sortComposefileImages sorts by ServiceName, DockerfilePath, and position,
-// in that order.
-func (l *Lockfile) sortComposefileImages(wg *sync.WaitGroup) {
-	defer wg.Done()
+	var dockerfileImagesWithPath map[string][]*DockerfileImage
 
-	for _, ims := range l.ComposefileImages {
-		wg.Add(1)
+	var composefileImagesWithPath map[string][]*ComposefileImage
 
-		go func(ims []*ComposefileImage) {
-			defer wg.Done()
+	errCh := make(chan error)
 
-			sort.Slice(ims, func(i, j int) bool {
-				switch {
-				case ims[i].ServiceName != ims[j].ServiceName:
-					return ims[i].ServiceName < ims[j].ServiceName
-				case ims[i].DockerfilePath != ims[j].DockerfilePath:
-					return ims[i].DockerfilePath < ims[j].DockerfilePath
-				default:
-					return ims[i].position < ims[j].position
+	var waitGroup sync.WaitGroup
+
+	if dockerfileImages != nil {
+		dockerfileImagesWithPath = map[string][]*DockerfileImage{}
+
+		waitGroup.Add(1)
+
+		go func() {
+			defer waitGroup.Done()
+
+			for dockerfileImage := range dockerfileImages {
+				if dockerfileImage.Err != nil {
+					select {
+					case <-done:
+					case errCh <- dockerfileImage.Err:
+					}
+
+					return
 				}
-			})
-		}(ims)
+
+				dockerfileImage.Path = filepath.ToSlash(dockerfileImage.Path)
+
+				dockerfileImagesWithPath[dockerfileImage.Path] = append(
+					dockerfileImagesWithPath[dockerfileImage.Path],
+					dockerfileImage,
+				)
+			}
+		}()
 	}
+
+	if composefileImages != nil {
+		composefileImagesWithPath = map[string][]*ComposefileImage{}
+
+		waitGroup.Add(1)
+
+		go func() {
+			defer waitGroup.Done()
+
+			for composefileImage := range composefileImages {
+				if composefileImage.Err != nil {
+					select {
+					case <-done:
+					case errCh <- composefileImage.Err:
+					}
+
+					return
+				}
+
+				composefileImage.Path = filepath.ToSlash(composefileImage.Path)
+				composefileImage.DockerfilePath = filepath.ToSlash(
+					composefileImage.DockerfilePath,
+				)
+
+				composefileImagesWithPath[composefileImage.Path] = append(
+					composefileImagesWithPath[composefileImage.Path],
+					composefileImage,
+				)
+			}
+		}()
+	}
+
+	go func() {
+		waitGroup.Wait()
+		close(errCh)
+	}()
+
+	for err := range errCh {
+		return nil, err
+	}
+
+	lockfile := &Lockfile{
+		DockerfileImages:  dockerfileImagesWithPath,
+		ComposefileImages: composefileImagesWithPath,
+	}
+	lockfile.sortImages()
+
+	return lockfile, nil
 }
 
-// Write writes a Lockfile to an io.Writer, formatted as indented json.
-func (l *Lockfile) Write(w io.Writer) error {
+// Write writes the Lockfile in JSON format to an io.Writer.
+func (l *Lockfile) Write(writer io.Writer) error {
+	if writer == nil || reflect.ValueOf(writer).IsNil() {
+		return errors.New("writer cannot be nil")
+	}
+
 	lByt, err := json.MarshalIndent(l, "", "\t")
 	if err != nil {
 		return err
 	}
 
-	log.Printf("Writing Lockfile to '%+v'", w)
-
-	if _, err := w.Write(lByt); err != nil {
+	if _, err := writer.Write(lByt); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (l *Lockfile) sortImages() {
+	var waitGroup sync.WaitGroup
+
+	waitGroup.Add(1)
+
+	go l.sortDockerfileImages(&waitGroup)
+
+	waitGroup.Add(1)
+
+	go l.sortComposefileImages(&waitGroup)
+
+	waitGroup.Wait()
+}
+
+func (l *Lockfile) sortDockerfileImages(waitGroup *sync.WaitGroup) {
+	defer waitGroup.Done()
+
+	for _, images := range l.DockerfileImages {
+		waitGroup.Add(1)
+
+		go func(images []*DockerfileImage) {
+			defer waitGroup.Done()
+
+			sort.Slice(images, func(i, j int) bool {
+				return images[i].Position < images[j].Position
+			})
+		}(images)
+	}
+}
+
+func (l *Lockfile) sortComposefileImages(waitGroup *sync.WaitGroup) {
+	defer waitGroup.Done()
+
+	for _, images := range l.ComposefileImages {
+		waitGroup.Add(1)
+
+		go func(images []*ComposefileImage) {
+			defer waitGroup.Done()
+
+			sort.Slice(images, func(i, j int) bool {
+				switch {
+				case images[i].ServiceName != images[j].ServiceName:
+					return images[i].ServiceName < images[j].ServiceName
+				case images[i].DockerfilePath != images[j].DockerfilePath:
+					return images[i].DockerfilePath < images[j].DockerfilePath
+				default:
+					return images[i].Position < images[j].Position
+				}
+			})
+		}(images)
+	}
 }

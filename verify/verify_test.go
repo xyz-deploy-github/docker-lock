@@ -1,199 +1,149 @@
-package verify
+package verify_test
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync/atomic"
 	"testing"
 
-	"github.com/joho/godotenv"
+	"github.com/safe-waters/docker-lock/cmd"
 	"github.com/safe-waters/docker-lock/registry"
-	"github.com/safe-waters/docker-lock/registry/contrib"
-	"github.com/safe-waters/docker-lock/registry/firstparty"
+	"github.com/safe-waters/docker-lock/verify"
 )
 
-var dTestDir = filepath.Join("testdata", "docker")  //nolint: gochecknoglobals
-var cTestDir = filepath.Join("testdata", "compose") //nolint: gochecknoglobals
-
-type test struct {
-	flags      *Flags
-	shouldFail bool
-}
+var dTestDir = filepath.Join("testdata", "docker")  // nolint: gochecknoglobals
+var cTestDir = filepath.Join("testdata", "compose") // nolint: gochecknoglobals
 
 func TestVerifier(t *testing.T) {
-	tests, err := getTests()
-	if err != nil {
-		t.Fatal(err)
+	t.Parallel()
+
+	tests := []struct {
+		Name       string
+		Flags      *verify.Flags
+		ShouldFail bool
+	}{
+		{
+			Name: "Different Number of Images in Dockerfile",
+			Flags: &verify.Flags{
+				LockfileName: filepath.Join(
+					dTestDir, "diffnumimages", "docker-lock.json",
+				),
+				EnvPath: ".env",
+			},
+			ShouldFail: true,
+		},
+		{
+			Name: "Different Digests in Dockerfile",
+			Flags: &verify.Flags{
+				LockfileName: filepath.Join(
+					dTestDir, "diffdigests", "docker-lock.json",
+				),
+				EnvPath: ".env",
+			},
+			ShouldFail: true,
+		},
+		{
+			Name: "Different Number of Images in Composefile",
+			Flags: &verify.Flags{
+				LockfileName: filepath.Join(
+					cTestDir, "diffnumimages", "docker-lock.json",
+				),
+				EnvPath: ".env",
+			},
+			ShouldFail: true,
+		},
+		{
+			Name: "Different Digests in Composefile",
+			Flags: &verify.Flags{
+				LockfileName: filepath.Join(
+					cTestDir, "diffdigests", "docker-lock.json",
+				),
+				EnvPath: ".env",
+			},
+			ShouldFail: true,
+		},
 	}
 
-	for name, tc := range tests {
-		tc := tc
+	for _, test := range tests {
+		test := test
 
-		t.Run(name, func(t *testing.T) {
-			v, err := NewVerifier(tc.flags)
+		t.Run(test.Name, func(t *testing.T) {
+			t.Parallel()
+
+			var numNetworkCalls uint64
+
+			server := mockServer(t, &numNetworkCalls)
+			defer server.Close()
+
+			client := &registry.HTTPClient{
+				Client:      server.Client(),
+				RegistryURL: server.URL,
+				TokenURL:    server.URL + "?scope=repository%s",
+			}
+
+			verifier, err := cmd.SetupVerifier(client, test.Flags)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := verifyLockfile(v); err != nil && !tc.shouldFail {
+
+			reader, err := os.Open(test.Flags.LockfileName)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer reader.Close()
+
+			if err := verifier.VerifyLockfile(reader); err != nil &&
+				!test.ShouldFail {
 				t.Fatal(err)
 			}
 		})
 	}
 }
 
-// Dockerfile tests
+const busyboxLatestSHA = "bae015c28bc7cdee3b7ef20d35db4299e3068554a769070950229d9f53f58572" // nolint: lll
+const golangLatestSHA = "6cb55c08bbf44793f16e3572bd7d2ae18f7a858f6ae4faa474c0a6eae1174a5d"  // nolint: lll
+const redisLatestSHA = "09c33840ec47815dc0351f1eca3befe741d7105b3e95bc8fdb9a7e4985b9e1e5"   // nolint: lll
 
-// dDiffNumImages ensures an error occurs if
-// there are a different number of images in the Dockerfile
-// referenced in the Lockfile.
-func dDiffNumImages() (*test, error) {
-	lPath := filepath.Join(dTestDir, "diffnumimages", "docker-lock.json")
+func mockServer(t *testing.T, numNetworkCalls *uint64) *httptest.Server {
+	t.Helper()
 
-	flags, err := NewFlags(lPath, defaultConfigPath(), ".env", false, false)
-	if err != nil {
-		return nil, err
-	}
+	server := httptest.NewServer(
+		http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+			switch url := req.URL.String(); {
+			case strings.Contains(url, "scope"):
+				byt := []byte(`{"token": "NOT_USED"}`)
+				_, err := res.Write(byt)
+				if err != nil {
+					t.Fatal(err)
+				}
+			case strings.Contains(url, "manifests"):
+				atomic.AddUint64(numNetworkCalls, 1)
 
-	return &test{flags: flags, shouldFail: true}, nil
-}
+				urlParts := strings.Split(url, "/")
+				repo, ref := urlParts[2], urlParts[len(urlParts)-1]
 
-// dDiffDigests ensures an error occurs if
-// a digest found in the Lockfile differs from the generated
-// digest from the Dockerfile.
-func dDiffDigests() (*test, error) {
-	lPath := filepath.Join(dTestDir, "diffdigests", "docker-lock.json")
+				var digest string
+				switch fmt.Sprintf("%s:%s", repo, ref) {
+				case "busybox:latest":
+					digest = busyboxLatestSHA
+				case "redis:latest":
+					digest = redisLatestSHA
+				case "golang:latest":
+					digest = golangLatestSHA
+				default:
+					digest = fmt.Sprintf(
+						"repo %s with ref %s not defined for testing",
+						repo, ref,
+					)
+				}
 
-	flags, err := NewFlags(lPath, defaultConfigPath(), ".env", false, false)
-	if err != nil {
-		return nil, err
-	}
+				res.Header().Set("Docker-Content-Digest", digest)
+			}
+		}))
 
-	return &test{flags: flags, shouldFail: true}, nil
-}
-
-// dBuildArgs ensures environment variables are used as build args
-func dBuildArgs() (*test, error) {
-	lPath := filepath.Join(dTestDir, "buildargs", "docker-lock.json")
-
-	envPath := filepath.Join(dTestDir, "buildargs", ".env")
-	if err := godotenv.Load(envPath); err != nil {
-		return nil, err
-	}
-
-	flags, err := NewFlags(lPath, defaultConfigPath(), envPath, true, false)
-	if err != nil {
-		return nil, err
-	}
-
-	return &test{flags: flags, shouldFail: false}, nil
-}
-
-// Composefile tests
-
-// cDiffNumImages ensures an error occurs if
-// there are a different number of images in the docker-compose file
-// referenced in the Lockfile.
-func cDiffNumImages() (*test, error) {
-	lPath := filepath.Join(cTestDir, "diffnumimages", "docker-lock.json")
-
-	flags, err := NewFlags(lPath, defaultConfigPath(), ".env", false, false)
-	if err != nil {
-		return nil, err
-	}
-
-	return &test{flags: flags, shouldFail: true}, nil
-}
-
-// cDiffDigests ensures an error occurs if
-// a digest found in the Lockfile differs from the generated
-// digest from the docker-compose file.
-func cDiffDigests() (*test, error) {
-	lPath := filepath.Join(cTestDir, "diffdigests", "docker-lock.json")
-
-	flags, err := NewFlags(lPath, defaultConfigPath(), ".env", false, false)
-	if err != nil {
-		return nil, err
-	}
-
-	return &test{flags: flags, shouldFail: true}, nil
-}
-
-// Helpers
-
-func getTests() (map[string]*test, error) {
-	dBuildArgs, err := dBuildArgs()
-	if err != nil {
-		return nil, err
-	}
-
-	dDiffDigests, err := dDiffDigests()
-	if err != nil {
-		return nil, err
-	}
-
-	dDiffNumImages, err := dDiffNumImages()
-	if err != nil {
-		return nil, err
-	}
-
-	cDiffNumImages, err := cDiffNumImages()
-	if err != nil {
-		return nil, err
-	}
-
-	cDiffDigests, err := cDiffDigests()
-	if err != nil {
-		return nil, err
-	}
-
-	tests := map[string]*test{
-		"dBuildArgs":     dBuildArgs,
-		"dDiffDigests":   dDiffDigests,
-		"dDiffNumImages": dDiffNumImages,
-		"cDiffNumImages": cDiffNumImages,
-		"cDiffDigests":   cDiffDigests,
-	}
-
-	return tests, nil
-}
-
-func verifyLockfile(v *Verifier) error {
-	configPath := defaultConfigPath()
-
-	wm, err := defaultWrapperManager(client, configPath)
-	if err != nil {
-		return err
-	}
-
-	return v.VerifyLockfile(wm)
-}
-
-func defaultWrapperManager(
-	client *registry.HTTPClient,
-	configPath string,
-) (*registry.WrapperManager, error) {
-	dw, err := firstparty.DefaultWrapper(client, configPath)
-	if err != nil {
-		return nil, err
-	}
-
-	wm := registry.NewWrapperManager(dw)
-	wm.Add(firstparty.AllWrappers(client, configPath)...)
-	wm.Add(contrib.AllWrappers(client, configPath)...)
-
-	return wm, nil
-}
-
-func defaultConfigPath() string {
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		cPath := filepath.ToSlash(
-			filepath.Join(homeDir, ".docker", "config.json"),
-		)
-		if _, err := os.Stat(cPath); err != nil {
-			return ""
-		}
-
-		return cPath
-	}
-
-	return ""
+	return server
 }

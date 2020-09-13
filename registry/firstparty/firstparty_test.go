@@ -1,8 +1,6 @@
 package firstparty
 
 import (
-	"io/ioutil"
-	"log"
 	"testing"
 
 	"github.com/safe-waters/docker-lock/registry"
@@ -11,8 +9,6 @@ import (
 // TestDefaultWrapper ensures that the default wrapper
 // is one that can handle images without a prefix.
 func TestDefaultWrapper(t *testing.T) {
-	log.SetOutput(ioutil.Discard)
-
 	client := &registry.HTTPClient{}
 
 	wrapper, err := DefaultWrapper(client, "")

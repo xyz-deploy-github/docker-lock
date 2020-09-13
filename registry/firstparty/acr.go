@@ -42,7 +42,7 @@ type acrConfig struct {
 
 // init registers ACRWrapper for use by docker-lock
 // if ACR_REGISTRY_NAME is set.
-func init() { //nolint: gochecknoinits
+func init() { // nolint: gochecknoinits
 	constructor := func(
 		client *registry.HTTPClient,
 		configPath string,

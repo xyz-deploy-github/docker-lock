@@ -1,5 +1,4 @@
 {
-	"dockerfiles": {},
 	"composefiles": {
 		"testdata/compose/diffnumimages/docker-compose.yml": [
 			{

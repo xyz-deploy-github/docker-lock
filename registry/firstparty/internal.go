@@ -19,7 +19,7 @@ type InternalWrapper struct {
 
 // init registers InternalWrapper for use by docker-lock
 // if INTERNAL_REGISTRY_URL is set.
-func init() { //nolint: gochecknoinits
+func init() { // nolint: gochecknoinits
 	constructor := func(
 		client *registry.HTTPClient,
 		_ string,

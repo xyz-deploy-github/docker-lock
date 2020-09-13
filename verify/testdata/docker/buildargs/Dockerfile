@@ -1,2 +1,0 @@
-ARG dBuildArgs
-FROM ${dBuildArgs}

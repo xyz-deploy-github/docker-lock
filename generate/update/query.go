@@ -12,7 +12,7 @@ import (
 type QueryExecutor struct {
 	WrapperManager *registry.WrapperManager
 	cache          map[parse.Image]*cacheResult
-	mutex          *sync.Mutex
+	mutex          *sync.RWMutex
 }
 
 // IQueryExecutor provides an interface for QueryExecutor's exported methods,
@@ -41,7 +41,7 @@ func NewQueryExecutor(
 		return nil, errors.New("wrapperManager cannot be nil")
 	}
 
-	var mutex sync.Mutex
+	var mutex sync.RWMutex
 
 	cache := map[parse.Image]*cacheResult{}
 
@@ -54,9 +54,21 @@ func NewQueryExecutor(
 
 // QueryRegistry queries the appropriate registry for a digest.
 func (q *QueryExecutor) QueryRegistry(image parse.Image) *QueryResult {
-	q.mutex.Lock()
+	q.mutex.RLock()
 
 	result, ok := q.cache[image]
+	if ok {
+		q.mutex.RUnlock()
+		<-result.done
+
+		return result.queryResult
+	}
+
+	q.mutex.RUnlock()
+
+	q.mutex.Lock()
+
+	result, ok = q.cache[image]
 	if ok {
 		q.mutex.Unlock()
 		<-result.done

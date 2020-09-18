@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/safe-waters/docker-lock/cmd"
+	cmd_generate "github.com/safe-waters/docker-lock/cmd/generate"
 	"github.com/safe-waters/docker-lock/generate"
 	"github.com/safe-waters/docker-lock/generate/parse"
 	"github.com/safe-waters/docker-lock/registry"
@@ -16,7 +16,7 @@ func TestGenerator(t *testing.T) {
 
 	tests := []struct {
 		Name       string
-		Flags      *generate.Flags
+		Flags      *cmd_generate.Flags
 		Expected   *generate.Lockfile
 		ShouldFail bool
 	}{
@@ -94,7 +94,7 @@ func TestGenerator(t *testing.T) {
 				TokenURL:    server.URL + "?scope=repository%s",
 			}
 
-			generator, err := cmd.SetupGenerator(client, test.Flags)
+			generator, err := cmd_generate.SetupGenerator(client, test.Flags)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -139,10 +139,10 @@ func makeFlags(
 	composefileRecursive bool,
 	dockerfileExcludeAll bool,
 	composefileExcludeAll bool,
-) *generate.Flags {
+) *cmd_generate.Flags {
 	t.Helper()
 
-	flags, err := generate.NewFlags(
+	flags, err := cmd_generate.NewFlags(
 		baseDir, lockfileName, configPath, envPath, dockerfilePaths,
 		composefilePaths, dockerfileGlobs, composefileGlobs,
 		dockerfileRecursive, composefileRecursive,

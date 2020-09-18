@@ -12,6 +12,7 @@ import (
 	"os"
 
 	"github.com/safe-waters/docker-lock/cmd"
+	cmd_version "github.com/safe-waters/docker-lock/cmd/version"
 )
 
 func main() {
@@ -19,7 +20,7 @@ func main() {
 		m := map[string]string{
 			"SchemaVersion":    "0.1.0",
 			"Vendor":           "https://github.com/safe-waters/docker-lock",
-			"Version":          cmd.Version,
+			"Version":          cmd_version.Version,
 			"ShortDescription": "Manage Lockfiles",
 		}
 		j, _ := json.Marshal(m)

@@ -1,6 +1,8 @@
-package cmd
+// Package rewrite provides the "rewrite" command.
+package rewrite
 
 import (
+	"io/ioutil"
 	"log"
 
 	"github.com/safe-waters/docker-lock/rewrite"
@@ -106,4 +108,16 @@ func rewriterFlags(cmd *cobra.Command) (*rewrite.Flags, error) { //nolint: dupl
 	}
 
 	return rewrite.NewFlags(lPath, suffix, tmpDir, excludeTags, verbose)
+}
+
+// configureLogger configures a common logger for all subcommands. If
+// verbose is not set, all logs are discarded.
+func configureLogger(verbose bool) {
+	if !verbose {
+		log.SetOutput(ioutil.Discard)
+		return
+	}
+
+	log.SetFlags(log.LstdFlags | log.Lshortfile | log.Lmicroseconds)
+	log.SetPrefix("[DEBUG] ")
 }

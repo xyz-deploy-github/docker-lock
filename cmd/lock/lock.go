@@ -1,4 +1,5 @@
-package cmd
+// Package lock provides the "lock" command.
+package lock
 
 import (
 	"github.com/spf13/cobra"

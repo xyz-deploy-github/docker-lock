@@ -4,6 +4,11 @@ package cmd
 import (
 	"fmt"
 
+	cmd_generate "github.com/safe-waters/docker-lock/cmd/generate"
+	cmd_lock "github.com/safe-waters/docker-lock/cmd/lock"
+	cmd_rewrite "github.com/safe-waters/docker-lock/cmd/rewrite"
+	cmd_verify "github.com/safe-waters/docker-lock/cmd/verify"
+	cmd_version "github.com/safe-waters/docker-lock/cmd/version"
 	"github.com/safe-waters/docker-lock/registry"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -31,20 +36,20 @@ func Execute(client *registry.HTTPClient) error {
 	rootCmd.SilenceUsage = true
 	rootCmd.SilenceErrors = true
 
-	lockCmd := NewLockCmd()
-	versionCmd := NewVersionCmd()
+	lockCmd := cmd_lock.NewLockCmd()
+	versionCmd := cmd_version.NewVersionCmd()
 
-	generateCmd, err := NewGenerateCmd(client)
+	generateCmd, err := cmd_generate.NewGenerateCmd(client)
 	if err != nil {
 		return err
 	}
 
-	verifyCmd, err := NewVerifyCmd(client)
+	verifyCmd, err := cmd_verify.NewVerifyCmd(client)
 	if err != nil {
 		return err
 	}
 
-	rewriteCmd, err := NewRewriteCmd()
+	rewriteCmd, err := cmd_rewrite.NewRewriteCmd()
 	if err != nil {
 		return err
 	}

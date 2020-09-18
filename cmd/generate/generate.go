@@ -1,4 +1,5 @@
-package cmd
+// Package lock provides the "generate" command.
+package generate
 
 import (
 	"errors"
@@ -16,7 +17,7 @@ func NewGenerateCmd(client *registry.HTTPClient) (*cobra.Command, error) {
 		Use:   "generate",
 		Short: "Generate a Lockfile to track image digests",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			flags, err := generatorFlags(cmd)
+			flags, err := parseFlags(cmd)
 			if err != nil {
 				return err
 			}
@@ -65,7 +66,7 @@ func NewGenerateCmd(client *registry.HTTPClient) (*cobra.Command, error) {
 		"Recursively collect docker-compose files",
 	)
 	generateCmd.Flags().String(
-		"config-file", defaultConfigPath(),
+		"config-file", DefaultConfigPath(),
 		"Path to config file for auth credentials",
 	)
 	generateCmd.Flags().StringP(
@@ -90,33 +91,41 @@ func NewGenerateCmd(client *registry.HTTPClient) (*cobra.Command, error) {
 // SetupGenerator creates a Generator configured for docker-lock's cli.
 func SetupGenerator(
 	client *registry.HTTPClient,
-	flags *generate.Flags,
+	flags *Flags,
 ) (*generate.Generator, error) {
 	if flags == nil {
 		return nil, errors.New("flags cannot be nil")
 	}
 
+	if flags.FlagsWithSharedValues == nil {
+		return nil, errors.New("flags with shared values cannot be nil")
+	}
+
+	if flags.DockerfileFlags == nil {
+		return nil, errors.New("dockerfile flags cannot be nil")
+	}
+
+	if flags.ComposefileFlags == nil {
+		return nil, errors.New("composefile flags cannot be nil")
+	}
+
 	var err error
 
-	if err = loadEnv(flags.FlagsWithSharedValues.EnvPath); err != nil {
+	if err = DefaultLoadEnv(flags.FlagsWithSharedValues.EnvPath); err != nil {
 		return nil, err
 	}
 
-	collector, err := generate.DefaultPathCollector(flags)
+	collector, err := DefaultPathCollector(flags)
 	if err != nil {
 		return nil, err
 	}
 
-	parser := generate.DefaultImageParser(flags)
-
-	wrapperManager, err := defaultWrapperManager(
-		client, flags.FlagsWithSharedValues.ConfigPath,
-	)
+	parser, err := DefaultImageParser(flags)
 	if err != nil {
 		return nil, err
 	}
 
-	updater, err := generate.DefaultImageDigestUpdater(wrapperManager)
+	updater, err := DefaultImageDigestUpdater(client, flags)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +138,7 @@ func SetupGenerator(
 	return generator, nil
 }
 
-func generatorFlags(cmd *cobra.Command) (*generate.Flags, error) {
+func parseFlags(cmd *cobra.Command) (*Flags, error) {
 	var (
 		baseDir, lockfileName, configPath, envPath  string
 		dockerfilePaths, composefilePaths           []string
@@ -220,7 +229,7 @@ func generatorFlags(cmd *cobra.Command) (*generate.Flags, error) {
 		composefileExcludeAll = viper.GetBool("exclude-all-composefiles")
 	}
 
-	return generate.NewFlags(
+	return NewFlags(
 		baseDir, lockfileName, configPath, envPath,
 		dockerfilePaths, composefilePaths, dockerfileGlobs, composefileGlobs,
 		dockerfileRecursive, composefileRecursive,

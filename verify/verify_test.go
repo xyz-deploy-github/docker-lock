@@ -10,9 +10,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/safe-waters/docker-lock/cmd"
+	cmd_verify "github.com/safe-waters/docker-lock/cmd/verify"
 	"github.com/safe-waters/docker-lock/registry"
-	"github.com/safe-waters/docker-lock/verify"
 )
 
 var dTestDir = filepath.Join("testdata", "docker")  // nolint: gochecknoglobals
@@ -23,12 +22,12 @@ func TestVerifier(t *testing.T) {
 
 	tests := []struct {
 		Name       string
-		Flags      *verify.Flags
+		Flags      *cmd_verify.Flags
 		ShouldFail bool
 	}{
 		{
 			Name: "Different Number of Images in Dockerfile",
-			Flags: &verify.Flags{
+			Flags: &cmd_verify.Flags{
 				LockfileName: filepath.Join(
 					dTestDir, "diffnumimages", "docker-lock.json",
 				),
@@ -38,7 +37,7 @@ func TestVerifier(t *testing.T) {
 		},
 		{
 			Name: "Different Digests in Dockerfile",
-			Flags: &verify.Flags{
+			Flags: &cmd_verify.Flags{
 				LockfileName: filepath.Join(
 					dTestDir, "diffdigests", "docker-lock.json",
 				),
@@ -48,7 +47,7 @@ func TestVerifier(t *testing.T) {
 		},
 		{
 			Name: "Different Number of Images in Composefile",
-			Flags: &verify.Flags{
+			Flags: &cmd_verify.Flags{
 				LockfileName: filepath.Join(
 					cTestDir, "diffnumimages", "docker-lock.json",
 				),
@@ -58,7 +57,7 @@ func TestVerifier(t *testing.T) {
 		},
 		{
 			Name: "Different Digests in Composefile",
-			Flags: &verify.Flags{
+			Flags: &cmd_verify.Flags{
 				LockfileName: filepath.Join(
 					cTestDir, "diffdigests", "docker-lock.json",
 				),
@@ -85,7 +84,7 @@ func TestVerifier(t *testing.T) {
 				TokenURL:    server.URL + "?scope=repository%s",
 			}
 
-			verifier, err := cmd.SetupVerifier(client, test.Flags)
+			verifier, err := cmd_verify.SetupVerifier(client, test.Flags)
 			if err != nil {
 				t.Fatal(err)
 			}

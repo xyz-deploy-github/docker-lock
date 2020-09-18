@@ -47,11 +47,3 @@ func (i *ImageParser) ParseFiles(
 
 	return
 }
-
-// DefaultImageParser create an ImageParser for Generator.
-func DefaultImageParser(flags *Flags) IImageParser {
-	return &ImageParser{
-		DockerfileImageParser:  &parse.DockerfileImageParser{},
-		ComposefileImageParser: &parse.ComposefileImageParser{},
-	}
-}

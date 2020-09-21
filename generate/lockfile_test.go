@@ -1,8 +1,6 @@
 package generate_test
 
 import (
-	"bytes"
-	"encoding/json"
 	"sync"
 	"testing"
 
@@ -306,66 +304,5 @@ func TestLockfile(t *testing.T) {
 
 			assertDefaultValuesForOmittedJSONReadFromLockfile(t, got)
 		})
-	}
-}
-
-func assertDefaultValuesForOmittedJSONReadFromLockfile(
-	t *testing.T,
-	got *generate.Lockfile,
-) {
-	t.Helper()
-
-	var buf bytes.Buffer
-	if err := got.Write(&buf); err != nil {
-		t.Fatal(err)
-	}
-
-	var readInLockfile generate.Lockfile
-	if err := json.Unmarshal(buf.Bytes(), &readInLockfile); err != nil {
-		t.Fatal(err)
-	}
-
-	for _, images := range readInLockfile.DockerfileImages {
-		for _, image := range images {
-			if image.Position != 0 {
-				t.Fatal(
-					"Written output contains unexpected key 'Position'",
-				)
-			}
-
-			if image.Path != "" {
-				t.Fatal(
-					"Written output contains unexpected key 'Path'",
-				)
-			}
-
-			if image.Err != nil {
-				t.Fatal(
-					"Written output contains unexpected key 'Err'",
-				)
-			}
-		}
-	}
-
-	for _, images := range readInLockfile.ComposefileImages {
-		for _, image := range images {
-			if image.Position != 0 {
-				t.Fatal(
-					"Written output contains unexpected key 'Position'",
-				)
-			}
-
-			if image.Path != "" {
-				t.Fatal(
-					"Written output contains unexpected key 'Path'",
-				)
-			}
-
-			if image.Err != nil {
-				t.Fatal(
-					"Written output contains unexpected key 'Err'",
-				)
-			}
-		}
 	}
 }

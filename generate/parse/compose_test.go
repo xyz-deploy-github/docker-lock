@@ -3,7 +3,6 @@ package parse_test
 import (
 	"os"
 	"path/filepath"
-	"sort"
 	"testing"
 
 	"github.com/safe-waters/docker-lock/generate/collect"
@@ -483,24 +482,4 @@ services:
 			assertComposefileImagesEqual(t, test.Expected, got)
 		})
 	}
-}
-
-func sortComposefileImageParserResults(
-	t *testing.T,
-	results []*parse.ComposefileImage,
-) {
-	t.Helper()
-
-	sort.Slice(results, func(i, j int) bool {
-		switch {
-		case results[i].Path != results[j].Path:
-			return results[i].Path < results[j].Path
-		case results[i].ServiceName != results[j].ServiceName:
-			return results[i].ServiceName < results[j].ServiceName
-		case results[i].DockerfilePath != results[j].DockerfilePath:
-			return results[i].DockerfilePath < results[j].DockerfilePath
-		default:
-			return results[i].Position < results[j].Position
-		}
-	})
 }

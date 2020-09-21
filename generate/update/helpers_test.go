@@ -5,17 +5,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
 
 	"github.com/safe-waters/docker-lock/generate/parse"
-	"github.com/safe-waters/docker-lock/registry"
-	"github.com/safe-waters/docker-lock/registry/contrib"
-	"github.com/safe-waters/docker-lock/registry/firstparty"
 )
 
 const busyboxLatestSHA = "bae015c28bc7cdee3b7ef20d35db4299e3068554a769070950229d9f53f58572" // nolint: lll
@@ -83,6 +78,14 @@ func assertComposefileImagesEqual(
 			jsonPrettyPrint(t, expectedWithoutStructTags),
 			jsonPrettyPrint(t, gotWithoutStructTags),
 		)
+	}
+}
+
+func assertNumNetworkCallsEqual(t *testing.T, expected uint64, got uint64) {
+	t.Helper()
+
+	if expected != got {
+		t.Fatalf("expected %d network calls, got %d", expected, got)
 	}
 }
 
@@ -183,51 +186,4 @@ func jsonPrettyPrint(t *testing.T, i interface{}) string {
 	}
 
 	return string(byt)
-}
-
-func assertNumNetworkCallsEqual(t *testing.T, expected uint64, got uint64) {
-	t.Helper()
-
-	if expected != got {
-		t.Fatalf("expected %d network calls, got %d", expected, got)
-	}
-}
-
-func defaultWrapperManager(
-	t *testing.T,
-	server *httptest.Server,
-) *registry.WrapperManager {
-	t.Helper()
-
-	client := &registry.HTTPClient{
-		Client:      server.Client(),
-		RegistryURL: server.URL,
-		TokenURL:    server.URL + "?scope=repository%s",
-	}
-	configPath := defaultConfigPath()
-
-	defaultWrapper, err := firstparty.DefaultWrapper(client, configPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	wrapperManager := registry.NewWrapperManager(defaultWrapper)
-	wrapperManager.Add(firstparty.AllWrappers(client, configPath)...)
-	wrapperManager.Add(contrib.AllWrappers(client, configPath)...)
-
-	return wrapperManager
-}
-
-func defaultConfigPath() string {
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		configPath := filepath.Join(homeDir, ".docker", "config.json")
-
-		if _, err := os.Stat(configPath); err != nil {
-			return ""
-		}
-
-		return configPath
-	}
-
-	return ""
 }

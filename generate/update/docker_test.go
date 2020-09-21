@@ -3,8 +3,10 @@ package update_test
 import (
 	"testing"
 
+	cmd_generate "github.com/safe-waters/docker-lock/cmd/generate"
 	"github.com/safe-waters/docker-lock/generate/parse"
 	"github.com/safe-waters/docker-lock/generate/update"
+	"github.com/safe-waters/docker-lock/registry"
 )
 
 func TestDockerfileImageDigestUpdater(t *testing.T) {
@@ -64,9 +66,8 @@ func TestDockerfileImageDigestUpdater(t *testing.T) {
 			DockerfileImages: []*parse.DockerfileImage{
 				{
 					Image: &parse.Image{
-						Name:   "busybox",
-						Tag:    "latest",
-						Digest: busyboxLatestSHA,
+						Name: "busybox",
+						Tag:  "latest",
 					},
 				},
 				{
@@ -107,7 +108,18 @@ func TestDockerfileImageDigestUpdater(t *testing.T) {
 			server := mockServer(t, &gotNumNetworkCalls)
 			defer server.Close()
 
-			wrapperManager := defaultWrapperManager(t, server)
+			client := &registry.HTTPClient{
+				Client:      server.Client(),
+				RegistryURL: server.URL,
+				TokenURL:    server.URL + "?scope=repository%s",
+			}
+
+			wrapperManager, err := cmd_generate.DefaultWrapperManager(
+				client, cmd_generate.DefaultConfigPath(),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			queryExecutor, err := update.NewQueryExecutor(wrapperManager)
 			if err != nil {

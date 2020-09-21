@@ -3,7 +3,6 @@ package parse_test
 import (
 	"os"
 	"path/filepath"
-	"sort"
 	"testing"
 
 	"github.com/safe-waters/docker-lock/generate/collect"
@@ -45,6 +44,65 @@ FROM node
 				{
 					Image:    &parse.Image{Name: "node", Tag: "latest"},
 					Position: 2,
+					Path:     "Dockerfile",
+				},
+			},
+		},
+		{
+			Name:            "Digest",
+			DockerfilePaths: []string{"Dockerfile"},
+			DockerfileContents: [][]byte{
+				[]byte(`
+FROM ubuntu@sha256:bae015c28bc7
+`),
+			},
+			Expected: []*parse.DockerfileImage{
+				{
+					Image: &parse.Image{
+						Name:   "ubuntu",
+						Digest: "bae015c28bc7",
+					},
+					Position: 0,
+					Path:     "Dockerfile",
+				},
+			},
+		},
+		{
+			Name:            "Tag And Digest",
+			DockerfilePaths: []string{"Dockerfile"},
+			DockerfileContents: [][]byte{
+				[]byte(`
+FROM ubuntu:bionic@sha256:bae015c28bc7
+`),
+			},
+			Expected: []*parse.DockerfileImage{
+				{
+					Image: &parse.Image{
+						Name:   "ubuntu",
+						Tag:    "bionic",
+						Digest: "bae015c28bc7",
+					},
+					Position: 0,
+					Path:     "Dockerfile",
+				},
+			},
+		},
+		{
+			Name:            "Port, Tag, And Digest",
+			DockerfilePaths: []string{"Dockerfile"},
+			DockerfileContents: [][]byte{
+				[]byte(`
+FROM localhost:5000/ubuntu:bionic@sha256:bae015c28bc7
+`),
+			},
+			Expected: []*parse.DockerfileImage{
+				{
+					Image: &parse.Image{
+						Name:   "localhost:5000/ubuntu",
+						Tag:    "bionic",
+						Digest: "bae015c28bc7",
+					},
+					Position: 0,
 					Path:     "Dockerfile",
 				},
 			},
@@ -185,20 +243,4 @@ FROM busybox
 			assertDockerfileImagesEqual(t, test.Expected, got)
 		})
 	}
-}
-
-func sortDockerfileImageParserResults(
-	t *testing.T,
-	results []*parse.DockerfileImage,
-) {
-	t.Helper()
-
-	sort.Slice(results, func(i, j int) bool {
-		switch {
-		case results[i].Path != results[j].Path:
-			return results[i].Path < results[j].Path
-		default:
-			return results[i].Position < results[j].Position
-		}
-	})
 }

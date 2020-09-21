@@ -2,7 +2,6 @@
 package generate
 
 import (
-	"errors"
 	"os"
 
 	"github.com/safe-waters/docker-lock/generate"
@@ -93,20 +92,8 @@ func SetupGenerator(
 	client *registry.HTTPClient,
 	flags *Flags,
 ) (*generate.Generator, error) {
-	if flags == nil {
-		return nil, errors.New("flags cannot be nil")
-	}
-
-	if flags.FlagsWithSharedValues == nil {
-		return nil, errors.New("flags with shared values cannot be nil")
-	}
-
-	if flags.DockerfileFlags == nil {
-		return nil, errors.New("dockerfile flags cannot be nil")
-	}
-
-	if flags.ComposefileFlags == nil {
-		return nil, errors.New("composefile flags cannot be nil")
+	if err := ensureFlagsNotNil(flags); err != nil {
+		return nil, err
 	}
 
 	var err error

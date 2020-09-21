@@ -1,6 +1,7 @@
 package generate_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,7 +11,9 @@ import (
 	"sync/atomic"
 	"testing"
 
+	cmd_generate "github.com/safe-waters/docker-lock/cmd/generate"
 	"github.com/safe-waters/docker-lock/generate"
+	"github.com/safe-waters/docker-lock/generate/collect"
 	"github.com/safe-waters/docker-lock/generate/parse"
 )
 
@@ -60,6 +63,160 @@ func assertLockfilesEqual(
 			jsonPrettyPrint(t, expectedWithoutStructTags),
 			jsonPrettyPrint(t, gotWithoutStructTags),
 		)
+	}
+}
+
+func assertDefaultValuesForOmittedJSONReadFromLockfile(
+	t *testing.T,
+	got *generate.Lockfile,
+) {
+	t.Helper()
+
+	var buf bytes.Buffer
+	if err := got.Write(&buf); err != nil {
+		t.Fatal(err)
+	}
+
+	var readInLockfile generate.Lockfile
+	if err := json.Unmarshal(buf.Bytes(), &readInLockfile); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, images := range readInLockfile.DockerfileImages {
+		for _, image := range images {
+			if image.Position != 0 {
+				t.Fatal(
+					"Written output contains unexpected key 'Position'",
+				)
+			}
+
+			if image.Path != "" {
+				t.Fatal(
+					"Written output contains unexpected key 'Path'",
+				)
+			}
+
+			if image.Err != nil {
+				t.Fatal(
+					"Written output contains unexpected key 'Err'",
+				)
+			}
+		}
+	}
+
+	for _, images := range readInLockfile.ComposefileImages {
+		for _, image := range images {
+			if image.Position != 0 {
+				t.Fatal(
+					"Written output contains unexpected key 'Position'",
+				)
+			}
+
+			if image.Path != "" {
+				t.Fatal(
+					"Written output contains unexpected key 'Path'",
+				)
+			}
+
+			if image.Err != nil {
+				t.Fatal(
+					"Written output contains unexpected key 'Err'",
+				)
+			}
+		}
+	}
+}
+
+func assertConcretePathCollector(
+	t *testing.T,
+	pathCollector *generate.PathCollector,
+	done <-chan struct{},
+) {
+	t.Helper()
+
+	dockerfilePaths, composefilePaths := pathCollector.CollectPaths(done)
+
+	if pathCollector.DockerfileCollector != nil && dockerfilePaths == nil {
+		t.Fatal("expected non nil dockerfilePaths")
+	}
+
+	if pathCollector.DockerfileCollector == nil && dockerfilePaths != nil {
+		t.Fatal("expected nil dockerfilePaths")
+	}
+
+	if pathCollector.ComposefileCollector != nil && composefilePaths == nil {
+		t.Fatal("expected non nil composefilePaths")
+	}
+
+	if pathCollector.ComposefileCollector == nil && composefilePaths != nil {
+		t.Fatal("expected nil composefilePaths")
+	}
+}
+
+func assertConcreteImageParser(
+	t *testing.T,
+	imageParser *generate.ImageParser,
+	done <-chan struct{}) {
+	t.Helper()
+
+	var dockerfilePaths chan *collect.PathResult
+
+	var composefilePaths chan *collect.PathResult
+
+	dockerfileImages, composefileImages := imageParser.ParseFiles(
+		dockerfilePaths, composefilePaths, done,
+	)
+
+	if imageParser.DockerfileImageParser != nil && dockerfileImages == nil {
+		t.Fatal("expected non nil dockerfileImages")
+	}
+
+	if imageParser.DockerfileImageParser == nil && dockerfileImages != nil {
+		t.Fatal("expected nil dockerfileImages")
+	}
+
+	if imageParser.ComposefileImageParser != nil && composefileImages == nil {
+		t.Fatal("expected non nil composefileImages")
+	}
+
+	if imageParser.ComposefileImageParser == nil && composefileImages != nil {
+		t.Fatal("expected nil composefileImages")
+	}
+}
+
+func assertConcreteImageDigestUpdater(
+	t *testing.T,
+	updater *generate.ImageDigestUpdater,
+	done <-chan struct{},
+) {
+	t.Helper()
+
+	var dockerfileImages chan *parse.DockerfileImage
+
+	var composefileImages chan *parse.ComposefileImage
+
+	updatedDockerfileImages, updatedComposefileImages := updater.UpdateDigests( // nolint: lll
+		dockerfileImages, composefileImages, done,
+	)
+
+	if updater.DockerfileImageDigestUpdater != nil &&
+		updatedDockerfileImages == nil {
+		t.Fatal("expected non nil updatedDockerfileImages")
+	}
+
+	if updater.DockerfileImageDigestUpdater == nil &&
+		updatedDockerfileImages != nil {
+		t.Fatal("expected nil updatedDockerfileImages")
+	}
+
+	if updater.ComposefileImageDigestUpdater != nil &&
+		updatedComposefileImages == nil {
+		t.Fatal("expected non nil updatedComposefileImages")
+	}
+
+	if updater.ComposefileImageDigestUpdater == nil &&
+		updatedComposefileImages != nil {
+		t.Fatal("expected nil updatedComposefileImages")
 	}
 }
 
@@ -186,4 +343,35 @@ func jsonPrettyPrint(t *testing.T, i interface{}) string {
 	}
 
 	return string(byt)
+}
+
+// nolint: unparam
+func makeFlags(
+	t *testing.T,
+	baseDir string,
+	lockfileName string,
+	configPath string,
+	envPath string,
+	dockerfilePaths []string,
+	composefilePaths []string,
+	dockerfileGlobs []string,
+	composefileGlobs []string,
+	dockerfileRecursive bool,
+	composefileRecursive bool,
+	dockerfileExcludeAll bool,
+	composefileExcludeAll bool,
+) *cmd_generate.Flags {
+	t.Helper()
+
+	flags, err := cmd_generate.NewFlags(
+		baseDir, lockfileName, configPath, envPath, dockerfilePaths,
+		composefilePaths, dockerfileGlobs, composefileGlobs,
+		dockerfileRecursive, composefileRecursive,
+		dockerfileExcludeAll, composefileExcludeAll,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return flags
 }

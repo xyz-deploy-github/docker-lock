@@ -8,8 +8,8 @@ import (
 // ImageDigestUpdater contains ImageDigestUpdaters for
 // DockerfileImages and ComposefileImages.
 type ImageDigestUpdater struct {
-	DockerImageUpdater  *update.DockerfileImageDigestUpdater
-	ComposeImageUpdater *update.ComposefileImageDigestUpdater
+	DockerfileImageDigestUpdater  *update.DockerfileImageDigestUpdater
+	ComposefileImageDigestUpdater *update.ComposefileImageDigestUpdater
 }
 
 // IImageDigestUpdater provides an interface for ImageDigestUpdater's exported
@@ -34,14 +34,14 @@ func (i *ImageDigestUpdater) UpdateDigests(
 	updatedDockerfileImages <-chan *parse.DockerfileImage,
 	updatedComposefileImages <-chan *parse.ComposefileImage,
 ) {
-	if i.DockerImageUpdater != nil {
-		updatedDockerfileImages = i.DockerImageUpdater.UpdateDigests(
+	if i.DockerfileImageDigestUpdater != nil {
+		updatedDockerfileImages = i.DockerfileImageDigestUpdater.UpdateDigests(
 			dockerfileImages, done,
 		)
 	}
 
-	if i.ComposeImageUpdater != nil {
-		updatedComposefileImages = i.ComposeImageUpdater.UpdateDigests(
+	if i.ComposefileImageDigestUpdater != nil {
+		updatedComposefileImages = i.ComposefileImageDigestUpdater.UpdateDigests( // nolint: lll
 			composefileImages, done,
 		)
 	}

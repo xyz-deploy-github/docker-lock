@@ -69,7 +69,79 @@ func TestGenerator(t *testing.T) {
 			},
 		},
 		{
-			Name: "Fail Compose Build",
+			Name: "Exclude Dockerfiles",
+			Flags: makeFlags(t, "testdata/success", "docker-lock.json", "",
+				".env", []string{"nocompose/Dockerfile"}, nil, nil, nil, false,
+				false, true, false,
+			),
+			Expected: &generate.Lockfile{
+				DockerfileImages: nil,
+				ComposefileImages: map[string][]*parse.ComposefileImage{
+					"testdata/success/docker-compose.yml": {
+						{
+							Image: &parse.Image{
+								Name:   "redis",
+								Tag:    "latest",
+								Digest: redisLatestSHA,
+							},
+							DockerfilePath: "testdata/success/database/Dockerfile", // nolint: lll
+							ServiceName:    "database",
+						},
+						{
+							Image: &parse.Image{
+								Name:   "golang",
+								Tag:    "latest",
+								Digest: golangLatestSHA,
+							},
+							ServiceName: "web",
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "Exclude Composefiles",
+			Flags: makeFlags(t, "testdata/success", "docker-lock.json", "",
+				".env", []string{"nocompose/Dockerfile"},
+				[]string{"docker-compose.yml"}, nil, nil, false,
+				false, false, true,
+			),
+			Expected: &generate.Lockfile{
+				DockerfileImages: map[string][]*parse.DockerfileImage{
+					"testdata/success/nocompose/Dockerfile": {
+						{
+							Image: &parse.Image{
+								Name:   "redis",
+								Tag:    "latest",
+								Digest: redisLatestSHA,
+							},
+						},
+						{
+							Image: &parse.Image{
+								Name:   "golang",
+								Tag:    "latest",
+								Digest: golangLatestSHA,
+							},
+						},
+					},
+				},
+				ComposefileImages: nil,
+			},
+		},
+		{
+			Name: "Exclude All",
+			Flags: makeFlags(t, "testdata/success", "docker-lock.json", "",
+				".env", []string{"nocompose/Dockerfile"},
+				[]string{"docker-compose.yml"}, nil, nil, false,
+				false, true, true,
+			),
+			Expected: &generate.Lockfile{
+				DockerfileImages:  nil,
+				ComposefileImages: nil,
+			},
+		},
+		{
+			Name: "Service Typo",
 			Flags: makeFlags(t, "testdata/fail", "docker-lock.json", "", ".env",
 				nil, nil, nil, nil, false, false, false, false,
 			),
@@ -123,34 +195,4 @@ func TestGenerator(t *testing.T) {
 			assertLockfilesEqual(t, test.Expected, &got)
 		})
 	}
-}
-
-func makeFlags(
-	t *testing.T,
-	baseDir string,
-	lockfileName string,
-	configPath string,
-	envPath string,
-	dockerfilePaths []string,
-	composefilePaths []string,
-	dockerfileGlobs []string,
-	composefileGlobs []string,
-	dockerfileRecursive bool,
-	composefileRecursive bool,
-	dockerfileExcludeAll bool,
-	composefileExcludeAll bool,
-) *cmd_generate.Flags {
-	t.Helper()
-
-	flags, err := cmd_generate.NewFlags(
-		baseDir, lockfileName, configPath, envPath, dockerfilePaths,
-		composefilePaths, dockerfileGlobs, composefileGlobs,
-		dockerfileRecursive, composefileRecursive,
-		dockerfileExcludeAll, composefileExcludeAll,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	return flags
 }

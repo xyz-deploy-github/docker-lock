@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/safe-waters/docker-lock/generate/parse"
@@ -25,6 +26,54 @@ type ComposefileImageWithoutStructTags struct {
 	ServiceName    string
 	Path           string
 	Err            error
+}
+
+func assertDockerfileImagesEqual(
+	t *testing.T,
+	expected []*parse.DockerfileImage,
+	got []*parse.DockerfileImage,
+) {
+	t.Helper()
+
+	if !reflect.DeepEqual(expected, got) {
+		expectedWithoutStructTags := copyDockerfileImagesToDockerfileImagesWithoutStructTags( // nolint: lll
+			t, expected,
+		)
+
+		gotWithoutStructTags := copyDockerfileImagesToDockerfileImagesWithoutStructTags( // nolint: lll
+			t, got,
+		)
+
+		t.Fatalf(
+			"expected %+v, got %+v",
+			jsonPrettyPrint(t, expectedWithoutStructTags),
+			jsonPrettyPrint(t, gotWithoutStructTags),
+		)
+	}
+}
+
+func assertComposefileImagesEqual(
+	t *testing.T,
+	expected []*parse.ComposefileImage,
+	got []*parse.ComposefileImage,
+) {
+	t.Helper()
+
+	if !reflect.DeepEqual(expected, got) {
+		expectedWithoutStructTags := copyComposefileImagesToComposefileImagesWithoutStructTags( // nolint: lll
+			t, expected,
+		)
+
+		gotWithoutStructTags := copyComposefileImagesToComposefileImagesWithoutStructTags( // nolint: lll
+			t, got,
+		)
+
+		t.Fatalf(
+			"expected %+v, got %+v",
+			jsonPrettyPrint(t, expectedWithoutStructTags),
+			jsonPrettyPrint(t, gotWithoutStructTags),
+		)
+	}
 }
 
 func writeFilesToTempDir(
@@ -93,54 +142,6 @@ func makeParentDirsInTempDirFromFilePaths(
 	}
 }
 
-func assertDockerfileImagesEqual(
-	t *testing.T,
-	expected []*parse.DockerfileImage,
-	got []*parse.DockerfileImage,
-) {
-	t.Helper()
-
-	if !reflect.DeepEqual(expected, got) {
-		expectedWithoutStructTags := copyDockerfileImagesToDockerfileImagesWithoutStructTags( // nolint: lll
-			t, expected,
-		)
-
-		gotWithoutStructTags := copyDockerfileImagesToDockerfileImagesWithoutStructTags( // nolint: lll
-			t, got,
-		)
-
-		t.Fatalf(
-			"expected %+v, got %+v",
-			jsonPrettyPrint(t, expectedWithoutStructTags),
-			jsonPrettyPrint(t, gotWithoutStructTags),
-		)
-	}
-}
-
-func assertComposefileImagesEqual(
-	t *testing.T,
-	expected []*parse.ComposefileImage,
-	got []*parse.ComposefileImage,
-) {
-	t.Helper()
-
-	if !reflect.DeepEqual(expected, got) {
-		expectedWithoutStructTags := copyComposefileImagesToComposefileImagesWithoutStructTags( // nolint: lll
-			t, expected,
-		)
-
-		gotWithoutStructTags := copyComposefileImagesToComposefileImagesWithoutStructTags( // nolint: lll
-			t, got,
-		)
-
-		t.Fatalf(
-			"expected %+v, got %+v",
-			jsonPrettyPrint(t, expectedWithoutStructTags),
-			jsonPrettyPrint(t, gotWithoutStructTags),
-		)
-	}
-}
-
 func copyDockerfileImagesToDockerfileImagesWithoutStructTags(
 	t *testing.T,
 	dockerfileImages []*parse.DockerfileImage,
@@ -198,4 +199,40 @@ func jsonPrettyPrint(t *testing.T, i interface{}) string {
 	}
 
 	return string(byt)
+}
+
+func sortDockerfileImageParserResults(
+	t *testing.T,
+	results []*parse.DockerfileImage,
+) {
+	t.Helper()
+
+	sort.Slice(results, func(i, j int) bool {
+		switch {
+		case results[i].Path != results[j].Path:
+			return results[i].Path < results[j].Path
+		default:
+			return results[i].Position < results[j].Position
+		}
+	})
+}
+
+func sortComposefileImageParserResults(
+	t *testing.T,
+	results []*parse.ComposefileImage,
+) {
+	t.Helper()
+
+	sort.Slice(results, func(i, j int) bool {
+		switch {
+		case results[i].Path != results[j].Path:
+			return results[i].Path < results[j].Path
+		case results[i].ServiceName != results[j].ServiceName:
+			return results[i].ServiceName < results[j].ServiceName
+		case results[i].DockerfilePath != results[j].DockerfilePath:
+			return results[i].DockerfilePath < results[j].DockerfilePath
+		default:
+			return results[i].Position < results[j].Position
+		}
+	})
 }

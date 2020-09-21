@@ -17,16 +17,8 @@ import (
 
 // DefaultPathCollector creates a PathCollector for Generator.
 func DefaultPathCollector(flags *Flags) (generate.IPathCollector, error) {
-	if flags == nil {
-		return nil, errors.New("flags cannot be nil")
-	}
-
-	if flags.DockerfileFlags == nil {
-		return nil, errors.New("flags.DockerfileFlags cannot be nil")
-	}
-
-	if flags.ComposefileFlags == nil {
-		return nil, errors.New("flags.ComposefileFlags cannot be nil")
+	if err := ensureFlagsNotNil(flags); err != nil {
+		return nil, err
 	}
 
 	var dockerfileCollector *collect.PathCollector
@@ -66,16 +58,8 @@ func DefaultPathCollector(flags *Flags) (generate.IPathCollector, error) {
 
 // DefaultImageParser creates an ImageParser for Generator.
 func DefaultImageParser(flags *Flags) (generate.IImageParser, error) {
-	if flags == nil {
-		return nil, errors.New("flags cannot be nil")
-	}
-
-	if flags.DockerfileFlags == nil {
-		return nil, errors.New("flags.DockerfileFlags cannot be nil")
-	}
-
-	if flags.ComposefileFlags == nil {
-		return nil, errors.New("flags.ComposefileFlags cannot be nil")
+	if err := ensureFlagsNotNil(flags); err != nil {
+		return nil, err
 	}
 
 	var dockerfileImageParser *parse.DockerfileImageParser
@@ -102,16 +86,8 @@ func DefaultImageDigestUpdater(
 	client *registry.HTTPClient,
 	flags *Flags,
 ) (generate.IImageDigestUpdater, error) {
-	if flags == nil {
-		return nil, errors.New("flags cannot be nil")
-	}
-
-	if flags.DockerfileFlags == nil {
-		return nil, errors.New("flags.DockerfileFlags cannot be nil")
-	}
-
-	if flags.ComposefileFlags == nil {
-		return nil, errors.New("flags.ComposefileFlags cannot be nil")
+	if err := ensureFlagsNotNil(flags); err != nil {
+		return nil, err
 	}
 
 	var dockerfileImageDigestUpdater *update.DockerfileImageDigestUpdater
@@ -152,8 +128,8 @@ func DefaultImageDigestUpdater(
 	}
 
 	return &generate.ImageDigestUpdater{
-		DockerImageUpdater:  dockerfileImageDigestUpdater,
-		ComposeImageUpdater: composefileImageDigestUpdater,
+		DockerfileImageDigestUpdater:  dockerfileImageDigestUpdater,
+		ComposefileImageDigestUpdater: composefileImageDigestUpdater,
 	}, nil
 }
 
@@ -161,12 +137,12 @@ func DefaultImageDigestUpdater(
 // for all platforms.
 func DefaultConfigPath() string {
 	if homeDir, err := os.UserHomeDir(); err == nil {
-		cPath := filepath.Join(homeDir, ".docker", "config.json")
-		if _, err := os.Stat(cPath); err != nil {
+		configPath := filepath.Join(homeDir, ".docker", "config.json")
+		if _, err := os.Stat(configPath); err != nil {
 			return ""
 		}
 
-		return cPath
+		return configPath
 	}
 
 	return ""
@@ -178,16 +154,16 @@ func DefaultWrapperManager(
 	client *registry.HTTPClient,
 	configPath string,
 ) (*registry.WrapperManager, error) {
-	dw, err := firstparty.DefaultWrapper(client, configPath)
+	defaultWrapper, err := firstparty.DefaultWrapper(client, configPath)
 	if err != nil {
 		return nil, err
 	}
 
-	wm := registry.NewWrapperManager(dw)
-	wm.Add(firstparty.AllWrappers(client, configPath)...)
-	wm.Add(contrib.AllWrappers(client, configPath)...)
+	wrapperManager := registry.NewWrapperManager(defaultWrapper)
+	wrapperManager.Add(firstparty.AllWrappers(client, configPath)...)
+	wrapperManager.Add(contrib.AllWrappers(client, configPath)...)
 
-	return wm, nil
+	return wrapperManager, nil
 }
 
 // DefaultLoadEnv loads .env files based on the path. If a path does not
@@ -202,4 +178,24 @@ func DefaultLoadEnv(path string) error {
 	}
 
 	return godotenv.Load(path)
+}
+
+func ensureFlagsNotNil(flags *Flags) error {
+	if flags == nil {
+		return errors.New("flags cannot be nil")
+	}
+
+	if flags.DockerfileFlags == nil {
+		return errors.New("flags.DockerfileFlags cannot be nil")
+	}
+
+	if flags.ComposefileFlags == nil {
+		return errors.New("flags.ComposefileFlags cannot be nil")
+	}
+
+	if flags.FlagsWithSharedValues == nil {
+		return errors.New("flags.FlagsWithSharedValues cannot be nil")
+	}
+
+	return nil
 }

@@ -2,7 +2,6 @@ package generate_test
 
 import (
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/safe-waters/docker-lock/cmd/generate"
@@ -279,20 +278,5 @@ func TestFlags(t *testing.T) {
 
 			assertFlagsEqual(t, test.Expected, got)
 		})
-	}
-}
-
-func assertFlagsEqual(
-	t *testing.T,
-	expected interface{},
-	got interface{},
-) {
-	t.Helper()
-
-	if !reflect.DeepEqual(expected, got) {
-		t.Fatalf(
-			"expected %+v, got %+v",
-			jsonPrettyPrint(t, expected), jsonPrettyPrint(t, got),
-		)
 	}
 }

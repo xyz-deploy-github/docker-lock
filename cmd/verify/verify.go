@@ -31,7 +31,7 @@ func NewVerifyCmd(client *registry.HTTPClient) (*cobra.Command, error) {
 				return err
 			}
 
-			reader, err := os.Open(flags.LockfileName)
+			reader, err := os.Open(flags.LockfilePath)
 			if err != nil {
 				return err
 			}
@@ -41,8 +41,8 @@ func NewVerifyCmd(client *registry.HTTPClient) (*cobra.Command, error) {
 		},
 	}
 	verifyCmd.Flags().StringP(
-		"lockfile-name", "l", "docker-lock.json",
-		"Lockfile name to read from in current working directory",
+		"lockfile-path", "l", "docker-lock.json",
+		"Lockfile path to read from",
 	)
 	verifyCmd.Flags().String(
 		"config-file", cmd_generate.DefaultConfigPath(),
@@ -72,7 +72,7 @@ func SetupVerifier(
 		return nil, err
 	}
 
-	existingLByt, err := ioutil.ReadFile(flags.LockfileName)
+	existingLByt, err := ioutil.ReadFile(flags.LockfilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -116,13 +116,13 @@ func SetupVerifier(
 
 func parseFlags(cmd *cobra.Command) (*Flags, error) { // nolint: dupl
 	var (
-		lockfileName, configPath, envPath string
+		lockfilePath, configPath, envPath string
 		err                               error
 	)
 
 	switch viper.ConfigFileUsed() {
 	case "":
-		lockfileName, err = cmd.Flags().GetString("lockfile-name")
+		lockfilePath, err = cmd.Flags().GetString("lockfile-path")
 		if err != nil {
 			return nil, err
 		}
@@ -137,13 +137,13 @@ func parseFlags(cmd *cobra.Command) (*Flags, error) { // nolint: dupl
 			return nil, err
 		}
 	default:
-		lockfileName = viper.GetString("lockfile-name")
+		lockfilePath = viper.GetString("lockfile-path")
 		configPath = viper.GetString("config-file")
 		envPath = viper.GetString("env-file")
 	}
 
 	return &Flags{
-		LockfileName: lockfileName,
+		LockfilePath: lockfilePath,
 		ConfigPath:   configPath,
 		EnvPath:      envPath,
 	}, nil

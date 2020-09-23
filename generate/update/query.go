@@ -91,10 +91,15 @@ func (q *QueryExecutor) QueryRegistry(image parse.Image) *QueryResult {
 
 	digest, err := wrapper.Digest(image.Name, image.Tag)
 
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
 	q.cache[image].queryResult.Digest = digest
 	q.cache[image].queryResult.Err = err
 
 	close(q.cache[image].done)
 
-	return q.cache[image].queryResult
+	updatedResult := q.cache[image].queryResult
+
+	return updatedResult
 }

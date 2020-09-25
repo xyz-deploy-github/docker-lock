@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/safe-waters/docker-lock/generate/collect"
 	"github.com/safe-waters/docker-lock/generate/parse"
 )
 
@@ -444,14 +443,21 @@ services:
 				t, tempDir, test.ComposefilePaths, test.ComposefileContents,
 			)
 
-			pathsToParseCh := make(chan *collect.PathResult, len(pathsToParse))
+			pathsToParseCh := make(chan string, len(pathsToParse))
 			for _, path := range pathsToParse {
-				pathsToParseCh <- &collect.PathResult{Path: path}
+				pathsToParseCh <- path
 			}
 			close(pathsToParseCh)
 
 			done := make(chan struct{})
-			composefileParser := &parse.ComposefileImageParser{}
+
+			composefileParser, err := parse.NewComposefileImageParser(
+				&parse.DockerfileImageParser{},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			composefileImages := composefileParser.ParseFiles(
 				pathsToParseCh, done,
 			)

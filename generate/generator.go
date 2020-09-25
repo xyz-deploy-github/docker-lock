@@ -54,19 +54,11 @@ func (g *Generator) GenerateLockfile(writer io.Writer) error {
 
 	done := make(chan struct{})
 
-	dockerfilePaths, composefilePaths := g.PathCollector.CollectPaths(done)
+	paths := g.PathCollector.CollectPaths(done)
+	images := g.ImageParser.ParseFiles(paths, done)
+	imagesWithDigests := g.ImageDigestUpdater.UpdateDigests(images, done)
 
-	dockerfileImages, composefileImages := g.ImageParser.ParseFiles(
-		dockerfilePaths, composefilePaths, done,
-	)
-
-	updatedDockerfileImages, updatedComposefileImages := g.ImageDigestUpdater.UpdateDigests( // nolint: lll
-		dockerfileImages, composefileImages, done,
-	)
-
-	lockfile, err := NewLockfile(
-		updatedDockerfileImages, updatedComposefileImages, done,
-	)
+	lockfile, err := NewLockfile(imagesWithDigests)
 	if err != nil {
 		close(done)
 		return err

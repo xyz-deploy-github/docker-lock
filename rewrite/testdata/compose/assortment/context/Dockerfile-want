@@ -1,3 +1,0 @@
-FROM busybox:latest@sha256:679b1c1058c1f2dc59a3ee70eed986a88811c0205c8ceea57cec5f22d2c3fbb1
-FROM golang:latest@sha256:de11c2d5a21e1308cf4c1cd78711119a7f733c02b31fa40270880717f9af5895
-FROM node:latest@sha256:a6fc8b1b272006bec584a4dd1d0b05570e3cd5d15d1ab4e2a9e60d920c9dc1cf

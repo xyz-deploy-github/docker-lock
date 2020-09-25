@@ -6,8 +6,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-
-	"github.com/safe-waters/docker-lock/generate/collect"
 )
 
 // DockerfileImageParser extracts image values from Dockerfiles.
@@ -22,11 +20,24 @@ type DockerfileImage struct {
 	Err      error  `json:"-"`
 }
 
+// IDockerfileImageParser provides an interface for DockerfileImageParser's
+// exported methods.
+type IDockerfileImageParser interface {
+	ParseFiles(
+		paths <-chan string,
+		done <-chan struct{},
+	) <-chan *DockerfileImage
+}
+
 // ParseFiles reads a Dockerfile to parse all images in FROM instructions.
 func (d *DockerfileImageParser) ParseFiles(
-	pathResults <-chan *collect.PathResult,
+	paths <-chan string,
 	done <-chan struct{},
 ) <-chan *DockerfileImage {
+	if paths == nil {
+		return nil
+	}
+
 	dockerfileImages := make(chan *DockerfileImage)
 
 	var waitGroup sync.WaitGroup
@@ -36,24 +47,11 @@ func (d *DockerfileImageParser) ParseFiles(
 	go func() {
 		defer waitGroup.Done()
 
-		if pathResults == nil {
-			return
-		}
-
-		for pathResult := range pathResults {
-			if pathResult.Err != nil {
-				select {
-				case <-done:
-				case dockerfileImages <- &DockerfileImage{Err: pathResult.Err}:
-				}
-
-				return
-			}
-
+		for path := range paths {
 			waitGroup.Add(1)
 
 			go d.parseFile(
-				pathResult.Path, nil, dockerfileImages, done, &waitGroup,
+				path, nil, dockerfileImages, done, &waitGroup,
 			)
 		}
 	}()

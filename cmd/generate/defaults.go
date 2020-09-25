@@ -72,7 +72,21 @@ func DefaultImageParser(flags *Flags) (generate.IImageParser, error) {
 	}
 
 	if !flags.ComposefileFlags.ExcludePaths {
-		composefileImageParser = &parse.ComposefileImageParser{}
+		var err error
+
+		if dockerfileImageParser == nil {
+			composefileImageParser, err = parse.NewComposefileImageParser(
+				&parse.DockerfileImageParser{},
+			)
+		} else {
+			composefileImageParser, err = parse.NewComposefileImageParser(
+				dockerfileImageParser,
+			)
+		}
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &generate.ImageParser{
@@ -90,47 +104,19 @@ func DefaultImageDigestUpdater(
 		return nil, err
 	}
 
-	var dockerfileImageDigestUpdater *update.DockerfileImageDigestUpdater
-
-	var composefileImageDigestUpdater *update.ComposefileImageDigestUpdater
-
-	var wrapperManager *registry.WrapperManager
-
-	var queryExecutor *update.QueryExecutor
-
-	var err error
-
-	if !flags.DockerfileFlags.ExcludePaths ||
-		!flags.ComposefileFlags.ExcludePaths {
-		wrapperManager, err = DefaultWrapperManager(
-			client, flags.FlagsWithSharedValues.ConfigPath,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		queryExecutor, err = update.NewQueryExecutor(wrapperManager)
-		if err != nil {
-			return nil, err
-		}
+	wrapperManager, err := DefaultWrapperManager(
+		client, flags.FlagsWithSharedValues.ConfigPath,
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	if !flags.DockerfileFlags.ExcludePaths {
-		dockerfileImageDigestUpdater = &update.DockerfileImageDigestUpdater{
-			QueryExecutor: queryExecutor,
-		}
+	imageDigestUpdater, err := update.NewImageDigestUpdater(wrapperManager)
+	if err != nil {
+		return nil, err
 	}
 
-	if !flags.ComposefileFlags.ExcludePaths {
-		composefileImageDigestUpdater = &update.ComposefileImageDigestUpdater{
-			QueryExecutor: queryExecutor,
-		}
-	}
-
-	return &generate.ImageDigestUpdater{
-		DockerfileImageDigestUpdater:  dockerfileImageDigestUpdater,
-		ComposefileImageDigestUpdater: composefileImageDigestUpdater,
-	}, nil
+	return generate.NewImageDigestUpdater(imageDigestUpdater)
 }
 
 // DefaultConfigPath returns the default location of docker's config.json

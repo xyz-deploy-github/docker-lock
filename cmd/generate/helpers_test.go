@@ -37,16 +37,20 @@ func assertPathCollector(
 	}
 
 	if (flags.DockerfileFlags.ExcludePaths &&
-		concretePathCollector.DockerfileCollector != nil) ||
+		!reflect.ValueOf(concretePathCollector.DockerfileCollector).IsNil()) ||
 		(flags.ComposefileFlags.ExcludePaths &&
-			concretePathCollector.ComposefileCollector != nil) {
+			!reflect.ValueOf(
+				concretePathCollector.ComposefileCollector,
+			).IsNil()) {
 		t.Fatal("expected nil collector")
 	}
 
 	if (!flags.DockerfileFlags.ExcludePaths &&
-		concretePathCollector.DockerfileCollector == nil) ||
+		reflect.ValueOf(concretePathCollector.DockerfileCollector).IsNil()) ||
 		(!flags.ComposefileFlags.ExcludePaths &&
-			concretePathCollector.ComposefileCollector == nil) {
+			reflect.ValueOf(
+				concretePathCollector.ComposefileCollector,
+			).IsNil()) {
 		t.Fatal("expected non nil collector")
 	}
 }
@@ -77,25 +81,29 @@ func assertImageParser(
 	}
 
 	if flags.ComposefileFlags.ExcludePaths &&
-		concreteImageParser.ComposefileImageParser != nil {
+		!reflect.ValueOf(concreteImageParser.ComposefileImageParser).IsNil() {
 		t.Fatal("expected nil composefile image parser")
 	}
 
 	if !flags.ComposefileFlags.ExcludePaths &&
-		(concreteImageParser.DockerfileImageParser == nil ||
-			concreteImageParser.ComposefileImageParser == nil) {
+		(reflect.ValueOf(concreteImageParser.DockerfileImageParser).IsNil() ||
+			reflect.ValueOf(
+				concreteImageParser.ComposefileImageParser,
+			).IsNil()) {
 		t.Fatal("expected non nil parsers")
 	}
 
 	if !flags.DockerfileFlags.ExcludePaths &&
-		concreteImageParser.DockerfileImageParser == nil {
+		reflect.ValueOf(concreteImageParser.DockerfileImageParser).IsNil() {
 		t.Fatal("expected non nil dockerfile parser")
 	}
 
 	if (flags.DockerfileFlags.ExcludePaths &&
 		flags.ComposefileFlags.ExcludePaths) &&
-		(concreteImageParser.DockerfileImageParser != nil ||
-			concreteImageParser.ComposefileImageParser != nil) {
+		(!reflect.ValueOf(concreteImageParser.DockerfileImageParser).IsNil() ||
+			!reflect.ValueOf(
+				concreteImageParser.ComposefileImageParser,
+			).IsNil()) {
 		t.Fatal("expected nil parsers")
 	}
 }
@@ -120,23 +128,9 @@ func assertImageDigestUpdater(
 		t.Fatal(err)
 	}
 
-	concreteUpdater, ok := updater.(*generate.ImageDigestUpdater)
+	_, ok := updater.(*generate.ImageDigestUpdater)
 	if !ok {
 		t.Fatal("unexpected updater type")
-	}
-
-	if (flags.DockerfileFlags.ExcludePaths &&
-		concreteUpdater.DockerfileImageDigestUpdater != nil) ||
-		(flags.ComposefileFlags.ExcludePaths &&
-			concreteUpdater.ComposefileImageDigestUpdater != nil) {
-		t.Fatal("expected nil updater")
-	}
-
-	if (!flags.DockerfileFlags.ExcludePaths &&
-		concreteUpdater.DockerfileImageDigestUpdater == nil) ||
-		(!flags.ComposefileFlags.ExcludePaths &&
-			concreteUpdater.ComposefileImageDigestUpdater == nil) {
-		t.Fatal("expected non nil updater")
 	}
 }
 

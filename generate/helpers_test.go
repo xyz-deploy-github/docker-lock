@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -40,6 +43,49 @@ type ComposefileImageWithoutStructTags struct {
 type LockfileWithoutStructTags struct {
 	DockerfileImages  map[string][]*DockerfileImageWithoutStructTags
 	ComposefileImages map[string][]*ComposefileImageWithoutStructTags
+}
+
+type AnyImageWithoutStructTags struct {
+	DockerfileImage  *DockerfileImageWithoutStructTags
+	ComposefileImage *ComposefileImageWithoutStructTags
+}
+
+func assertAnyPathsEqual(
+	t *testing.T,
+	expected []*generate.AnyPath,
+	got []*generate.AnyPath,
+) {
+	t.Helper()
+
+	if !reflect.DeepEqual(expected, got) {
+		t.Fatalf(
+			"expected %v, got %v",
+			jsonPrettyPrint(t, expected),
+			jsonPrettyPrint(t, got),
+		)
+	}
+}
+
+func assertAnyImagesEqual(
+	t *testing.T,
+	expected []*generate.AnyImage,
+	got []*generate.AnyImage,
+) {
+	t.Helper()
+
+	if !reflect.DeepEqual(expected, got) {
+		expectedWithoutStructTags := copyAnyImagesToAnyImagesWithoutStructTags(
+			t, expected,
+		)
+		gotWithoutStructTags := copyAnyImagesToAnyImagesWithoutStructTags(
+			t, got,
+		)
+		t.Fatalf(
+			"expected %v, got %v",
+			jsonPrettyPrint(t, expectedWithoutStructTags),
+			jsonPrettyPrint(t, gotWithoutStructTags),
+		)
+	}
 }
 
 func assertLockfilesEqual(
@@ -127,96 +173,11 @@ func assertDefaultValuesForOmittedJSONReadFromLockfile(
 	}
 }
 
-func assertConcretePathCollector(
-	t *testing.T,
-	pathCollector *generate.PathCollector,
-	done <-chan struct{},
-) {
+func assertNumNetworkCallsEqual(t *testing.T, expected uint64, got uint64) {
 	t.Helper()
 
-	dockerfilePaths, composefilePaths := pathCollector.CollectPaths(done)
-
-	if pathCollector.DockerfileCollector != nil && dockerfilePaths == nil {
-		t.Fatal("expected non nil dockerfilePaths")
-	}
-
-	if pathCollector.DockerfileCollector == nil && dockerfilePaths != nil {
-		t.Fatal("expected nil dockerfilePaths")
-	}
-
-	if pathCollector.ComposefileCollector != nil && composefilePaths == nil {
-		t.Fatal("expected non nil composefilePaths")
-	}
-
-	if pathCollector.ComposefileCollector == nil && composefilePaths != nil {
-		t.Fatal("expected nil composefilePaths")
-	}
-}
-
-func assertConcreteImageParser(
-	t *testing.T,
-	imageParser *generate.ImageParser,
-	done <-chan struct{}) {
-	t.Helper()
-
-	var dockerfilePaths chan *collect.PathResult
-
-	var composefilePaths chan *collect.PathResult
-
-	dockerfileImages, composefileImages := imageParser.ParseFiles(
-		dockerfilePaths, composefilePaths, done,
-	)
-
-	if imageParser.DockerfileImageParser != nil && dockerfileImages == nil {
-		t.Fatal("expected non nil dockerfileImages")
-	}
-
-	if imageParser.DockerfileImageParser == nil && dockerfileImages != nil {
-		t.Fatal("expected nil dockerfileImages")
-	}
-
-	if imageParser.ComposefileImageParser != nil && composefileImages == nil {
-		t.Fatal("expected non nil composefileImages")
-	}
-
-	if imageParser.ComposefileImageParser == nil && composefileImages != nil {
-		t.Fatal("expected nil composefileImages")
-	}
-}
-
-func assertConcreteImageDigestUpdater(
-	t *testing.T,
-	updater *generate.ImageDigestUpdater,
-	done <-chan struct{},
-) {
-	t.Helper()
-
-	var dockerfileImages chan *parse.DockerfileImage
-
-	var composefileImages chan *parse.ComposefileImage
-
-	updatedDockerfileImages, updatedComposefileImages := updater.UpdateDigests( // nolint: lll
-		dockerfileImages, composefileImages, done,
-	)
-
-	if updater.DockerfileImageDigestUpdater != nil &&
-		updatedDockerfileImages == nil {
-		t.Fatal("expected non nil updatedDockerfileImages")
-	}
-
-	if updater.DockerfileImageDigestUpdater == nil &&
-		updatedDockerfileImages != nil {
-		t.Fatal("expected nil updatedDockerfileImages")
-	}
-
-	if updater.ComposefileImageDigestUpdater != nil &&
-		updatedComposefileImages == nil {
-		t.Fatal("expected non nil updatedComposefileImages")
-	}
-
-	if updater.ComposefileImageDigestUpdater == nil &&
-		updatedComposefileImages != nil {
-		t.Fatal("expected nil updatedComposefileImages")
+	if expected != got {
+		t.Fatalf("expected %d network calls, got %d", expected, got)
 	}
 }
 
@@ -266,6 +227,59 @@ func copyComposefileImagesToComposefileImagesWithoutStructTags(
 	}
 
 	return composefileImagesWithoutStructTags
+}
+
+func copyAnyImagesToAnyImagesWithoutStructTags(
+	t *testing.T,
+	anyImages []*generate.AnyImage,
+) []*AnyImageWithoutStructTags {
+	var dockerfileImages []*parse.DockerfileImage
+
+	var composefileImages []*parse.ComposefileImage
+
+	for _, anyImage := range anyImages {
+		switch {
+		case anyImage.DockerfileImage != nil:
+			dockerfileImages = append(
+				dockerfileImages, anyImage.DockerfileImage,
+			)
+
+		case anyImage.ComposefileImage != nil:
+			composefileImages = append(
+				composefileImages, anyImage.ComposefileImage,
+			)
+		}
+	}
+
+	dockerfileImagesWithoutStructTags := copyDockerfileImagesToDockerfileImagesWithoutStructTags( // nolint: lll
+		t, dockerfileImages,
+	)
+	composefileImagesWithoutStructTags := copyComposefileImagesToComposefileImagesWithoutStructTags( // nolint: lll
+		t, composefileImages,
+	)
+
+	anyImagesWithoutStructTags := make(
+		[]*AnyImageWithoutStructTags,
+		len(dockerfileImages)+len(composefileImages),
+	)
+
+	var i int
+
+	for _, dockerfileImage := range dockerfileImagesWithoutStructTags {
+		anyImagesWithoutStructTags[i] = &AnyImageWithoutStructTags{
+			DockerfileImage: dockerfileImage,
+		}
+		i++
+	}
+
+	for _, composefileImage := range composefileImagesWithoutStructTags {
+		anyImagesWithoutStructTags[i] = &AnyImageWithoutStructTags{
+			ComposefileImage: composefileImage,
+		}
+		i++
+	}
+
+	return anyImagesWithoutStructTags
 }
 
 func copyLockfileToLockfileWithoutStructTags(
@@ -374,4 +388,216 @@ func makeFlags(
 	}
 
 	return flags
+}
+
+func makePathCollector(
+	t *testing.T,
+	baseDir string,
+	defaultDockerfilePaths []string,
+	manualDockerfilePaths []string,
+	dockerfileGlobs []string,
+	dockerfileRecursive bool,
+	defaultComposefilePaths []string,
+	manualComposefilePaths []string,
+	composefileGlobs []string,
+	composefileRecursive bool,
+	shouldFail bool,
+) *generate.PathCollector {
+	t.Helper()
+
+	dockerfileCollector := makeCollectPathCollector(
+		t, baseDir, defaultDockerfilePaths, manualDockerfilePaths,
+		dockerfileGlobs, dockerfileRecursive, shouldFail,
+	)
+	composefileCollector := makeCollectPathCollector(
+		t, baseDir, defaultComposefilePaths, manualComposefilePaths,
+		composefileGlobs, composefileRecursive, shouldFail,
+	)
+
+	return &generate.PathCollector{
+		DockerfileCollector:  dockerfileCollector,
+		ComposefileCollector: composefileCollector,
+	}
+}
+
+func makeCollectPathCollector(
+	t *testing.T,
+	baseDir string,
+	defaultPaths []string,
+	manualPaths []string,
+	globs []string,
+	recursive bool,
+	shouldFail bool,
+) *collect.PathCollector {
+	t.Helper()
+
+	pathCollector, err := collect.NewPathCollector(
+		baseDir, defaultPaths, manualPaths, globs, recursive,
+	)
+	if shouldFail {
+		if err == nil {
+			t.Fatal("expected error but did not get one")
+		}
+
+		return nil
+	}
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return pathCollector
+}
+
+func addTempDirToStringSlices(
+	t *testing.T,
+	collector *collect.PathCollector,
+	tempDir string,
+) {
+	t.Helper()
+
+	collectorValue := reflect.ValueOf(collector).Elem()
+
+	for i := 0; i < collectorValue.NumField(); i++ {
+		field := collectorValue.Field(i)
+
+		if field.Kind() == reflect.Slice {
+			concreteSliceField := field.Interface().([]string)
+
+			for i := 0; i < len(concreteSliceField); i++ {
+				concreteSliceField[i] = filepath.Join(
+					tempDir, concreteSliceField[i],
+				)
+			}
+		}
+	}
+}
+
+func writeFilesToTempDir(
+	t *testing.T,
+	tempDir string,
+	fileNames []string,
+	fileContents [][]byte,
+) []string {
+	t.Helper()
+
+	if len(fileNames) != len(fileContents) {
+		t.Fatalf(
+			"different number of names and contents: %d names, %d contents",
+			len(fileNames), len(fileContents))
+	}
+
+	fullPaths := make([]string, len(fileNames))
+
+	for i, name := range fileNames {
+		fullPath := filepath.Join(tempDir, name)
+
+		if err := ioutil.WriteFile(
+			fullPath, fileContents[i], 0777,
+		); err != nil {
+			t.Fatal(err)
+		}
+
+		fullPaths[i] = fullPath
+	}
+
+	return fullPaths
+}
+
+func makeTempDir(t *testing.T, dirName string) string {
+	t.Helper()
+
+	dir, err := ioutil.TempDir("", dirName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return dir
+}
+
+func sortAnyPaths(
+	t *testing.T,
+	anyPaths []*generate.AnyPath,
+) {
+	t.Helper()
+
+	sort.Slice(anyPaths, func(i, j int) bool {
+		switch {
+		case anyPaths[i].DockerfilePath != anyPaths[j].DockerfilePath:
+			return anyPaths[i].DockerfilePath < anyPaths[j].DockerfilePath
+		default:
+			return anyPaths[i].ComposefilePath < anyPaths[j].ComposefilePath
+		}
+	})
+}
+
+func sortAnyImages(
+	t *testing.T,
+	anyImages []*generate.AnyImage,
+) []*generate.AnyImage {
+	t.Helper()
+
+	var dockerfileImages []*parse.DockerfileImage
+
+	var composefileImages []*parse.ComposefileImage
+
+	for _, anyImage := range anyImages {
+		switch {
+		case anyImage.DockerfileImage != nil:
+			dockerfileImages = append(
+				dockerfileImages, anyImage.DockerfileImage,
+			)
+		case anyImage.ComposefileImage != nil:
+			composefileImages = append(
+				composefileImages, anyImage.ComposefileImage,
+			)
+		}
+	}
+
+	sort.Slice(dockerfileImages, func(i, j int) bool {
+		switch {
+		case dockerfileImages[i].Path != dockerfileImages[j].Path:
+			return dockerfileImages[i].Path < dockerfileImages[j].Path
+		default:
+			return dockerfileImages[i].Position < dockerfileImages[j].Position
+		}
+	})
+
+	sort.Slice(composefileImages, func(i, j int) bool {
+		// nolint: lll
+		switch {
+		case composefileImages[i].Path != composefileImages[j].Path:
+			return composefileImages[i].Path < composefileImages[j].Path
+		case composefileImages[i].ServiceName != composefileImages[j].ServiceName:
+			return composefileImages[i].ServiceName < composefileImages[j].ServiceName
+		case composefileImages[i].DockerfilePath != composefileImages[j].DockerfilePath:
+			return composefileImages[i].DockerfilePath < composefileImages[j].DockerfilePath
+		default:
+			return composefileImages[i].Position < composefileImages[j].Position
+		}
+	})
+
+	sortedAnyImages := make(
+		[]*generate.AnyImage, len(dockerfileImages)+len(composefileImages),
+	)
+
+	var i int
+
+	for _, dockerfileImage := range dockerfileImages {
+		sortedAnyImages[i] = &generate.AnyImage{
+			DockerfileImage: dockerfileImage,
+		}
+
+		i++
+	}
+
+	for _, composefileImage := range composefileImages {
+		sortedAnyImages[i] = &generate.AnyImage{
+			ComposefileImage: composefileImage,
+		}
+
+		i++
+	}
+
+	return sortedAnyImages
 }

@@ -1,6 +1,7 @@
 package parse
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -8,13 +9,23 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/safe-waters/docker-lock/generate/collect"
 	"gopkg.in/yaml.v2"
 )
 
 // ComposefileImageParser extracts image values from docker-compose files
 // and Dockerfiles referenced by those docker-compose files.
-type ComposefileImageParser struct{}
+type ComposefileImageParser struct {
+	DockerfileImageParser *DockerfileImageParser
+}
+
+// IComposefileImageParser provides an interface for ComposefileImageParser's
+// exported methods.
+type IComposefileImageParser interface {
+	ParseFiles(
+		paths <-chan string,
+		done <-chan struct{},
+	) <-chan *ComposefileImage
+}
 
 // ComposefileImage annotates an image with data about the docker-compose file
 // and/or the Dockerfile from which it was parsed.
@@ -27,12 +38,30 @@ type ComposefileImage struct {
 	Err            error  `json:"-"`
 }
 
+// NewComposefileImageParser returns a ComposefileImageParser after validating
+// its fields.
+func NewComposefileImageParser(
+	dockerfileImageParser *DockerfileImageParser,
+) (*ComposefileImageParser, error) {
+	if dockerfileImageParser == nil {
+		return nil, errors.New("dockerfileImageParser cannot be nil")
+	}
+
+	return &ComposefileImageParser{
+		DockerfileImageParser: dockerfileImageParser,
+	}, nil
+}
+
 // ParseFiles reads docker-compose YAML to parse all images
 // referenced services.
 func (c *ComposefileImageParser) ParseFiles(
-	pathResults <-chan *collect.PathResult,
+	paths <-chan string,
 	done <-chan struct{},
 ) <-chan *ComposefileImage {
+	if paths == nil {
+		return nil
+	}
+
 	composefileImages := make(chan *ComposefileImage)
 
 	var waitGroup sync.WaitGroup
@@ -42,26 +71,11 @@ func (c *ComposefileImageParser) ParseFiles(
 	go func() {
 		defer waitGroup.Done()
 
-		if pathResults == nil {
-			return
-		}
-
-		for result := range pathResults {
-			if result.Err != nil {
-				select {
-				case <-done:
-				case composefileImages <- &ComposefileImage{
-					Err: result.Err,
-				}:
-				}
-
-				return
-			}
-
+		for path := range paths {
 			waitGroup.Add(1)
 
 			go c.parseFile(
-				result.Path, composefileImages, done, &waitGroup,
+				path, composefileImages, done, &waitGroup,
 			)
 		}
 	}()
@@ -139,7 +153,6 @@ func (c *ComposefileImageParser) parseService(
 		return
 	}
 
-	dockerfileParser := &DockerfileImageParser{}
 	dockerfileImages := make(chan *DockerfileImage)
 
 	var dockerfileImageWaitGroup sync.WaitGroup
@@ -162,7 +175,7 @@ func (c *ComposefileImageParser) parseService(
 
 			dockerfileImageWaitGroup.Add(1)
 
-			go dockerfileParser.parseFile(
+			go c.DockerfileImageParser.parseFile(
 				dockerfilePath, nil, dockerfileImages,
 				done, &dockerfileImageWaitGroup,
 			)
@@ -187,7 +200,7 @@ func (c *ComposefileImageParser) parseService(
 
 			dockerfileImageWaitGroup.Add(1)
 
-			go dockerfileParser.parseFile(
+			go c.DockerfileImageParser.parseFile(
 				dockerfilePath, buildArgs, dockerfileImages,
 				done, &dockerfileImageWaitGroup,
 			)
@@ -213,6 +226,7 @@ func (c *ComposefileImageParser) parseService(
 
 		select {
 		case <-done:
+			return
 		case composefileImages <- &ComposefileImage{
 			Image:          dockerfileImage.Image,
 			DockerfilePath: dockerfileImage.Path,

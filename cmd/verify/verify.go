@@ -114,7 +114,7 @@ func SetupVerifier(
 	return verify.NewVerifier(generator)
 }
 
-func parseFlags(cmd *cobra.Command) (*Flags, error) { // nolint: dupl
+func parseFlags(cmd *cobra.Command) (*Flags, error) {
 	var (
 		lockfilePath, configPath, envPath string
 		err                               error

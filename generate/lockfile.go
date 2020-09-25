@@ -21,95 +21,58 @@ type Lockfile struct {
 
 // NewLockfile sorts DockerfileImages and Composefile images and
 // returns a Lockfile.
-func NewLockfile(
-	dockerfileImages <-chan *parse.DockerfileImage,
-	composefileImages <-chan *parse.ComposefileImage,
-	done <-chan struct{},
-) (*Lockfile, error) {
-	if dockerfileImages == nil && composefileImages == nil {
+func NewLockfile(anyImages <-chan *AnyImage) (*Lockfile, error) {
+	if anyImages == nil {
 		return &Lockfile{}, nil
 	}
 
-	var dockerfileImagesWithPath map[string][]*parse.DockerfileImage
+	var dockerfileImages map[string][]*parse.DockerfileImage
 
-	var composefileImagesWithPath map[string][]*parse.ComposefileImage
+	var composefileImages map[string][]*parse.ComposefileImage
 
-	errCh := make(chan error)
+	for anyImage := range anyImages {
+		if anyImage.Err != nil {
+			return nil, anyImage.Err
+		}
 
-	var waitGroup sync.WaitGroup
-
-	if dockerfileImages != nil {
-		dockerfileImagesWithPath = map[string][]*parse.DockerfileImage{}
-
-		waitGroup.Add(1)
-
-		go func() {
-			defer waitGroup.Done()
-
-			for dockerfileImage := range dockerfileImages {
-				if dockerfileImage.Err != nil {
-					select {
-					case <-done:
-					case errCh <- dockerfileImage.Err:
-					}
-
-					return
-				}
-
-				dockerfileImage.Path = filepath.ToSlash(dockerfileImage.Path)
-
-				dockerfileImagesWithPath[dockerfileImage.Path] = append(
-					dockerfileImagesWithPath[dockerfileImage.Path],
-					dockerfileImage,
-				)
+		switch {
+		case anyImage.DockerfileImage != nil:
+			if dockerfileImages == nil {
+				dockerfileImages = map[string][]*parse.DockerfileImage{}
 			}
-		}()
-	}
 
-	if composefileImages != nil {
-		composefileImagesWithPath = map[string][]*parse.ComposefileImage{}
+			anyImage.DockerfileImage.Path = filepath.ToSlash(
+				anyImage.DockerfileImage.Path,
+			)
 
-		waitGroup.Add(1)
-
-		go func() {
-			defer waitGroup.Done()
-
-			for composefileImage := range composefileImages {
-				if composefileImage.Err != nil {
-					select {
-					case <-done:
-					case errCh <- composefileImage.Err:
-					}
-
-					return
-				}
-
-				composefileImage.Path = filepath.ToSlash(composefileImage.Path)
-				composefileImage.DockerfilePath = filepath.ToSlash(
-					composefileImage.DockerfilePath,
-				)
-
-				composefileImagesWithPath[composefileImage.Path] = append(
-					composefileImagesWithPath[composefileImage.Path],
-					composefileImage,
-				)
+			dockerfileImages[anyImage.DockerfileImage.Path] = append(
+				dockerfileImages[anyImage.DockerfileImage.Path],
+				anyImage.DockerfileImage,
+			)
+		case anyImage.ComposefileImage != nil:
+			if composefileImages == nil {
+				composefileImages = map[string][]*parse.ComposefileImage{}
 			}
-		}()
-	}
 
-	go func() {
-		waitGroup.Wait()
-		close(errCh)
-	}()
+			anyImage.ComposefileImage.Path = filepath.ToSlash(
+				anyImage.ComposefileImage.Path,
+			)
+			anyImage.ComposefileImage.DockerfilePath = filepath.ToSlash(
+				anyImage.ComposefileImage.DockerfilePath,
+			)
 
-	for err := range errCh {
-		return nil, err
+			composefileImages[anyImage.ComposefileImage.Path] = append(
+				composefileImages[anyImage.ComposefileImage.Path],
+				anyImage.ComposefileImage,
+			)
+		}
 	}
 
 	lockfile := &Lockfile{
-		DockerfileImages:  dockerfileImagesWithPath,
-		ComposefileImages: composefileImagesWithPath,
+		DockerfileImages:  dockerfileImages,
+		ComposefileImages: composefileImages,
 	}
+
 	lockfile.sortImages()
 
 	return lockfile, nil
@@ -121,12 +84,12 @@ func (l *Lockfile) Write(writer io.Writer) error {
 		return errors.New("writer cannot be nil")
 	}
 
-	lByt, err := json.MarshalIndent(l, "", "\t")
+	lockfileByt, err := json.MarshalIndent(l, "", "\t")
 	if err != nil {
 		return err
 	}
 
-	if _, err := writer.Write(lByt); err != nil {
+	if _, err := writer.Write(lockfileByt); err != nil {
 		return err
 	}
 
@@ -151,15 +114,17 @@ func (l *Lockfile) sortDockerfileImages(waitGroup *sync.WaitGroup) {
 	defer waitGroup.Done()
 
 	for _, images := range l.DockerfileImages {
+		images := images
+
 		waitGroup.Add(1)
 
-		go func(images []*parse.DockerfileImage) {
+		go func() {
 			defer waitGroup.Done()
 
 			sort.Slice(images, func(i, j int) bool {
 				return images[i].Position < images[j].Position
 			})
-		}(images)
+		}()
 	}
 }
 
@@ -167,9 +132,11 @@ func (l *Lockfile) sortComposefileImages(waitGroup *sync.WaitGroup) {
 	defer waitGroup.Done()
 
 	for _, images := range l.ComposefileImages {
+		images := images
+
 		waitGroup.Add(1)
 
-		go func(images []*parse.ComposefileImage) {
+		go func() {
 			defer waitGroup.Done()
 
 			sort.Slice(images, func(i, j int) bool {
@@ -182,6 +149,6 @@ func (l *Lockfile) sortComposefileImages(waitGroup *sync.WaitGroup) {
 					return images[i].Position < images[j].Position
 				}
 			})
-		}(images)
+		}()
 	}
 }

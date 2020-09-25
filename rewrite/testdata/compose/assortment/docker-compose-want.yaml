@@ -1,6 +1,0 @@
-version: '3'
-services:
-  image-one-svc:
-    image: perl:latest@sha256:e871d4a2120e73c7e8f4fbca6ab212c89a838c4fe3c446eb38d3f490fbd9b1bf
-  image-two-svc:
-    image: ruby:latest@sha256:14e60bf6047aad28b2d6484e8a5d408fbdbbbcab705f2bc2f1a6a750a960940e

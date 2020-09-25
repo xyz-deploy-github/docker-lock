@@ -32,9 +32,7 @@ func NewVerifier(
 		return nil, errors.New("generator cannot be nil")
 	}
 
-	return &Verifier{
-		Generator: generator,
-	}, nil
+	return &Verifier{Generator: generator}, nil
 }
 
 // VerifyLockfile reads an existing Lockfile and generates a new one
@@ -50,13 +48,13 @@ func (v *Verifier) VerifyLockfile(reader io.Reader) error {
 		return err
 	}
 
-	var newLByt bytes.Buffer
-	if err := v.Generator.GenerateLockfile(&newLByt); err != nil {
+	var newLockfileByt bytes.Buffer
+	if err := v.Generator.GenerateLockfile(&newLockfileByt); err != nil {
 		return err
 	}
 
 	var newLockfile generate.Lockfile
-	if err := json.Unmarshal(newLByt.Bytes(), &newLockfile); err != nil {
+	if err := json.Unmarshal(newLockfileByt.Bytes(), &newLockfile); err != nil {
 		return err
 	}
 

@@ -1,6 +1,0 @@
-version: '3'
-services:
-  svc:
-    image: busybox
-  svc-misnamed2:
-    image: busybox

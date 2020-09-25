@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/safe-waters/docker-lock/generate/collect"
 	"github.com/safe-waters/docker-lock/generate/parse"
 )
 
@@ -209,9 +208,9 @@ FROM busybox
 				t, tempDir, test.DockerfilePaths, test.DockerfileContents,
 			)
 
-			pathsToParseCh := make(chan *collect.PathResult, len(pathsToParse))
+			pathsToParseCh := make(chan string, len(pathsToParse))
 			for _, path := range pathsToParse {
-				pathsToParseCh <- &collect.PathResult{Path: path}
+				pathsToParseCh <- path
 			}
 			close(pathsToParseCh)
 

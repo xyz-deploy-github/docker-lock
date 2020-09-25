@@ -19,6 +19,11 @@ type PathCollector struct {
 	Recursive    bool
 }
 
+// IPathCollector provides an interface for PathCollector's exported methods.
+type IPathCollector interface {
+	CollectPaths(done <-chan struct{}) <-chan *PathResult
+}
+
 // PathResult holds collected paths and errors that occurred
 // while gathering them.
 type PathResult struct {

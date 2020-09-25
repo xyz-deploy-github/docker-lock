@@ -20,7 +20,6 @@ linters:
     - gochecknoinits
     - goconst
     - gocritic
-    - gocyclo
     - godox
     - gofmt
     - goimports
@@ -40,10 +39,11 @@ linters:
     - unparam
     - whitespace
     - wsl
+    - dupl
 
     # potentially enable in the future
     # - gocognit
-    # - dupl
+    # - gocyclo
 
     # useless
     # - funlen

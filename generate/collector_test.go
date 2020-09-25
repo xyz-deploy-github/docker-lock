@@ -1,6 +1,8 @@
 package generate_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/safe-waters/docker-lock/generate"
@@ -11,25 +13,26 @@ func TestPathCollector(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		Name                 string
-		DockerfileCollector  *collect.PathCollector
-		ComposefileCollector *collect.PathCollector
+		Name          string
+		PathCollector *generate.PathCollector
+		Expected      []*generate.AnyPath
+		PathsToCreate []string
 	}{
 		{
-			Name: "All Nil",
-		},
-		{
-			Name:                 "Nil DockerfileCollector",
-			ComposefileCollector: &collect.PathCollector{},
-		},
-		{
-			Name:                "Nil ComposefileCollector",
-			DockerfileCollector: &collect.PathCollector{},
-		},
-		{
-			Name:                 "Non Nil",
-			DockerfileCollector:  &collect.PathCollector{},
-			ComposefileCollector: &collect.PathCollector{},
+			Name: "Dockerfiles And Composefiles",
+			PathCollector: makePathCollector(
+				t, "", []string{"Dockerfile"}, nil, nil, false,
+				[]string{"docker-compose.yml"}, nil, nil, false, false,
+			),
+			PathsToCreate: []string{"Dockerfile", "docker-compose.yml"},
+			Expected: []*generate.AnyPath{
+				{
+					DockerfilePath: "Dockerfile",
+				},
+				{
+					ComposefilePath: "docker-compose.yml",
+				},
+			},
 		},
 	}
 
@@ -39,15 +42,52 @@ func TestPathCollector(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			t.Parallel()
 
-			pathCollector := &generate.PathCollector{
-				DockerfileCollector:  test.DockerfileCollector,
-				ComposefileCollector: test.ComposefileCollector,
-			}
+			tempDir := makeTempDir(t, "")
+			defer os.RemoveAll(tempDir)
+
+			dockerfileCollector := test.PathCollector.DockerfileCollector.(*collect.PathCollector)   // nolint: lll
+			composefileCollector := test.PathCollector.ComposefileCollector.(*collect.PathCollector) // nolint: lll
+
+			addTempDirToStringSlices(
+				t, dockerfileCollector, tempDir,
+			)
+			addTempDirToStringSlices(
+				t, composefileCollector, tempDir,
+			)
+
+			pathsToCreateContents := make([][]byte, len(test.PathsToCreate))
+			writeFilesToTempDir(
+				t, tempDir, test.PathsToCreate, pathsToCreateContents,
+			)
+
+			var got []*generate.AnyPath
 
 			done := make(chan struct{})
-			defer close(done)
+			for anyPath := range test.PathCollector.CollectPaths(done) {
+				if anyPath.Err != nil {
+					close(done)
+					t.Fatal(anyPath.Err)
+				}
+				got = append(got, anyPath)
+			}
 
-			assertConcretePathCollector(t, pathCollector, done)
+			for _, anyPath := range test.Expected {
+				switch {
+				case anyPath.DockerfilePath != "":
+					anyPath.DockerfilePath = filepath.Join(
+						tempDir, anyPath.DockerfilePath,
+					)
+				case anyPath.ComposefilePath != "":
+					anyPath.ComposefilePath = filepath.Join(
+						tempDir, anyPath.ComposefilePath,
+					)
+				}
+			}
+
+			sortAnyPaths(t, test.Expected)
+			sortAnyPaths(t, got)
+
+			assertAnyPathsEqual(t, test.Expected, got)
 		})
 	}
 }

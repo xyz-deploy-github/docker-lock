@@ -107,3 +107,33 @@ func makeParentDirsInTempDirFromFilePaths(
 		makeDir(t, fullDir)
 	}
 }
+
+// nolint: unparam
+func makePathCollector(
+	t *testing.T,
+	baseDir string,
+	defaultPaths []string,
+	manualPaths []string,
+	globs []string,
+	recursive bool,
+	shouldFail bool,
+) *collect.PathCollector {
+	t.Helper()
+
+	pathCollector, err := collect.NewPathCollector(
+		baseDir, defaultPaths, manualPaths, globs, recursive,
+	)
+	if shouldFail {
+		if err == nil {
+			t.Fatal("expected error but did not get one")
+		}
+
+		return nil
+	}
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return pathCollector
+}

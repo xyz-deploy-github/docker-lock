@@ -6,13 +6,13 @@ import (
 	"path/filepath"
 
 	"github.com/joho/godotenv"
-	"github.com/safe-waters/docker-lock/generate"
-	"github.com/safe-waters/docker-lock/generate/collect"
-	"github.com/safe-waters/docker-lock/generate/parse"
-	"github.com/safe-waters/docker-lock/generate/update"
-	"github.com/safe-waters/docker-lock/registry"
-	"github.com/safe-waters/docker-lock/registry/contrib"
-	"github.com/safe-waters/docker-lock/registry/firstparty"
+	"github.com/safe-waters/docker-lock/pkg/generate"
+	"github.com/safe-waters/docker-lock/pkg/generate/collect"
+	"github.com/safe-waters/docker-lock/pkg/generate/parse"
+	"github.com/safe-waters/docker-lock/pkg/generate/registry"
+	"github.com/safe-waters/docker-lock/pkg/generate/registry/contrib"
+	"github.com/safe-waters/docker-lock/pkg/generate/registry/firstparty"
+	"github.com/safe-waters/docker-lock/pkg/generate/update"
 )
 
 // DefaultPathCollector creates a PathCollector for Generator.

@@ -22,7 +22,7 @@ jobs:
   - bash: docker build -t devcontainer ./.devcontainer
     displayName: Build Dev Container
 
-  - bash: docker run -v "${PWD}:/app" devcontainer /app/tools/lint.sh
+  - bash: docker run -v "${PWD}:/app" devcontainer /app/scripts/lint.sh
     displayName: Run linters
 
 - job: Build
@@ -35,21 +35,21 @@ jobs:
       set -euo pipefail
       latest_git_tag="$(git tag -l | tail -n 1)"
       latest_git_tag="${latest_git_tag:-v0.0.1}"
-      CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-w -s -X github.com/safe-waters/docker-lock/cmd/version.Version=${latest_git_tag}" -o docker-lock-linux
+      CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o docker-lock-linux -ldflags "-w -s -X github.com/safe-waters/docker-lock/cmd/version.Version=${latest_git_tag}" ./cmd/docker-lock
     displayName: Build linux
 
   - bash: |
       set -euo pipefail
       latest_git_tag="$(git tag -l | tail -n 1)"
       latest_git_tag="${latest_git_tag:-v0.0.1}"
-      CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "-w -s -X github.com/safe-waters/docker-lock/cmd/version.Version=${latest_git_tag}" -o docker-lock-mac
+      CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o docker-lock-mac -ldflags "-w -s -X github.com/safe-waters/docker-lock/cmd/version.Version=${latest_git_tag}" ./cmd/docker-lock
     displayName: Build mac
 
   - bash: |
       set -euo pipefail
       latest_git_tag="$(git tag -l | tail -n 1)"
       latest_git_tag="${latest_git_tag:-v0.0.1}"
-      CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-w -s -X github.com/safe-waters/docker-lock/cmd/version.Version=${latest_git_tag}" -o docker-lock-windows.exe
+      CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o docker-lock-windows.exe -ldflags "-w -s -X github.com/safe-waters/docker-lock/cmd/version.Version=${latest_git_tag}" ./cmd/docker-lock
     displayName: Build windows
 
   - publish: "$(System.DefaultWorkingDirectory)/docker-lock-linux"
@@ -105,7 +105,7 @@ jobs:
       chmod +x docker-lock.exe
       mkdir -p "${USERPROFILE}/.docker/cli-plugins/"
       mv docker-lock.exe "${USERPROFILE}/.docker/cli-plugins/"
-      ./integration_tests/integration_tests.sh windows
+      ./test/tests.sh windows
     displayName: Run Integration Tests
 
     env:
@@ -137,7 +137,7 @@ jobs:
 
   - bash: |
       set -euo pipefail
-      ./tools/unittest.sh
+      ./scripts/unittest.sh
     displayName: Run unit tests
 
   - download: current
@@ -151,7 +151,7 @@ jobs:
       mkdir -p "${HOME}/.docker/cli-plugins/"
       mv docker-lock "${HOME}/.docker/cli-plugins/"
       export PATH="/usr/local/opt/gettext/bin:${PATH}"
-      ./integration_tests/integration_tests.sh mac
+      ./test/tests.sh mac
     displayName: Run Integration Tests
 
     env:
@@ -169,7 +169,7 @@ jobs:
   steps:
   - bash: |
       set -euo pipefail
-      ./tools/unittest.sh
+      ./scripts/unittest.sh
     displayName: Run unit tests
 
   - download: current
@@ -182,7 +182,7 @@ jobs:
       chmod +x docker-lock
       mkdir -p "${HOME}/.docker/cli-plugins/"
       mv docker-lock "${HOME}/.docker/cli-plugins/"
-      ./integration_tests/integration_tests.sh linux
+      ./test/tests.sh linux
     displayName: Run Integration Tests
 
     env:

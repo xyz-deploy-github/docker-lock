@@ -1,4 +1,4 @@
-![Docker-Lock-Banner](./static/readme-banner.png)
+![Docker-Lock-Banner](./docs/assets/readme-banner.png)
 # About
 [![Go Report Card](https://goreportcard.com/badge/github.com/safe-waters/docker-lock)](https://goreportcard.com/report/github.com/safe-waters/docker-lock)
 [![Build Status](https://dev.azure.com/michaelsethperel/docker-lock/_apis/build/status/safe-waters.docker-lock?branchName=master)](https://dev.azure.com/michaelsethperel/docker-lock/_build/latest?definitionId=6&branchName=master)
@@ -54,7 +54,7 @@ FROM python:3.6
 Running `docker lock generate` from the root queries each images' 
 registry to produce a Lockfile, `docker-lock.json`.
 
-![Generate GIF](gifs/generate.gif)
+![Generate GIF](./docs/assets/generate.gif)
 
 Note that the Lockfile records image digests so you do not have to 
 manually specify them.
@@ -62,14 +62,14 @@ manually specify them.
 Running `docker lock verify` ensures that the image digests are the 
 same as those on the registry for the same tags.
 
-![Verify Success GIF](gifs/verify_success.gif)
+![Verify Success GIF](./docs/assets/verify_success.gif)
 
 Now, assume that a change to `mperel/log:v1` has been pushed to the registry.
 
 Running `docker lock verify` shows that the image digest in the Lockfile 
 is out-of-date because it differs from the newer image's digest on the registry.
 
-![Verify Fail GIF](gifs/verify_fail.gif)
+![Verify Fail GIF](./docs/assets/verify_fail.gif)
 
 While developing, it can be useful to generate a Lockfile, commit it to 
 source control, and verify it periodically (for instance on PR merges). In 
@@ -81,16 +81,22 @@ Finally, lets assume the Dockerfile is ready to be built and shared.
 Running `docker lock rewrite` will add digests from the Lockfile 
 to all of the images.
 
-![Rewrite GIF](gifs/rewrite.gif)
+![Rewrite GIF](./docs/assets/rewrite.gif)
 
 At this point, the Dockerfile will contain all of the digest information 
 from the Lockfile, so it will always maintain the same, known behavior 
 in the future.
 
-# Install
+# Install Pre-built Binary
 `docker-lock` can be installed as a
 [cli-plugin](https://github.com/docker/cli/issues/1534) for `docker` or as a
-standalone tool.
+standalone tool if you do not want to install the `docker` cli.
+Currently, `docker-lock` is offered as a precompiled binary in the
+[releases tab](https://github.com/safe-waters/docker-lock/releases) for
+the following operating systems and architectures:
+* `GOOS=windows`, `GOARCH=amd64`
+* `GOOS=darwin`, `GOARCH=amd64`
+* `GOOS=linux`, `GOARCH=amd64`
 
 ## Cli-plugin
 Ensure `docker` cli version >= 19.03 is installed by running `docker --version`.
@@ -99,11 +105,24 @@ Ensure `docker` cli version >= 19.03 is installed by running `docker --version`.
 * `mkdir -p ~/.docker/cli-plugins`
 * `curl -fsSL https://github.com/safe-waters/docker-lock/releases/download/{VERSION}/docker-lock-{OS} -o ~/.docker/cli-plugins/docker-lock`
 * `chmod +x ~/.docker/cli-plugins/docker-lock`
+
 ### Windows
 * Create the folder `%USERPROFILE%\.docker\cli-plugins`
 * Download `docker-lock-windows.exe` from the releases page.
 * Rename the file `docker-lock.exe`
 * Move `docker-lock.exe` into `%USERPROFILE%\.docker\cli-plugins`
+
+To verify that `docker-lock` was installed as a cli-plugin, run
+```
+docker lock --help
+```
+
+You can also see that `docker` is aware of `docker-lock` by running:
+```
+docker
+```
+and ensuring `lock` is output as a management command, like so:
+![CLI Install](./docs/assets/docker-cli-install.png)
 
 ## Standalone tool
 * Follow the same instructions as in the
@@ -111,15 +130,69 @@ Ensure `docker` cli version >= 19.03 is installed by running `docker --version`.
 your `PATH`.
 * To use `docker-lock`, replace any `docker` command such as `docker lock` with
 the name of the executable, `docker-lock`, as in `docker-lock lock`.
+* To verify that `docker-lock` was installed, run:
+```
+docker-lock lock --help
+```
 
-# Documentation
-## Tutorials
+# Build From Source
+If you would like to install `docker-lock` from source, ensure `go` is
+installed or use the [supplied development container](#Development-Environment).
+From the root of the project, run:
+
+```
+go build ./cmd/docker-lock
+```
+
+If on mac or linux, make the output binary executable:
+
+```
+chmod +x docker-lock
+```
+
+Finally, move the binary to the cli-plugins folder or add it to your PATH,
+as described in the [installation section](#Install-Pre-built-Binary).
+
+If you would like to cross-compile for another operating system
+or architecture, from the root of the project, run:
+
+```
+CGO_ENABLED=0 GOOS=<your os> GOARCH=<your arch> go build ./cmd/docker-lock
+```
+
+# Contributing
+
+## Development Environment
+A development container based on `ubuntu:bionic` has been provided,
+so ensure docker is installed and the docker daemon is running.
+
+* Open the project in [VSCode](https://code.visualstudio.com/).
+* Install VSCode's [Remote Development Extension - Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.vscode-remote-extensionpack).
+* In the command palette (ctrl+shift+p on Windows/Linux,
+command+shift+p on Mac), type "Reopen in Container".
+* In the command palette type: "Go: Install/Update Tools" and select all.
+* When all tools are finished installing, in the command palette type:
+"Developer: Reload Window".
+* The docker daemon is mapped from the host into the dev container,
+so you can use docker and docker-compose commands from within the container
+as if they were run on the host.
+
+## Code Quality and Correctness
+Unit tests, integration tests, and linting run in the
+[CI pipeline](https://dev.azure.com/michaelsethperel/docker-lock/_build)
+on pull requests. Locally, you can run quality checks for everything except for integration tests.
+* To format your code: `./scripts/format.sh`
+* To lint your code: `./scripts/lint.sh`
+* To run unit tests: `./scripts/unittest.sh`
+* To generate a coverage report: `./scripts/coverage.sh`
+* To view the coverage report on your browser, open a console, but not in
+docker, run:
+```
+go tool cover -html=coverage.out
+```
+
+# Tutorials
 * [Command Line Flags/Configuration File](./docs/tutorials/command-line-flags-configuration-file.md)
 * [Using Internal Registries](./docs/tutorials/internal-registry.md)
 * [Bring Your Own Registry](./docs/tutorials/bring-your-own-registry.md)
 * [Tags Vs. Digests](./docs/tutorials/tags-vs-digests.md)
-
-## Contributing
-* [Development Environment](./docs/contributing/development-environment.md)
-* [Code Quality](./docs/contributing/code-quality.md)
-* [Go.dev](https://pkg.go.dev/github.com/safe-waters/docker-lock)

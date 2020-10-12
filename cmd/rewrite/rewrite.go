@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/safe-waters/docker-lock/pkg/rewrite"
-	"github.com/safe-waters/docker-lock/pkg/rewrite/writers"
+	"github.com/safe-waters/docker-lock/pkg/rewrite/write"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -26,7 +26,7 @@ func NewRewriteCmd() (*cobra.Command, error) {
 				return err
 			}
 
-			reader, err := os.Open(flags.LockfilePath)
+			reader, err := os.Open(flags.LockfileName)
 			if err != nil {
 				return err
 			}
@@ -36,7 +36,7 @@ func NewRewriteCmd() (*cobra.Command, error) {
 		},
 	}
 	rewriteCmd.Flags().StringP(
-		"lockfile-path", "l", "docker-lock.json", "Path to Lockfile",
+		"lockfile-name", "l", "docker-lock.json", "Lockfile to read from",
 	)
 	rewriteCmd.Flags().StringP(
 		"tempdir", "t", "",
@@ -56,12 +56,12 @@ func NewRewriteCmd() (*cobra.Command, error) {
 
 // SetupRewriter creates a Rewriter configured for docker-lock's cli.
 func SetupRewriter(flags *Flags) (*rewrite.Rewriter, error) {
-	dockerfileWriter := &writers.DockerfileWriter{
+	dockerfileWriter := &write.DockerfileWriter{
 		ExcludeTags: flags.ExcludeTags,
 		Directory:   flags.TempDir,
 	}
 
-	composefileWriter := &writers.ComposefileWriter{
+	composefileWriter := &write.ComposefileWriter{
 		DockerfileWriter: dockerfileWriter,
 		ExcludeTags:      flags.ExcludeTags,
 		Directory:        flags.TempDir,
@@ -81,14 +81,14 @@ func SetupRewriter(flags *Flags) (*rewrite.Rewriter, error) {
 // create Flags.
 func parseFlags(cmd *cobra.Command) (*Flags, error) {
 	var (
-		lockfilePath, tempDir string
+		lockfileName, tempDir string
 		excludeTags           bool
 		err                   error
 	)
 
 	switch viper.ConfigFileUsed() {
 	case "":
-		lockfilePath, err = cmd.Flags().GetString("lockfile-path")
+		lockfileName, err = cmd.Flags().GetString("lockfile-name")
 		if err != nil {
 			return nil, err
 		}
@@ -103,14 +103,10 @@ func parseFlags(cmd *cobra.Command) (*Flags, error) {
 			return nil, err
 		}
 	default:
-		lockfilePath = viper.GetString("lockfile-path")
+		lockfileName = viper.GetString("lockfile-name")
 		tempDir = viper.GetString("tempdir")
 		excludeTags = viper.GetBool("exclude-tags")
 	}
 
-	return &Flags{
-		LockfilePath: lockfilePath,
-		TempDir:      tempDir,
-		ExcludeTags:  excludeTags,
-	}, nil
+	return NewFlags(lockfileName, tempDir, excludeTags)
 }

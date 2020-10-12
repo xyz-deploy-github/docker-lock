@@ -1,4 +1,4 @@
-package writers
+package write
 
 import (
 	"bufio"
@@ -248,7 +248,10 @@ func (c *ComposefileWriter) writeFile(
 		)
 	}
 
-	writtenFile, err := ioutil.TempFile(c.Directory, "")
+	replacer := strings.NewReplacer("/", "-", "\\", "-")
+	tempPath := replacer.Replace(fmt.Sprintf("%s-*", path))
+
+	writtenFile, err := ioutil.TempFile(c.Directory, tempPath)
 	if err != nil {
 		return "", err
 	}

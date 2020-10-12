@@ -1,5 +1,5 @@
-// Package writers provides functionality to write files with image digests.
-package writers
+// Package write provides functionality to write files with image digests.
+package write
 
 import (
 	"bufio"
@@ -167,7 +167,10 @@ func (d *DockerfileWriter) writeFile(
 		)
 	}
 
-	writtenFile, err := ioutil.TempFile(d.Directory, "")
+	replacer := strings.NewReplacer("/", "-", "\\", "-")
+	tempPath := replacer.Replace(fmt.Sprintf("%s-*", path))
+
+	writtenFile, err := ioutil.TempFile(d.Directory, tempPath)
 	if err != nil {
 		return "", err
 	}

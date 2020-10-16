@@ -92,24 +92,21 @@ in the future.
 [cli-plugin](https://github.com/docker/cli/issues/1534) for `docker` or as a
 standalone tool if you do not want to install the `docker` cli.
 Currently, `docker-lock` is offered as a precompiled binary in the
-[releases tab](https://github.com/safe-waters/docker-lock/releases) for
-the following operating systems and architectures:
-* `GOOS=windows`, `GOARCH=amd64`
-* `GOOS=darwin`, `GOARCH=amd64`
-* `GOOS=linux`, `GOARCH=amd64`
+[releases tab](https://github.com/safe-waters/docker-lock/releases)
+for a variety of operating systems and architectures.
 
 ## Cli-plugin
 Ensure `docker` cli version >= 19.03 is installed by running `docker --version`.
 
 ### Linux / Mac
 * `mkdir -p ~/.docker/cli-plugins`
-* `curl -fsSL https://github.com/safe-waters/docker-lock/releases/download/{VERSION}/docker-lock-{OS} -o ~/.docker/cli-plugins/docker-lock`
+* `curl -fsSL https://github.com/safe-waters/docker-lock/releases/download/v${VERSION}/docker-lock_${VERSION}_${OS}_${ARCH}.tar.gz" | tar -xz -C ~/.docker/cli-plugins`
 * `chmod +x ~/.docker/cli-plugins/docker-lock`
 
 ### Windows
 * Create the folder `%USERPROFILE%\.docker\cli-plugins`
-* Download `docker-lock-windows.exe` from the releases page.
-* Rename the file `docker-lock.exe`
+* Download the Windows release from the releases page.
+* Unzip the release.
 * Move `docker-lock.exe` into `%USERPROFILE%\.docker\cli-plugins`
 
 To verify that `docker-lock` was installed as a cli-plugin, run

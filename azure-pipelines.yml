@@ -192,7 +192,7 @@ jobs:
   - TestWindows
   - TestMacOS
   - TestLinux
-  condition: and(succeeded('TestWindows'), succeeded('TestMacOS'), succeeded('TestLinux'), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+  condition: and(succeeded('TestWindows'), succeeded('TestMacOS'), succeeded('TestLinux'))
   pool:
     vmImage: ubuntu-18.04
   steps:

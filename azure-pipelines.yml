@@ -83,11 +83,13 @@ jobs:
   - download: current
     artifact: docker-lock_windows_amd64
     displayName: Download docker-lock_windows_amd64
+    condition: eq(variables['Build.Repository.Name'], 'safe-waters/docker-lock')
 
   - script: |
       # $(Pipeline.Workspace) git bash bug, using cmd as workaround
       move "$(Pipeline.Workspace)\docker-lock_windows_amd64\docker-lock.exe" docker-lock.exe
     displayName: Move artifact to current directory
+    condition: eq(variables['Build.Repository.Name'], 'safe-waters/docker-lock')
 
   - bash: |
       set -euo pipefail
@@ -98,7 +100,7 @@ jobs:
       ./test/registry/contrib/tests.sh
       ./test/demo-app/tests.sh
     displayName: Run Integration Tests
-
+    condition: eq(variables['Build.Repository.Name'], 'safe-waters/docker-lock')
     env:
       DOCKER_USERNAME: "$(DOCKER_USERNAME)"
       DOCKER_PASSWORD: "$(DOCKER_PASSWORD)"
@@ -134,6 +136,7 @@ jobs:
   - download: current
     artifact: docker-lock_darwin_amd64
     displayName: Download docker-lock_darwin_amd64
+    condition: eq(variables['Build.Repository.Name'], 'safe-waters/docker-lock')
 
   - bash: |
       set -euo pipefail
@@ -146,7 +149,7 @@ jobs:
       ./test/registry/contrib/tests.sh
       ./test/demo-app/tests.sh
     displayName: Run Integration Tests
-
+    condition: eq(variables['Build.Repository.Name'], 'safe-waters/docker-lock')
     env:
       DOCKER_USERNAME: "$(DOCKER_USERNAME)"
       DOCKER_PASSWORD: "$(DOCKER_PASSWORD)"
@@ -168,6 +171,7 @@ jobs:
   - download: current
     artifact: docker-lock_linux_amd64
     displayName: Download docker-lock_linux_amd64
+    condition: eq(variables['Build.Repository.Name'], 'safe-waters/docker-lock')
 
   - bash: |
       set -euo pipefail
@@ -179,6 +183,7 @@ jobs:
       ./test/registry/contrib/tests.sh
       ./test/demo-app/tests.sh
     displayName: Run Integration Tests
+    condition: eq(variables['Build.Repository.Name'], 'safe-waters/docker-lock')
     env:
       DOCKER_USERNAME: "$(DOCKER_USERNAME)"
       DOCKER_PASSWORD: "$(DOCKER_PASSWORD)"
@@ -198,15 +203,41 @@ jobs:
   steps:
   - bash: |
       set -euo pipefail
+      mkdir -p ~/.docker/cli-plugins
+      curl -fsSL https://github.com/docker/buildx/releases/download/v0.4.2/buildx-v0.4.2.linux-amd64 -o ~/.docker/cli-plugins/docker-buildx
+      chmod +x ~/.docker/cli-plugins/docker-buildx
+    displayName: Install docker buildx
+    condition: eq(variables['Build.Repository.Name'], 'safe-waters/docker-lock')
+  - task: Docker@2
+    displayName: login
+    inputs:
+      command: login
+      containerRegistry: safe-waters
+    condition: eq(variables['Build.Repository.Name'], 'safe-waters/docker-lock')
+  - bash: |
+      set -euo pipefail
+      export DOCKER_CLI_EXPERIMENTAL=enabled
+      export DOCKER_BUILDKIT=1
+      sudo service docker restart
+      docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+      docker buildx create --use
       latest_tag="$(git tag -l | tail -n 1)"
       latest_tag="${latest_tag/v}"
+      curl -fsSL https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh | bash
+      sudo mv ./bin/goreleaser /usr/local/bin
       if ! curl -fsSL "https://github.com/safe-waters/docker-lock/releases/download/v${latest_tag}/docker-lock_${latest_tag}_Linux_x86_64.tar.gz" -o /dev/null; then
-        curl -fsSL https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh | bash
-        sudo mv ./bin/goreleaser /usr/local/bin
-        goreleaser
-      else
-        echo "Skipping release because latest tag: ${latest_tag} already exists."
+        echo "releasing version ${latest_tag} to github"
+        goreleaser --rm-dist
+        echo "releasing version ${latest_tag} to dockerhub"
+        docker buildx build --push --platform linux/amd64,linux/arm64,linux/arm/v6,linux/arm/v7,linux/386 -t "safewaters/docker-lock:${latest_tag}" .
       fi
-    displayName: Release if tag does not exist
+      echo "no new tag, skipping release to github"
+      if [[ "$(Build.SourceBranch)" == 'refs/heads/master' ]]; then
+        echo "releasing version latest to dockerhub"
+        goreleaser build --rm-dist --snapshot
+        docker buildx build --push --platform linux/amd64,linux/arm64,linux/arm/v6,linux/arm/v7,linux/386 -t safewaters/docker-lock .
+      fi
+    displayName: Release to github and dockerhub
+    condition: eq(variables['Build.Repository.Name'], 'safe-waters/docker-lock')
     env:
       GITHUB_TOKEN: "$(GITHUB_TOKEN)"

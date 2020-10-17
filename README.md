@@ -87,21 +87,19 @@ At this point, the Dockerfile will contain all of the digest information
 from the Lockfile, so it will always maintain the same, known behavior 
 in the future.
 
-# Install Pre-built Binary
+# Install
 `docker-lock` can be installed as a
-[cli-plugin](https://github.com/docker/cli/issues/1534) for `docker` or as a
-standalone tool if you do not want to install the `docker` cli.
-Currently, `docker-lock` is offered as a precompiled binary in the
-[releases tab](https://github.com/safe-waters/docker-lock/releases)
-for a variety of operating systems and architectures.
+[cli-plugin](https://github.com/docker/cli/issues/1534) for `docker`, as a
+standalone tool if you do not want to install the `docker` cli, or as a
+docker image.
 
 ## Cli-plugin
 Ensure `docker` cli version >= 19.03 is installed by running `docker --version`.
 
 ### Linux / Mac
 * `mkdir -p ~/.docker/cli-plugins`
-* `curl -fsSL "https://github.com/safe-waters/docker-lock/releases/download/v${VERSION}/docker-lock_${VERSION}_${OS}_${ARCH}.tar.gz" | tar -xz -C ~/.docker/cli-plugins`
-* `chmod +x ~/.docker/cli-plugins/docker-lock`
+* `curl -fsSL "https://github.com/safe-waters/docker-lock/releases/download/v${VERSION}/docker-lock_${VERSION}_${OS}_${ARCH}.tar.gz" | tar -xz -C "${HOME}/.docker/cli-plugins"`
+* `chmod +x "${HOME}/.docker/cli-plugins/docker-lock"`
 
 ### Windows
 * Create the folder `%USERPROFILE%\.docker\cli-plugins`
@@ -114,13 +112,6 @@ To verify that `docker-lock` was installed as a cli-plugin, run
 docker lock --help
 ```
 
-You can also see that `docker` is aware of `docker-lock` by running:
-```
-docker
-```
-and ensuring `lock` is output as a management command, like so:
-![CLI Install](./docs/assets/docker-cli-install.png)
-
 ## Standalone tool
 * Follow the same instructions as in the
 [cli-plugin section](#cli-plugin) except place the `docker-lock` executable in
@@ -132,6 +123,29 @@ the name of the executable, `docker-lock`, as in `docker-lock lock`.
 docker-lock lock --help
 ```
 
+## Docker Image
+* Instead of installing `docker-lock` on your machine, you can use a container
+hosted on Dockerhub
+* If you would like to use the container on Linux/Mac:
+```
+docker run -v "${PWD}":/run safewaters/docker-lock:${VERSION} [commands]
+```
+* If you would like to use the container on Windows:
+```
+docker run -v "%cd%":/run safewaters/docker-lock:${VERSION} [commands]
+```
+* If you leave off the `${VERSION}` tag, you will use the latest, nightly build.
+* If you would like the container to use your docker config on Linux/Mac:
+```
+docker run -v "${HOME}/.docker/config.json":/.docker/config.json:ro -v "${PWD}":/run safewaters/docker-lock:${VERSION} [commands]
+```
+* If you would like the container to use your docker config on Windows:
+```
+docker run -v "%USERPROFILE%\.docker\config.json":/.docker/config.json:ro -v "%cd%":/run safewaters/docker-lock:${VERSION} [commands]
+```
+> Note: If your host machine uses a credential helper such as osxkeychain,
+> wincred, or pass, the credentials will not be available to the container
+
 # Build From Source
 If you would like to install `docker-lock` from source, ensure `go` is
 installed or use the [supplied development container](#Development-Environment).
@@ -141,7 +155,7 @@ From the root of the project, run:
 go build ./cmd/docker-lock
 ```
 
-If on mac or linux, make the output binary executable:
+If on Mac or Linux, make the output binary executable:
 
 ```
 chmod +x docker-lock

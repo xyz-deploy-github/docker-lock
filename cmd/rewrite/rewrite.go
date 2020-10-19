@@ -2,6 +2,7 @@
 package rewrite
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/safe-waters/docker-lock/pkg/rewrite"
@@ -10,13 +11,22 @@ import (
 	"github.com/spf13/viper"
 )
 
+const namespace = "rewrite"
+
 // NewRewriteCmd creates the command 'rewrite' used in 'docker lock rewrite'.
 func NewRewriteCmd() (*cobra.Command, error) {
 	rewriteCmd := &cobra.Command{
 		Use:   "rewrite",
 		Short: "Rewrite files referenced by a Lockfile to use image digests",
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return bindPFlags(cmd, []string{
+				"lockfile-name",
+				"tempdir",
+				"exclude-tags",
+			})
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			flags, err := parseFlags(cmd)
+			flags, err := parseFlags()
 			if err != nil {
 				return err
 			}
@@ -35,21 +45,17 @@ func NewRewriteCmd() (*cobra.Command, error) {
 			return rewriter.RewriteLockfile(reader)
 		},
 	}
-	rewriteCmd.Flags().StringP(
-		"lockfile-name", "l", "docker-lock.json", "Lockfile to read from",
+	rewriteCmd.Flags().String(
+		"lockfile-name", "docker-lock.json", "Lockfile to read from",
 	)
-	rewriteCmd.Flags().StringP(
-		"tempdir", "t", "",
+	rewriteCmd.Flags().String(
+		"tempdir", "",
 		"Directory where a temporary directory will be created/deleted "+
 			"during a rewrite transaction",
 	)
-	rewriteCmd.Flags().BoolP(
-		"exclude-tags", "e", false, "Exclude image tags from rewritten files",
+	rewriteCmd.Flags().Bool(
+		"exclude-tags", false, "Exclude image tags from rewritten files",
 	)
-
-	if err := viper.BindPFlags(rewriteCmd.Flags()); err != nil {
-		return nil, err
-	}
 
 	return rewriteCmd, nil
 }
@@ -77,36 +83,30 @@ func SetupRewriter(flags *Flags) (*rewrite.Rewriter, error) {
 	return rewrite.NewRewriter(writer, renamer)
 }
 
+func bindPFlags(cmd *cobra.Command, flagNames []string) error {
+	for _, name := range flagNames {
+		if err := viper.BindPFlag(
+			fmt.Sprintf("%s.%s", namespace, name), cmd.Flags().Lookup(name),
+		); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // parseFlags gets values from the command and uses them to
 // create Flags.
-func parseFlags(cmd *cobra.Command) (*Flags, error) {
-	var (
-		lockfileName, tempDir string
-		excludeTags           bool
-		err                   error
+func parseFlags() (*Flags, error) {
+	lockfileName := viper.GetString(
+		fmt.Sprintf("%s.%s", namespace, "lockfile-name"),
 	)
-
-	switch viper.ConfigFileUsed() {
-	case "":
-		lockfileName, err = cmd.Flags().GetString("lockfile-name")
-		if err != nil {
-			return nil, err
-		}
-
-		tempDir, err = cmd.Flags().GetString("tempdir")
-		if err != nil {
-			return nil, err
-		}
-
-		excludeTags, err = cmd.Flags().GetBool("exclude-tags")
-		if err != nil {
-			return nil, err
-		}
-	default:
-		lockfileName = viper.GetString("lockfile-name")
-		tempDir = viper.GetString("tempdir")
-		excludeTags = viper.GetBool("exclude-tags")
-	}
+	tempDir := viper.GetString(
+		fmt.Sprintf("%s.%s", namespace, "tempdir"),
+	)
+	excludeTags := viper.GetBool(
+		fmt.Sprintf("%s.%s", namespace, "exclude-tags"),
+	)
 
 	return NewFlags(lockfileName, tempDir, excludeTags)
 }

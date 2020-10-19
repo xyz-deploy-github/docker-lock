@@ -4,6 +4,7 @@ package verify
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 
@@ -15,13 +16,22 @@ import (
 	"github.com/spf13/viper"
 )
 
+const namespace = "verify"
+
 // NewVerifyCmd creates the command 'verify' used in 'docker lock verify'.
 func NewVerifyCmd(client *registry.HTTPClient) (*cobra.Command, error) {
 	verifyCmd := &cobra.Command{
 		Use:   "verify",
 		Short: "Verify that a Lockfile is up-to-date",
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return bindPFlags(cmd, []string{
+				"lockfile-name",
+				"config-file",
+				"env-file",
+			})
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			flags, err := parseFlags(cmd)
+			flags, err := parseFlags()
 			if err != nil {
 				return err
 			}
@@ -40,20 +50,16 @@ func NewVerifyCmd(client *registry.HTTPClient) (*cobra.Command, error) {
 			return verifier.VerifyLockfile(reader)
 		},
 	}
-	verifyCmd.Flags().StringP(
-		"lockfile-name", "l", "docker-lock.json", "Lockfile to read from",
+	verifyCmd.Flags().String(
+		"lockfile-name", "docker-lock.json", "Lockfile to read from",
 	)
 	verifyCmd.Flags().String(
 		"config-file", cmd_generate.DefaultConfigPath(),
 		"Path to config file for auth credentials",
 	)
-	verifyCmd.Flags().StringP(
-		"env-file", "e", ".env", "Path to .env file",
+	verifyCmd.Flags().String(
+		"env-file", ".env", "Path to .env file",
 	)
-
-	if err := viper.BindPFlags(verifyCmd.Flags()); err != nil {
-		return nil, err
-	}
 
 	return verifyCmd, nil
 }
@@ -113,33 +119,28 @@ func SetupVerifier(
 	return verify.NewVerifier(generator)
 }
 
-func parseFlags(cmd *cobra.Command) (*Flags, error) {
-	var (
-		lockfileName, configPath, envPath string
-		err                               error
-	)
-
-	switch viper.ConfigFileUsed() {
-	case "":
-		lockfileName, err = cmd.Flags().GetString("lockfile-name")
-		if err != nil {
-			return nil, err
+func bindPFlags(cmd *cobra.Command, flagNames []string) error {
+	for _, name := range flagNames {
+		if err := viper.BindPFlag(
+			fmt.Sprintf("%s.%s", namespace, name), cmd.Flags().Lookup(name),
+		); err != nil {
+			return err
 		}
-
-		configPath, err = cmd.Flags().GetString("config-file")
-		if err != nil {
-			return nil, err
-		}
-
-		envPath, err = cmd.Flags().GetString("env-file")
-		if err != nil {
-			return nil, err
-		}
-	default:
-		lockfileName = viper.GetString("lockfile-name")
-		configPath = viper.GetString("config-file")
-		envPath = viper.GetString("env-file")
 	}
+
+	return nil
+}
+
+func parseFlags() (*Flags, error) {
+	lockfileName := viper.GetString(
+		fmt.Sprintf("%s.%s", namespace, "lockfile-name"),
+	)
+	configPath := viper.GetString(
+		fmt.Sprintf("%s.%s", namespace, "config-file"),
+	)
+	envPath := viper.GetString(
+		fmt.Sprintf("%s.%s", namespace, "env-file"),
+	)
 
 	return NewFlags(lockfileName, configPath, envPath)
 }

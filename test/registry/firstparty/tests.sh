@@ -89,7 +89,7 @@ main() {
 
     (
         # only linux build agent has docker daemon
-        if [[ "${1}" == "linux" ]]; then
+        if [[ "$(uname -s)" == "Linux" ]]; then
             cd internal/
             USERNAME="${DOCKER_USERNAME}"
             PASSWORD="${DOCKER_PASSWORD}"
@@ -100,4 +100,4 @@ main() {
     )
 }
 
-main "${1}"
+main

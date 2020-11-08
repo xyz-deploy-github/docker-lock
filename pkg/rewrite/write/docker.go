@@ -2,7 +2,6 @@
 package write
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"io/ioutil"
@@ -10,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/moby/buildkit/frontend/dockerfile/parser"
 	"github.com/safe-waters/docker-lock/pkg/generate/parse"
 )
 
@@ -98,38 +98,41 @@ func (d *DockerfileWriter) writeFile(
 	path string,
 	images []*parse.DockerfileImage,
 ) (string, error) {
-	dockerfile, err := os.Open(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return "", err
 	}
-	defer dockerfile.Close()
+	defer f.Close()
 
-	scanner := bufio.NewScanner(dockerfile)
+	loadedDockerfile, err := parser.Parse(f)
+	if err != nil {
+		return "", err
+	}
 
 	stageNames := map[string]bool{}
 
 	var imageIndex int
 
+	const maxNumFields = 3
+
 	var outputBuffer bytes.Buffer
 
-	for scanner.Scan() {
-		inputLine := scanner.Text()
-		outputLine := inputLine
-		fields := strings.Fields(inputLine)
+	for _, child := range loadedDockerfile.AST.Children {
+		outputLine := child.Original
 
-		const instructionIndex = 0 // for instance, FROM is an instruction
-		if len(fields) > 0 &&
-			strings.ToLower(fields[instructionIndex]) == "from" {
-			// FROM instructions may take the form:
-			// FROM <image>
-			// FROM <image> AS <stage>
-			// FROM <stage> AS <another stage>
-			// Only replace the image, never the stage.
-			const imageLineIndex = 1
+		if child.Value == "from" {
+			var raw []string
+			for n := child.Next; n != nil; n = n.Next {
+				raw = append(raw, n.Value)
+			}
 
-			imageLine := fields[imageLineIndex]
+			if len(raw) == 0 {
+				return "", fmt.Errorf(
+					"invalid from instruction in Dockerfile '%s'", path,
+				)
+			}
 
-			if !stageNames[imageLine] {
+			if !stageNames[raw[0]] {
 				if imageIndex >= len(images) {
 					return "", fmt.Errorf(
 						"more images exist in '%s' than in the Lockfile",
@@ -140,7 +143,8 @@ func (d *DockerfileWriter) writeFile(
 				replacementImageLine := convertImageToImageLine(
 					images[imageIndex].Image, d.ExcludeTags,
 				)
-				fields[imageLineIndex] = replacementImageLine
+
+				raw[0] = replacementImageLine
 				imageIndex++
 			}
 			// Ensure stage is added to the stage name set:
@@ -148,14 +152,13 @@ func (d *DockerfileWriter) writeFile(
 
 			// Ensure another stage is added to the stage name set:
 			// FROM <stage> AS <another stage>
-			const maxNumFields = 4
-			if len(fields) == maxNumFields {
-				const stageIndex = 3
+			if len(raw) == maxNumFields {
+				const stageIndex = maxNumFields - 1
 
-				stageNames[fields[stageIndex]] = true
+				stageNames[raw[stageIndex]] = true
 			}
 
-			outputLine = strings.Join(fields, " ")
+			outputLine = d.formatASTLine(child, raw)
 		}
 
 		outputBuffer.WriteString(fmt.Sprintf("%s\n", outputLine))
@@ -181,6 +184,19 @@ func (d *DockerfileWriter) writeFile(
 	}
 
 	return writtenFile.Name(), err
+}
+
+func (d *DockerfileWriter) formatASTLine(
+	child *parser.Node, raw []string,
+) string {
+	line := []string{strings.ToUpper(child.Value)}
+	if child.Flags != nil {
+		line = append(line, child.Flags...)
+	}
+
+	line = append(line, raw...)
+
+	return strings.Join(line, " ")
 }
 
 func convertImageToImageLine(image *parse.Image, excludeTags bool) string {

@@ -15,12 +15,12 @@ import (
 // Lockfile represents the canonical 'docker-lock.json'. It provides
 // the capability to write its contents in JSON format.
 type Lockfile struct {
-	DockerfileImages  map[string][]*parse.DockerfileImage  `json:"dockerfiles,omitempty"`  // nolint: lll
-	ComposefileImages map[string][]*parse.ComposefileImage `json:"composefiles,omitempty"` // nolint: lll
+	DockerfileImages     map[string][]*parse.DockerfileImage     `json:"dockerfiles,omitempty"`     // nolint: lll
+	ComposefileImages    map[string][]*parse.ComposefileImage    `json:"composefiles,omitempty"`    // nolint: lll
+	KubernetesfileImages map[string][]*parse.KubernetesfileImage `json:"kubernetesfiles,omitempty"` // nolint: lll
 }
 
-// NewLockfile sorts DockerfileImages and Composefile images and
-// returns a Lockfile.
+// NewLockfile sorts images and returns a Lockfile.
 func NewLockfile(anyImages <-chan *AnyImage) (*Lockfile, error) {
 	if anyImages == nil {
 		return &Lockfile{}, nil
@@ -29,6 +29,8 @@ func NewLockfile(anyImages <-chan *AnyImage) (*Lockfile, error) {
 	var dockerfileImages map[string][]*parse.DockerfileImage
 
 	var composefileImages map[string][]*parse.ComposefileImage
+
+	var kubernetesfileImages map[string][]*parse.KubernetesfileImage
 
 	for anyImage := range anyImages {
 		if anyImage.Err != nil {
@@ -65,12 +67,26 @@ func NewLockfile(anyImages <-chan *AnyImage) (*Lockfile, error) {
 				composefileImages[anyImage.ComposefileImage.Path],
 				anyImage.ComposefileImage,
 			)
+		case anyImage.KubernetesfileImage != nil:
+			if kubernetesfileImages == nil {
+				kubernetesfileImages = map[string][]*parse.KubernetesfileImage{}
+			}
+
+			anyImage.KubernetesfileImage.Path = filepath.ToSlash(
+				anyImage.KubernetesfileImage.Path,
+			)
+
+			kubernetesfileImages[anyImage.KubernetesfileImage.Path] = append(
+				kubernetesfileImages[anyImage.KubernetesfileImage.Path],
+				anyImage.KubernetesfileImage,
+			)
 		}
 	}
 
 	lockfile := &Lockfile{
-		DockerfileImages:  dockerfileImages,
-		ComposefileImages: composefileImages,
+		DockerfileImages:     dockerfileImages,
+		ComposefileImages:    composefileImages,
+		KubernetesfileImages: kubernetesfileImages,
 	}
 
 	lockfile.sortImages()
@@ -106,6 +122,10 @@ func (l *Lockfile) sortImages() {
 	waitGroup.Add(1)
 
 	go l.sortComposefileImages(&waitGroup)
+
+	waitGroup.Add(1)
+
+	go l.sortKubernetesfileImages(&waitGroup)
 
 	waitGroup.Wait()
 }
@@ -147,6 +167,29 @@ func (l *Lockfile) sortComposefileImages(waitGroup *sync.WaitGroup) {
 					return images[i].DockerfilePath < images[j].DockerfilePath
 				default:
 					return images[i].Position < images[j].Position
+				}
+			})
+		}()
+	}
+}
+
+func (l *Lockfile) sortKubernetesfileImages(waitGroup *sync.WaitGroup) {
+	defer waitGroup.Done()
+
+	for _, images := range l.KubernetesfileImages {
+		images := images
+
+		waitGroup.Add(1)
+
+		go func() {
+			defer waitGroup.Done()
+
+			sort.Slice(images, func(i, j int) bool {
+				switch {
+				case images[i].DocPosition != images[j].DocPosition:
+					return images[i].DocPosition < images[j].DocPosition
+				default:
+					return images[i].ImagePosition < images[j].ImagePosition
 				}
 			})
 		}()

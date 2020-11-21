@@ -73,7 +73,14 @@ func SetupRewriter(flags *Flags) (*rewrite.Rewriter, error) {
 		Directory:        flags.TempDir,
 	}
 
-	writer, err := rewrite.NewWriter(dockerfileWriter, composefileWriter)
+	kubernetesfileWriter := &write.KubernetesfileWriter{
+		ExcludeTags: flags.ExcludeTags,
+		Directory:   flags.TempDir,
+	}
+
+	writer, err := rewrite.NewWriter(
+		dockerfileWriter, composefileWriter, kubernetesfileWriter,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -95,8 +102,6 @@ func bindPFlags(cmd *cobra.Command, flagNames []string) error {
 	return nil
 }
 
-// parseFlags gets values from the command and uses them to
-// create Flags.
 func parseFlags() (*Flags, error) {
 	lockfileName := viper.GetString(
 		fmt.Sprintf("%s.%s", namespace, "lockfile-name"),

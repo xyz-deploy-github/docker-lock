@@ -198,8 +198,9 @@ func TestFlags(t *testing.T) {
 						"my/lockfile/docker-lock.json",
 					),
 				},
-				DockerfileFlags:  &generate.FlagsWithSharedNames{},
-				ComposefileFlags: &generate.FlagsWithSharedNames{},
+				DockerfileFlags:     &generate.FlagsWithSharedNames{},
+				ComposefileFlags:    &generate.FlagsWithSharedNames{},
+				KubernetesfileFlags: &generate.FlagsWithSharedNames{},
 			},
 			ShouldFail: true,
 		},
@@ -210,7 +211,8 @@ func TestFlags(t *testing.T) {
 				DockerfileFlags: &generate.FlagsWithSharedNames{
 					ManualPaths: []string{getAbsPath(t)},
 				},
-				ComposefileFlags: &generate.FlagsWithSharedNames{},
+				ComposefileFlags:    &generate.FlagsWithSharedNames{},
+				KubernetesfileFlags: &generate.FlagsWithSharedNames{},
 			},
 			ShouldFail: true,
 		},
@@ -220,6 +222,19 @@ func TestFlags(t *testing.T) {
 				FlagsWithSharedValues: &generate.FlagsWithSharedValues{},
 				DockerfileFlags:       &generate.FlagsWithSharedNames{},
 				ComposefileFlags: &generate.FlagsWithSharedNames{
+					ManualPaths: []string{getAbsPath(t)},
+				},
+				KubernetesfileFlags: &generate.FlagsWithSharedNames{},
+			},
+			ShouldFail: true,
+		},
+		{
+			Name: "Kubernetesfile Absolute Paths",
+			Expected: &generate.Flags{
+				FlagsWithSharedValues: &generate.FlagsWithSharedValues{},
+				DockerfileFlags:       &generate.FlagsWithSharedNames{},
+				ComposefileFlags:      &generate.FlagsWithSharedNames{},
+				KubernetesfileFlags: &generate.FlagsWithSharedNames{
 					ManualPaths: []string{getAbsPath(t)},
 				},
 			},
@@ -240,6 +255,9 @@ func TestFlags(t *testing.T) {
 				ComposefileFlags: &generate.FlagsWithSharedNames{
 					ManualPaths: []string{"docker-compose.yml"},
 				},
+				KubernetesfileFlags: &generate.FlagsWithSharedNames{
+					ManualPaths: []string{"pod.yaml"},
+				},
 			},
 		},
 	}
@@ -258,12 +276,16 @@ func TestFlags(t *testing.T) {
 				test.Expected.FlagsWithSharedValues.IgnoreMissingDigests,
 				test.Expected.DockerfileFlags.ManualPaths,
 				test.Expected.ComposefileFlags.ManualPaths,
+				test.Expected.KubernetesfileFlags.ManualPaths,
 				test.Expected.DockerfileFlags.Globs,
 				test.Expected.ComposefileFlags.Globs,
+				test.Expected.KubernetesfileFlags.Globs,
 				test.Expected.DockerfileFlags.Recursive,
 				test.Expected.ComposefileFlags.Recursive,
+				test.Expected.KubernetesfileFlags.Recursive,
 				test.Expected.DockerfileFlags.ExcludePaths,
 				test.Expected.ComposefileFlags.ExcludePaths,
+				test.Expected.KubernetesfileFlags.ExcludePaths,
 			)
 
 			if test.ShouldFail {

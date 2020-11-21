@@ -32,6 +32,7 @@ type Flags struct {
 	FlagsWithSharedValues *FlagsWithSharedValues
 	DockerfileFlags       *FlagsWithSharedNames
 	ComposefileFlags      *FlagsWithSharedNames
+	KubernetesfileFlags   *FlagsWithSharedNames
 }
 
 // NewFlagsWithSharedValues returns NewFlagsWithSharedValues after
@@ -99,8 +100,7 @@ func NewFlagsWithSharedNames(
 	}, nil
 }
 
-// NewFlags returns Flags used by Generator for Dockerfiles
-// and docker-compose files.
+// NewFlags returns Flags used by Generator.
 func NewFlags(
 	baseDir string,
 	lockfileName string,
@@ -109,12 +109,16 @@ func NewFlags(
 	ignoreMissingDigests bool,
 	dockerfilePaths []string,
 	composefilePaths []string,
+	kubernetesfilePaths []string,
 	dockerfileGlobs []string,
 	composefileGlobs []string,
+	kubernetesfileGlobs []string,
 	dockerfileRecursive bool,
 	composefileRecursive bool,
+	kubernetesfileRecursive bool,
 	dockerfileExcludeAll bool,
 	composefileExcludeAll bool,
+	kubernetesfileExcludeAll bool,
 ) (*Flags, error) {
 	sharedFlags, err := NewFlagsWithSharedValues(
 		baseDir, lockfileName, configPath, envPath, ignoreMissingDigests,
@@ -139,10 +143,19 @@ func NewFlags(
 		return nil, err
 	}
 
+	kubernetesfileFlags, err := NewFlagsWithSharedNames(
+		baseDir, kubernetesfilePaths, kubernetesfileGlobs,
+		kubernetesfileRecursive, kubernetesfileExcludeAll,
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Flags{
 		FlagsWithSharedValues: sharedFlags,
 		DockerfileFlags:       dockerfileFlags,
 		ComposefileFlags:      composefileFlags,
+		KubernetesfileFlags:   kubernetesfileFlags,
 	}, nil
 }
 

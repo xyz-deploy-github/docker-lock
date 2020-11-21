@@ -38,6 +38,11 @@ function run_generate_verify_tests() {
     docker lock verify --lockfile-name docker-lock-exclude-all-composefiles.json
     diff_files docker-lock-exclude-all-composefiles.json docker-lock-exclude-all-composefiles-test.json
 
+    echo "--exclude-all-kubernetesfiles"
+    docker lock generate --exclude-all-kubernetesfiles --lockfile-name docker-lock-exclude-all-kubernetesfiles-test.json
+    docker lock verify --lockfile-name docker-lock-exclude-all-kubernetesfiles.json
+    diff_files docker-lock-exclude-all-kubernetesfiles.json docker-lock-exclude-all-kubernetesfiles-test.json
+
     echo "--base-dir"
     docker lock generate --base-dir web --lockfile-name docker-lock-base-dir-test.json
     docker lock verify --lockfile-name docker-lock-base-dir-test.json
@@ -53,6 +58,11 @@ function run_generate_verify_tests() {
     docker lock verify --lockfile-name docker-lock-composefiles-test.json
     diff_files docker-lock-composefiles.json docker-lock-composefiles-test.json
 
+    echo "--kubernetesfiles"
+    docker lock generate --kubernetesfiles database/pod.yaml --lockfile-name docker-lock-kubernetesfiles-test.json
+    docker lock verify --lockfile-name docker-lock-kubernetesfiles-test.json
+    diff_files docker-lock-kubernetesfiles.json docker-lock-kubernetesfiles-test.json
+
     echo "--dockerfile-recursive"
     docker lock generate --dockerfile-recursive --lockfile-name docker-lock-dockerfile-recursive-test.json
     docker lock verify --lockfile-name docker-lock-dockerfile-recursive-test.json
@@ -63,8 +73,13 @@ function run_generate_verify_tests() {
     docker lock verify --lockfile-name docker-lock-composefile-recursive-test.json
     diff_files docker-lock-composefile-recursive.json docker-lock-composefile-recursive-test.json
 
+    echo "--kubernetesfile-recursive"
+    docker lock generate --kubernetesfile-recursive --lockfile-name docker-lock-kubernetesfile-recursive-test.json
+    docker lock verify --lockfile-name docker-lock-kubernetesfile-recursive-test.json
+    diff_files docker-lock-kubernetesfile-recursive.json docker-lock-kubernetesfile-recursive-test.json
+
     echo "--dockerfile-globs"
-    docker lock generate --dockerfile-globs 'web/*','database/*' --lockfile-name docker-lock-dockerfile-globs-test.json
+    docker lock generate --dockerfile-globs 'web/Docker*','database/Docker*' --lockfile-name docker-lock-dockerfile-globs-test.json
     docker lock verify --lockfile-name docker-lock-dockerfile-globs-test.json
     diff_files docker-lock-dockerfile-globs.json docker-lock-dockerfile-globs-test.json
 
@@ -73,8 +88,13 @@ function run_generate_verify_tests() {
     docker lock verify --lockfile-name docker-lock-composefile-globs-test.json
     diff_files docker-lock-composefile-globs.json docker-lock-composefile-globs-test.json
 
+    echo "--kubernetesfile-globs"
+    docker lock generate --kubernetesfile-globs 'database/po*' --lockfile-name docker-lock-kubernetesfile-globs-test.json
+    docker lock verify --lockfile-name docker-lock-kubernetesfile-globs-test.json
+    diff_files docker-lock-kubernetesfile-globs.json docker-lock-kubernetesfile-globs-test.json
+
     echo "--ignore-missing-digests"
-    docker lock generate --ignore-missing-digests --dockerfiles "private/Dockerfile-errors" --lockfile-name docker-lock-ignore-missing-digests.json
+    docker lock generate --ignore-missing-digests --dockerfiles "private/Dockerfile-errors" --lockfile-name docker-lock-ignore-missing-digests-test.json
     docker lock verify --ignore-missing-digests --lockfile-name docker-lock-ignore-missing-digests-test.json
     diff_files docker-lock-ignore-missing-digests.json docker-lock-ignore-missing-digests-test.json
     echo "------ PASSED GENERATE/VERIFY TESTS ------"
@@ -89,6 +109,7 @@ function run_rewrite_verify_tests() {
     diff_files docker-compose.yml docker-compose-rewrite.yml
     diff_files web/Dockerfile web/Dockerfile-rewrite
     diff_files database/Dockerfile database/Dockerfile-rewrite
+    diff_files pod.yml pod-rewrite.yml
 
     echo "--exclude-tags"
     docker lock rewrite --tempdir . --exclude-tags
@@ -96,6 +117,7 @@ function run_rewrite_verify_tests() {
     diff_files docker-compose.yml docker-compose-rewrite-exclude-tags.yml
     diff_files web/Dockerfile web/Dockerfile-rewrite-exclude-tags
     diff_files database/Dockerfile database/Dockerfile-rewrite-exclude-tags
+    diff_files pod.yml pod-rewrite-exclude-tags.yml
 
     echo "------ PASSED REWRITE/VERIFY TESTS ------"
 }

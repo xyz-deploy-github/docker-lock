@@ -7,11 +7,11 @@ import (
 	"github.com/safe-waters/docker-lock/pkg/generate/collect"
 )
 
-// PathCollector contains PathCollectors for Dockerfiles
-// and docker-compose files.
+// PathCollector contains PathCollectors for all files.
 type PathCollector struct {
-	DockerfileCollector  collect.IPathCollector
-	ComposefileCollector collect.IPathCollector
+	DockerfileCollector     collect.IPathCollector
+	ComposefileCollector    collect.IPathCollector
+	KubernetesfileCollector collect.IPathCollector
 }
 
 // IPathCollector provides an interface for PathCollector's exported
@@ -22,9 +22,10 @@ type IPathCollector interface {
 
 // AnyPath contains any possible type of path.
 type AnyPath struct {
-	DockerfilePath  string
-	ComposefilePath string
-	Err             error
+	DockerfilePath     string
+	ComposefilePath    string
+	KubernetesfilePath string
+	Err                error
 }
 
 // CollectPaths collects paths to be parsed.
@@ -32,7 +33,9 @@ func (p *PathCollector) CollectPaths(done <-chan struct{}) <-chan *AnyPath {
 	if (p.DockerfileCollector == nil ||
 		reflect.ValueOf(p.DockerfileCollector).IsNil()) &&
 		(p.ComposefileCollector == nil ||
-			reflect.ValueOf(p.ComposefileCollector).IsNil()) {
+			reflect.ValueOf(p.ComposefileCollector).IsNil()) &&
+		(p.KubernetesfileCollector == nil ||
+			reflect.ValueOf(p.KubernetesfileCollector).IsNil()) {
 		return nil
 	}
 
@@ -105,6 +108,39 @@ func (p *PathCollector) CollectPaths(done <-chan struct{}) <-chan *AnyPath {
 						return
 					case anyPaths <- &AnyPath{
 						ComposefilePath: composefilePathResult.Path,
+					}:
+					}
+				}
+			}()
+		}
+
+		if p.KubernetesfileCollector != nil &&
+			!reflect.ValueOf(p.KubernetesfileCollector).IsNil() {
+			waitGroup.Add(1)
+
+			go func() {
+				defer waitGroup.Done()
+
+				kubernetesfilePathResults := p.KubernetesfileCollector.CollectPaths( // nolint: lll
+					done,
+				)
+				for kubernetesfilePathResult := range kubernetesfilePathResults { // nolint: lll
+					if kubernetesfilePathResult.Err != nil {
+						select {
+						case <-done:
+						case anyPaths <- &AnyPath{
+							Err: kubernetesfilePathResult.Err,
+						}:
+						}
+
+						return
+					}
+
+					select {
+					case <-done:
+						return
+					case anyPaths <- &AnyPath{
+						KubernetesfilePath: kubernetesfilePathResult.Path,
 					}:
 					}
 				}

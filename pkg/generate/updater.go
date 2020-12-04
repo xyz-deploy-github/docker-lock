@@ -35,15 +35,15 @@ func (i *imageDigestUpdater) UpdateDigests(
 	go func() {
 		defer waitGroup.Done()
 
-		imagesWithoutDigests := make(chan parse.IImage)
-		digestsToUpdate := map[string][]parse.IImage{}
+		imagesToQuery := make(chan parse.IImage)
+		imageLineCache := map[string][]parse.IImage{}
 
-		var imagesWithoutDigestsWaitGroup sync.WaitGroup
+		var imagesToQueryWaitGroup sync.WaitGroup
 
-		imagesWithoutDigestsWaitGroup.Add(1)
+		imagesToQueryWaitGroup.Add(1)
 
 		go func() {
-			defer imagesWithoutDigestsWaitGroup.Done()
+			defer imagesToQueryWaitGroup.Done()
 
 			for image := range images {
 				if image.Err() != nil {
@@ -55,36 +55,34 @@ func (i *imageDigestUpdater) UpdateDigests(
 					return
 				}
 
-				if image.Digest() == "" {
-					key := image.Name() + image.Tag()
-					if _, ok := digestsToUpdate[key]; !ok {
-						select {
-						case <-done:
-							return
-						case imagesWithoutDigests <- image:
-						}
-					}
+				key := image.ImageLine()
+				if _, ok := imageLineCache[key]; !ok {
+					metadata := image.Metadata()
+					metadata["key"] = key
 
-					digestsToUpdate[key] = append(digestsToUpdate[key], image)
-				} else {
 					select {
 					case <-done:
 						return
-					case updatedImages <- image:
+					case imagesToQuery <- parse.NewImage(
+						image.Kind(), image.Name(), image.Tag(),
+						image.Digest(), metadata, image.Err(),
+					):
 					}
 				}
+
+				imageLineCache[key] = append(imageLineCache[key], image)
 			}
 		}()
 
 		go func() {
-			imagesWithoutDigestsWaitGroup.Wait()
-			close(imagesWithoutDigests)
+			imagesToQueryWaitGroup.Wait()
+			close(imagesToQuery)
 		}()
 
 		var allUpdatedImages []parse.IImage
 
 		for updatedImage := range i.updater.UpdateDigests(
-			imagesWithoutDigests, done,
+			imagesToQuery, done,
 		) {
 			if updatedImage.Err() != nil {
 				select {
@@ -99,9 +97,9 @@ func (i *imageDigestUpdater) UpdateDigests(
 		}
 
 		for _, updatedImage := range allUpdatedImages {
-			key := updatedImage.Name() + updatedImage.Tag()
+			key := updatedImage.Metadata()["key"].(string)
 
-			for _, image := range digestsToUpdate[key] {
+			for _, image := range imageLineCache[key] {
 				image.SetDigest(updatedImage.Digest())
 
 				select {

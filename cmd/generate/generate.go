@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/safe-waters/docker-lock/pkg/generate"
-	"github.com/safe-waters/docker-lock/pkg/generate/registry"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -14,7 +13,7 @@ import (
 const namespace = "generate"
 
 // NewGenerateCmd creates the command 'generate' used in 'docker lock generate'.
-func NewGenerateCmd(client *registry.HTTPClient) (*cobra.Command, error) {
+func NewGenerateCmd() (*cobra.Command, error) {
 	generateCmd := &cobra.Command{
 		Use:   "generate",
 		Short: "Generate a Lockfile to track image digests",
@@ -31,7 +30,6 @@ func NewGenerateCmd(client *registry.HTTPClient) (*cobra.Command, error) {
 				"dockerfile-recursive",
 				"composefile-recursive",
 				"kubernetesfile-recursive",
-				"config-file",
 				"env-file",
 				"exclude-all-dockerfiles",
 				"exclude-all-composefiles",
@@ -46,7 +44,7 @@ func NewGenerateCmd(client *registry.HTTPClient) (*cobra.Command, error) {
 				return err
 			}
 
-			generator, err := SetupGenerator(client, flags)
+			generator, err := SetupGenerator(flags)
 			if err != nil {
 				return err
 			}
@@ -101,10 +99,6 @@ func NewGenerateCmd(client *registry.HTTPClient) (*cobra.Command, error) {
 		"Recursively collect kubernetes files",
 	)
 	generateCmd.Flags().String(
-		"config-file", DefaultConfigPath(),
-		"Path to config file for auth credentials",
-	)
-	generateCmd.Flags().String(
 		"env-file", ".env", "Path to .env file",
 	)
 	generateCmd.Flags().Bool(
@@ -133,7 +127,6 @@ func NewGenerateCmd(client *registry.HTTPClient) (*cobra.Command, error) {
 
 // SetupGenerator creates a Generator configured for docker-lock's cli.
 func SetupGenerator(
-	client *registry.HTTPClient,
 	flags *Flags,
 ) (generate.IGenerator, error) {
 	if err := ensureFlagsNotNil(flags); err != nil {
@@ -156,7 +149,7 @@ func SetupGenerator(
 		return nil, err
 	}
 
-	updater, err := DefaultImageDigestUpdater(client, flags)
+	updater, err := DefaultImageDigestUpdater(flags)
 	if err != nil {
 		return nil, err
 	}
@@ -192,9 +185,6 @@ func parseFlags() (*Flags, error) {
 	)
 	lockfileName := viper.GetString(
 		fmt.Sprintf("%s.%s", namespace, "lockfile-name"),
-	)
-	configPath := viper.GetString(
-		fmt.Sprintf("%s.%s", namespace, "config-file"),
 	)
 	envPath := viper.GetString(
 		fmt.Sprintf("%s.%s", namespace, "env-file"),
@@ -243,7 +233,7 @@ func parseFlags() (*Flags, error) {
 	)
 
 	return NewFlags(
-		baseDir, lockfileName, configPath, envPath,
+		baseDir, lockfileName, envPath,
 		ignoreMissingDigests, updateExistingDigests,
 		dockerfilePaths, composefilePaths, kubernetesfilePaths,
 		dockerfileGlobs, composefileGlobs, kubernetesfileGlobs,

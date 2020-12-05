@@ -6,18 +6,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
-	"strings"
 	"sync/atomic"
 	"testing"
 
 	"github.com/safe-waters/docker-lock/pkg/generate/collect"
 	"github.com/safe-waters/docker-lock/pkg/generate/parse"
+	"github.com/safe-waters/docker-lock/pkg/generate/update"
 )
 
 const (
@@ -25,6 +23,40 @@ const (
 	GolangLatestSHA  = "6cb55c08bbf44793f16e3572bd7d2ae18f7a858f6ae4faa474c0a6eae1174a5d" // nolint: lll
 	RedisLatestSHA   = "09c33840ec47815dc0351f1eca3befe741d7105b3e95bc8fdb9a7e4985b9e1e5" // nolint: lll
 )
+
+type mockDigestRequester struct {
+	numNetworkCalls *uint64
+}
+
+func NewMockDigestRequester(
+	t *testing.T,
+	numNetworkCalls *uint64,
+) update.IDigestRequester {
+	t.Helper()
+
+	return &mockDigestRequester{
+		numNetworkCalls: numNetworkCalls,
+	}
+}
+
+func (m *mockDigestRequester) Digest(name string, tag string) (string, error) {
+	if m.numNetworkCalls != nil {
+		atomic.AddUint64(m.numNetworkCalls, 1)
+	}
+
+	nameTag := fmt.Sprintf("%s:%s", name, tag)
+
+	switch nameTag {
+	case "busybox:latest":
+		return BusyboxLatestSHA, nil
+	case "redis:latest":
+		return RedisLatestSHA, nil
+	case "golang:latest":
+		return GolangLatestSHA, nil
+	default:
+		return "", fmt.Errorf("no digest found for %s", nameTag)
+	}
+}
 
 func AssertImagesEqual(
 	t *testing.T,
@@ -132,46 +164,6 @@ func AssertNumNetworkCallsEqual(t *testing.T, expected uint64, got uint64) {
 	if expected != got {
 		t.Fatalf("expected %d network calls, got %d", expected, got)
 	}
-}
-
-func MakeMockServer(t *testing.T, numNetworkCalls *uint64) *httptest.Server {
-	t.Helper()
-
-	server := httptest.NewServer(
-		http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-			switch url := req.URL.String(); {
-			case strings.Contains(url, "scope"):
-				byt := []byte(`{"token": "NOT_USED"}`)
-				_, err := res.Write(byt)
-				if err != nil {
-					t.Fatal(err)
-				}
-			case strings.Contains(url, "manifests"):
-				atomic.AddUint64(numNetworkCalls, 1)
-
-				urlParts := strings.Split(url, "/")
-				repo, ref := urlParts[2], urlParts[len(urlParts)-1]
-
-				var digest string
-				switch fmt.Sprintf("%s:%s", repo, ref) {
-				case "busybox:latest":
-					digest = BusyboxLatestSHA
-				case "redis:latest":
-					digest = RedisLatestSHA
-				case "golang:latest":
-					digest = GolangLatestSHA
-				default:
-					digest = fmt.Sprintf(
-						"repo %s with ref %s not defined for testing",
-						repo, ref,
-					)
-				}
-
-				res.Header().Set("Docker-Content-Digest", digest)
-			}
-		}))
-
-	return server
 }
 
 func MakeDir(t *testing.T, dirPath string) {

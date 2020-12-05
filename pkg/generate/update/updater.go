@@ -5,29 +5,28 @@ import (
 	"sync"
 
 	"github.com/safe-waters/docker-lock/pkg/generate/parse"
-	"github.com/safe-waters/docker-lock/pkg/generate/registry"
 )
 
 type imageDigestUpdater struct {
-	wrapperManager        *registry.WrapperManager
+	digestRequester       IDigestRequester
 	ignoreMissingDigests  bool
 	updateExistingDigests bool
 }
 
 // NewImageDigestUpdater returns an IImageDigestUpdater after validating its
-// fields. wrapperManager cannot be nil as it is responsible for querying
+// fields. digestRequester cannot be nil as it is responsible for querying
 // registries for digests.
 func NewImageDigestUpdater(
-	wrapperManager *registry.WrapperManager,
+	digestRequester IDigestRequester,
 	ignoreMissingDigests bool,
 	updateExistingDigests bool,
 ) (IImageDigestUpdater, error) {
-	if wrapperManager == nil {
-		return nil, errors.New("wrapperManager cannot be nil")
+	if digestRequester == nil {
+		return nil, errors.New("digestRequester cannot be nil")
 	}
 
 	return &imageDigestUpdater{
-		wrapperManager:        wrapperManager,
+		digestRequester:       digestRequester,
 		ignoreMissingDigests:  ignoreMissingDigests,
 		updateExistingDigests: updateExistingDigests,
 	}, nil
@@ -68,9 +67,9 @@ func (i *imageDigestUpdater) UpdateDigests(
 					return
 				}
 
-				wrapper := i.wrapperManager.Wrapper(image.Name())
-
-				digest, err := wrapper.Digest(image.Name(), image.Tag())
+				digest, err := i.digestRequester.Digest(
+					image.Name(), image.Tag(),
+				)
 				if err != nil && !i.ignoreMissingDigests {
 					select {
 					case <-done:

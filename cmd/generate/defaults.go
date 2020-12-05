@@ -3,16 +3,12 @@ package generate
 import (
 	"errors"
 	"os"
-	"path/filepath"
 
 	"github.com/joho/godotenv"
 	"github.com/safe-waters/docker-lock/pkg/generate"
 	"github.com/safe-waters/docker-lock/pkg/generate/collect"
 	"github.com/safe-waters/docker-lock/pkg/generate/format"
 	"github.com/safe-waters/docker-lock/pkg/generate/parse"
-	"github.com/safe-waters/docker-lock/pkg/generate/registry"
-	"github.com/safe-waters/docker-lock/pkg/generate/registry/contrib"
-	"github.com/safe-waters/docker-lock/pkg/generate/registry/firstparty"
 	"github.com/safe-waters/docker-lock/pkg/generate/update"
 	"github.com/safe-waters/docker-lock/pkg/kind"
 )
@@ -176,11 +172,7 @@ func DefaultImageFormatter(flags *Flags) (generate.IImageFormatter, error) {
 //
 // If all "ExcludePaths" are true or any of the three's flags,
 // are nil, an error is returned.
-//
-// DefaultImageDigestUpdater relies on DefaultWrapperManager and is subject
-// to the same error conditions.
 func DefaultImageDigestUpdater(
-	client *registry.HTTPClient,
 	flags *Flags,
 ) (generate.IImageDigestUpdater, error) {
 	if err := ensureFlagsNotNil(flags); err != nil {
@@ -193,15 +185,10 @@ func DefaultImageDigestUpdater(
 		return nil, errors.New("nothing to do - all paths excluded")
 	}
 
-	wrapperManager, err := DefaultWrapperManager(
-		client, flags.FlagsWithSharedValues.ConfigPath,
-	)
-	if err != nil {
-		return nil, err
-	}
+	digestRequester := update.NewDigestRequester()
 
 	imageDigestUpdater, err := update.NewImageDigestUpdater(
-		wrapperManager, flags.FlagsWithSharedValues.IgnoreMissingDigests,
+		digestRequester, flags.FlagsWithSharedValues.IgnoreMissingDigests,
 		flags.FlagsWithSharedValues.UpdateExistingDigests,
 	)
 	if err != nil {
@@ -209,42 +196,6 @@ func DefaultImageDigestUpdater(
 	}
 
 	return generate.NewImageDigestUpdater(imageDigestUpdater)
-}
-
-// DefaultConfigPath returns the default location of docker's config.json
-// for all platforms. If the platform does not have a home directory, it
-// returns an empty string.
-func DefaultConfigPath() string {
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		configPath := filepath.Join(homeDir, ".docker", "config.json")
-		if _, err := os.Stat(configPath); err != nil {
-			return ""
-		}
-
-		return configPath
-	}
-
-	return ""
-}
-
-// DefaultWrapperManager creates a WrapperManager for querying registries
-// for image digests. The returned wrapper manager uses all possible first party
-// and contrib wrappers. The default wrapper queries Dockerhub for digests
-// and is used if the manager is unable to select a more specific wrapper.
-func DefaultWrapperManager(
-	client *registry.HTTPClient,
-	configPath string,
-) (*registry.WrapperManager, error) {
-	defaultWrapper, err := firstparty.DefaultWrapper(client, configPath)
-	if err != nil {
-		return nil, err
-	}
-
-	wrapperManager := registry.NewWrapperManager(defaultWrapper)
-	wrapperManager.Add(firstparty.AllWrappers(client, configPath)...)
-	wrapperManager.Add(contrib.AllWrappers(client, configPath)...)
-
-	return wrapperManager, nil
 }
 
 // DefaultLoadEnv loads .env files based on the path. If a path does not

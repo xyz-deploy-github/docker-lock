@@ -2,9 +2,7 @@ package generate
 
 import (
 	"errors"
-	"os"
 
-	"github.com/joho/godotenv"
 	"github.com/safe-waters/docker-lock/pkg/generate"
 	"github.com/safe-waters/docker-lock/pkg/generate/collect"
 	"github.com/safe-waters/docker-lock/pkg/generate/format"
@@ -157,9 +155,11 @@ func DefaultImageFormatter(flags *Flags) (generate.IImageFormatter, error) {
 		return nil, errors.New("nothing to do - all paths excluded")
 	}
 
-	dockerfileImageFormatter := format.NewDockerfileImageFormatter()
-	composefileImageFormatter := format.NewComposefileImageFormatter()
-	kubernetesfileImageFormatter := format.NewKubernetesfileImageFormatter()
+	var (
+		dockerfileImageFormatter     = format.NewDockerfileImageFormatter()
+		composefileImageFormatter    = format.NewComposefileImageFormatter()
+		kubernetesfileImageFormatter = format.NewKubernetesfileImageFormatter()
+	)
 
 	return generate.NewImageFormatter(
 		dockerfileImageFormatter, composefileImageFormatter,
@@ -198,23 +198,9 @@ func DefaultImageDigestUpdater(
 	return generate.NewImageDigestUpdater(imageDigestUpdater)
 }
 
-// DefaultLoadEnv loads .env files based on the path. If a path does not
-// exist and that path is not ".env", an error will occur.
-func DefaultLoadEnv(path string) error {
-	if _, err := os.Stat(path); err != nil {
-		if path == ".env" {
-			return nil
-		}
-
-		return err
-	}
-
-	return godotenv.Load(path)
-}
-
 func ensureFlagsNotNil(flags *Flags) error {
 	if flags == nil {
-		return errors.New("flags cannot be nil")
+		return errors.New("'flags' cannot be nil")
 	}
 
 	if flags.DockerfileFlags == nil {

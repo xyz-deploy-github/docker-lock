@@ -26,7 +26,6 @@ func NewVerifyCmd() (*cobra.Command, error) {
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return bindPFlags(cmd, []string{
 				"lockfile-name",
-				"env-file",
 				"ignore-missing-digests",
 				"update-existing-digests",
 				"exclude-tags",
@@ -49,14 +48,16 @@ func NewVerifyCmd() (*cobra.Command, error) {
 			}
 			defer reader.Close()
 
-			return verifier.VerifyLockfile(reader)
+			err = verifier.VerifyLockfile(reader)
+			if err == nil {
+				fmt.Println("successfully verified lockfile!")
+			}
+
+			return err
 		},
 	}
 	verifyCmd.Flags().String(
 		"lockfile-name", "docker-lock.json", "Lockfile to read from",
-	)
-	verifyCmd.Flags().String(
-		"env-file", ".env", "Path to .env file",
 	)
 	verifyCmd.Flags().Bool(
 		"ignore-missing-digests", false,
@@ -74,14 +75,18 @@ func NewVerifyCmd() (*cobra.Command, error) {
 }
 
 // SetupVerifier creates a Verifier configured for docker-lock's cli.
-func SetupVerifier(
-	flags *Flags,
-) (verify.IVerifier, error) {
+func SetupVerifier(flags *Flags) (verify.IVerifier, error) {
 	if flags == nil {
-		return nil, errors.New("flags cannot be nil")
+		return nil, errors.New("'flags' cannot be nil")
 	}
 
-	if err := cmd_generate.DefaultLoadEnv(flags.EnvPath); err != nil {
+	if _, err := os.Stat(flags.LockfileName); err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf(
+				"lockfile '%s' does not exist", flags.LockfileName,
+			)
+		}
+
 		return nil, err
 	}
 
@@ -95,13 +100,18 @@ func SetupVerifier(
 		return nil, err
 	}
 
-	dockerfilePaths := make([]string, len(existingLockfile[kind.Dockerfile]))
-	composefilePaths := make([]string, len(existingLockfile[kind.Composefile]))
-	kubernetesfilePaths := make(
-		[]string, len(existingLockfile[kind.Kubernetesfile]),
+	var (
+		dockerfilePaths = make(
+			[]string, len(existingLockfile[kind.Dockerfile]),
+		)
+		composefilePaths = make(
+			[]string, len(existingLockfile[kind.Composefile]),
+		)
+		kubernetesfilePaths = make(
+			[]string, len(existingLockfile[kind.Kubernetesfile]),
+		)
+		i, j, k int
 	)
-
-	var i, j, k int
 
 	for p := range existingLockfile[kind.Dockerfile] {
 		dockerfilePaths[i] = p
@@ -119,9 +129,9 @@ func SetupVerifier(
 	}
 
 	generatorFlags, err := cmd_generate.NewFlags(
-		".", "", flags.EnvPath, flags.IgnoreMissingDigests,
-		flags.UpdateExistingDigests, dockerfilePaths, composefilePaths,
-		kubernetesfilePaths, nil, nil, nil, false, false, false,
+		".", "", flags.IgnoreMissingDigests, flags.UpdateExistingDigests,
+		dockerfilePaths, composefilePaths, kubernetesfilePaths,
+		nil, nil, nil, false, false, false,
 		len(dockerfilePaths) == 0, len(composefilePaths) == 0,
 		len(kubernetesfilePaths) == 0,
 	)
@@ -134,16 +144,16 @@ func SetupVerifier(
 		return nil, err
 	}
 
-	dockerfileDifferentiator := diff.NewDockerfileDifferentiator(
-		flags.ExcludeTags,
-	)
-
-	composefileDifferentiator := diff.NewComposefileDifferentiator(
-		flags.ExcludeTags,
-	)
-
-	kubernetesfileDifferentiator := diff.NewKubernetesfileDifferentiator(
-		flags.ExcludeTags,
+	var (
+		dockerfileDifferentiator = diff.NewDockerfileDifferentiator(
+			flags.ExcludeTags,
+		)
+		composefileDifferentiator = diff.NewComposefileDifferentiator(
+			flags.ExcludeTags,
+		)
+		kubernetesfileDifferentiator = diff.NewKubernetesfileDifferentiator(
+			flags.ExcludeTags,
+		)
 	)
 
 	return verify.NewVerifier(
@@ -165,24 +175,23 @@ func bindPFlags(cmd *cobra.Command, flagNames []string) error {
 }
 
 func parseFlags() (*Flags, error) {
-	lockfileName := viper.GetString(
-		fmt.Sprintf("%s.%s", namespace, "lockfile-name"),
-	)
-	envPath := viper.GetString(
-		fmt.Sprintf("%s.%s", namespace, "env-file"),
-	)
-	ignoreMissingDigests := viper.GetBool(
-		fmt.Sprintf("%s.%s", namespace, "ignore-missing-digests"),
-	)
-	updateExistingDigests := viper.GetBool(
-		fmt.Sprintf("%s.%s", namespace, "update-existing-digests"),
-	)
-	excludeTags := viper.GetBool(
-		fmt.Sprintf("%s.%s", namespace, "exclude-tags"),
+	var (
+		lockfileName = viper.GetString(
+			fmt.Sprintf("%s.%s", namespace, "lockfile-name"),
+		)
+		ignoreMissingDigests = viper.GetBool(
+			fmt.Sprintf("%s.%s", namespace, "ignore-missing-digests"),
+		)
+		updateExistingDigests = viper.GetBool(
+			fmt.Sprintf("%s.%s", namespace, "update-existing-digests"),
+		)
+		excludeTags = viper.GetBool(
+			fmt.Sprintf("%s.%s", namespace, "exclude-tags"),
+		)
 	)
 
 	return NewFlags(
-		lockfileName, envPath, ignoreMissingDigests,
+		lockfileName, ignoreMissingDigests,
 		updateExistingDigests, excludeTags,
 	)
 }

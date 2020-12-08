@@ -2,6 +2,8 @@
 package generate
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"os"
 
@@ -30,7 +32,6 @@ func NewGenerateCmd() (*cobra.Command, error) {
 				"dockerfile-recursive",
 				"composefile-recursive",
 				"kubernetesfile-recursive",
-				"env-file",
 				"exclude-all-dockerfiles",
 				"exclude-all-composefiles",
 				"exclude-all-kubernetesfiles",
@@ -49,6 +50,19 @@ func NewGenerateCmd() (*cobra.Command, error) {
 				return err
 			}
 
+			var lockfileByt bytes.Buffer
+
+			err = generator.GenerateLockfile(&lockfileByt)
+			if err != nil {
+				return err
+			}
+
+			lockfileContents := lockfileByt.Bytes()
+
+			if len(lockfileContents) == 0 {
+				return errors.New("no images found")
+			}
+
 			writer, err := os.Create(
 				flags.FlagsWithSharedValues.LockfileName,
 			)
@@ -57,7 +71,12 @@ func NewGenerateCmd() (*cobra.Command, error) {
 			}
 			defer writer.Close()
 
-			return generator.GenerateLockfile(writer)
+			_, err = writer.Write(lockfileContents)
+			if err == nil {
+				fmt.Println("successfully generated lockfile!")
+			}
+
+			return err
 		},
 	}
 	generateCmd.Flags().String(
@@ -98,9 +117,6 @@ func NewGenerateCmd() (*cobra.Command, error) {
 		"kubernetesfile-recursive", false,
 		"Recursively collect kubernetes files",
 	)
-	generateCmd.Flags().String(
-		"env-file", ".env", "Path to .env file",
-	)
 	generateCmd.Flags().Bool(
 		"exclude-all-dockerfiles", false,
 		"Do not collect Dockerfiles unless referenced by docker-compose files",
@@ -130,12 +146,6 @@ func SetupGenerator(
 	flags *Flags,
 ) (generate.IGenerator, error) {
 	if err := ensureFlagsNotNil(flags); err != nil {
-		return nil, err
-	}
-
-	var err error
-
-	if err = DefaultLoadEnv(flags.FlagsWithSharedValues.EnvPath); err != nil {
 		return nil, err
 	}
 
@@ -180,61 +190,59 @@ func bindPFlags(cmd *cobra.Command, flagNames []string) error {
 }
 
 func parseFlags() (*Flags, error) {
-	baseDir := viper.GetString(
-		fmt.Sprintf("%s.%s", namespace, "base-dir"),
-	)
-	lockfileName := viper.GetString(
-		fmt.Sprintf("%s.%s", namespace, "lockfile-name"),
-	)
-	envPath := viper.GetString(
-		fmt.Sprintf("%s.%s", namespace, "env-file"),
-	)
-	dockerfilePaths := viper.GetStringSlice(
-		fmt.Sprintf("%s.%s", namespace, "dockerfiles"),
-	)
-	composefilePaths := viper.GetStringSlice(
-		fmt.Sprintf("%s.%s", namespace, "composefiles"),
-	)
-	kubernetesfilePaths := viper.GetStringSlice(
-		fmt.Sprintf("%s.%s", namespace, "kubernetesfiles"),
-	)
-	dockerfileGlobs := viper.GetStringSlice(
-		fmt.Sprintf("%s.%s", namespace, "dockerfile-globs"),
-	)
-	composefileGlobs := viper.GetStringSlice(
-		fmt.Sprintf("%s.%s", namespace, "composefile-globs"),
-	)
-	kubernetesfileGlobs := viper.GetStringSlice(
-		fmt.Sprintf("%s.%s", namespace, "kubernetesfile-globs"),
-	)
-	dockerfileRecursive := viper.GetBool(
-		fmt.Sprintf("%s.%s", namespace, "dockerfile-recursive"),
-	)
-	composefileRecursive := viper.GetBool(
-		fmt.Sprintf("%s.%s", namespace, "composefile-recursive"),
-	)
-	kubernetesfileRecursive := viper.GetBool(
-		fmt.Sprintf("%s.%s", namespace, "kubernetesfile-recursive"),
-	)
-	dockerfileExcludeAll := viper.GetBool(
-		fmt.Sprintf("%s.%s", namespace, "exclude-all-dockerfiles"),
-	)
-	composefileExcludeAll := viper.GetBool(
-		fmt.Sprintf("%s.%s", namespace, "exclude-all-composefiles"),
-	)
-	kubernetesfileExcludeAll := viper.GetBool(
-		fmt.Sprintf("%s.%s", namespace, "exclude-all-kubernetesfiles"),
-	)
-	ignoreMissingDigests := viper.GetBool(
-		fmt.Sprintf("%s.%s", namespace, "ignore-missing-digests"),
-	)
-	updateExistingDigests := viper.GetBool(
-		fmt.Sprintf("%s.%s", namespace, "update-existing-digests"),
+	var (
+		baseDir = viper.GetString(
+			fmt.Sprintf("%s.%s", namespace, "base-dir"),
+		)
+		lockfileName = viper.GetString(
+			fmt.Sprintf("%s.%s", namespace, "lockfile-name"),
+		)
+		dockerfilePaths = viper.GetStringSlice(
+			fmt.Sprintf("%s.%s", namespace, "dockerfiles"),
+		)
+		composefilePaths = viper.GetStringSlice(
+			fmt.Sprintf("%s.%s", namespace, "composefiles"),
+		)
+		kubernetesfilePaths = viper.GetStringSlice(
+			fmt.Sprintf("%s.%s", namespace, "kubernetesfiles"),
+		)
+		dockerfileGlobs = viper.GetStringSlice(
+			fmt.Sprintf("%s.%s", namespace, "dockerfile-globs"),
+		)
+		composefileGlobs = viper.GetStringSlice(
+			fmt.Sprintf("%s.%s", namespace, "composefile-globs"),
+		)
+		kubernetesfileGlobs = viper.GetStringSlice(
+			fmt.Sprintf("%s.%s", namespace, "kubernetesfile-globs"),
+		)
+		dockerfileRecursive = viper.GetBool(
+			fmt.Sprintf("%s.%s", namespace, "dockerfile-recursive"),
+		)
+		composefileRecursive = viper.GetBool(
+			fmt.Sprintf("%s.%s", namespace, "composefile-recursive"),
+		)
+		kubernetesfileRecursive = viper.GetBool(
+			fmt.Sprintf("%s.%s", namespace, "kubernetesfile-recursive"),
+		)
+		dockerfileExcludeAll = viper.GetBool(
+			fmt.Sprintf("%s.%s", namespace, "exclude-all-dockerfiles"),
+		)
+		composefileExcludeAll = viper.GetBool(
+			fmt.Sprintf("%s.%s", namespace, "exclude-all-composefiles"),
+		)
+		kubernetesfileExcludeAll = viper.GetBool(
+			fmt.Sprintf("%s.%s", namespace, "exclude-all-kubernetesfiles"),
+		)
+		ignoreMissingDigests = viper.GetBool(
+			fmt.Sprintf("%s.%s", namespace, "ignore-missing-digests"),
+		)
+		updateExistingDigests = viper.GetBool(
+			fmt.Sprintf("%s.%s", namespace, "update-existing-digests"),
+		)
 	)
 
 	return NewFlags(
-		baseDir, lockfileName, envPath,
-		ignoreMissingDigests, updateExistingDigests,
+		baseDir, lockfileName, ignoreMissingDigests, updateExistingDigests,
 		dockerfilePaths, composefilePaths, kubernetesfilePaths,
 		dockerfileGlobs, composefileGlobs, kubernetesfileGlobs,
 		dockerfileRecursive, composefileRecursive, kubernetesfileRecursive,

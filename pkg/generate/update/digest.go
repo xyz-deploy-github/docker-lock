@@ -14,10 +14,15 @@ func NewDigestRequester() IDigestRequester {
 	return &digestRequester{}
 }
 
+// Digest queries a registry for a sha256 digest given a name and tag.
 func (d *digestRequester) Digest(name string, tag string) (string, error) {
-	digest, err := crane.Digest(fmt.Sprintf("%s:%s", name, tag))
+	nameTag := fmt.Sprintf("%s:%s", name, tag)
+	digest, err := crane.Digest(nameTag)
+
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf(
+			"failed to find digest for '%s' with err: %v", nameTag, err,
+		)
 	}
 
 	return strings.TrimPrefix(digest, "sha256:"), nil

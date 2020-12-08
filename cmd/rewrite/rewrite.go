@@ -2,6 +2,7 @@
 package rewrite
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -43,7 +44,14 @@ func NewRewriteCmd() (*cobra.Command, error) {
 			}
 			defer reader.Close()
 
-			return rewriter.RewriteLockfile(reader)
+			err = rewriter.RewriteLockfile(reader)
+			if err == nil {
+				fmt.Println(
+					"successfully rewrote files referenced by lockfile!",
+				)
+			}
+
+			return err
 		},
 	}
 	rewriteCmd.Flags().String(
@@ -63,6 +71,20 @@ func NewRewriteCmd() (*cobra.Command, error) {
 
 // SetupRewriter creates a Rewriter configured for docker-lock's cli.
 func SetupRewriter(flags *Flags) (rewrite.IRewriter, error) {
+	if flags == nil {
+		return nil, errors.New("'flags' cannot be nil")
+	}
+
+	if _, err := os.Stat(flags.LockfileName); err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf(
+				"lockfile '%s' does not exist", flags.LockfileName,
+			)
+		}
+
+		return nil, err
+	}
+
 	dockerfileWriter := write.NewDockerfileWriter(
 		flags.ExcludeTags, flags.TempDir,
 	)
@@ -110,14 +132,16 @@ func bindPFlags(cmd *cobra.Command, flagNames []string) error {
 }
 
 func parseFlags() (*Flags, error) {
-	lockfileName := viper.GetString(
-		fmt.Sprintf("%s.%s", namespace, "lockfile-name"),
-	)
-	tempDir := viper.GetString(
-		fmt.Sprintf("%s.%s", namespace, "tempdir"),
-	)
-	excludeTags := viper.GetBool(
-		fmt.Sprintf("%s.%s", namespace, "exclude-tags"),
+	var (
+		lockfileName = viper.GetString(
+			fmt.Sprintf("%s.%s", namespace, "lockfile-name"),
+		)
+		tempDir = viper.GetString(
+			fmt.Sprintf("%s.%s", namespace, "tempdir"),
+		)
+		excludeTags = viper.GetBool(
+			fmt.Sprintf("%s.%s", namespace, "exclude-tags"),
+		)
 	)
 
 	return NewFlags(lockfileName, tempDir, excludeTags)

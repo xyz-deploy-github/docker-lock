@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/docker/cli/cli/compose/loader"
+	"github.com/docker/cli/cli/compose/types"
 	"github.com/safe-waters/docker-lock/pkg/generate/parse"
 	"github.com/safe-waters/docker-lock/pkg/kind"
 	"gopkg.in/yaml.v2"
@@ -60,9 +62,10 @@ func (c *composefileWriter) WriteFiles(
 	pathImages map[string][]interface{},
 	done <-chan struct{},
 ) <-chan IWrittenPath {
-	writtenPaths := make(chan IWrittenPath)
-
-	var waitGroup sync.WaitGroup
+	var (
+		waitGroup    sync.WaitGroup
+		writtenPaths = make(chan IWrittenPath)
+	)
 
 	waitGroup.Add(1)
 
@@ -146,9 +149,10 @@ func (c *composefileWriter) writeComposefiles(
 	pathImages map[string][]interface{},
 	done <-chan struct{},
 ) <-chan IWrittenPath {
-	writtenPaths := make(chan IWrittenPath)
-
-	var waitGroup sync.WaitGroup
+	var (
+		waitGroup    sync.WaitGroup
+		writtenPaths = make(chan IWrittenPath)
+	)
 
 	waitGroup.Add(1)
 
@@ -202,6 +206,24 @@ func (c *composefileWriter) writeFile(
 		return "", err
 	}
 
+	data, err := loader.ParseYAML(pathByt)
+	if err != nil {
+		return "", fmt.Errorf("in '%s', %s", path, err)
+	}
+
+	if _, err = loader.Load(
+		types.ConfigDetails{
+			ConfigFiles: []types.ConfigFile{
+				{
+					Config:   data,
+					Filename: path,
+				},
+			},
+		},
+	); err != nil {
+		return "", fmt.Errorf("in '%s', %s", path, err)
+	}
+
 	serviceImageLines, err := c.filterComposefileServices(pathByt, images)
 	if err != nil {
 		return "", fmt.Errorf("in '%s', %s", path, err)
@@ -215,14 +237,15 @@ func (c *composefileWriter) writeFile(
 		serviceName        string
 		numServicesWritten int
 		outputBuffer       bytes.Buffer
-		inputBuffer        = bytes.NewBuffer(pathByt)
-		scanner            = bufio.NewScanner(inputBuffer)
+		scanner            = bufio.NewScanner(bytes.NewBuffer(pathByt))
 	)
 
 	for scanner.Scan() {
-		inputLine := scanner.Text()
-		outputLine := inputLine
-		possibleServiceName := strings.Trim(inputLine, " :")
+		var (
+			inputLine           = scanner.Text()
+			outputLine          = inputLine
+			possibleServiceName = strings.Trim(inputLine, " :")
+		)
 
 		switch {
 		case serviceImageLines[possibleServiceName] != "":
@@ -282,8 +305,15 @@ func (c *composefileWriter) filterComposefileServices(
 	)
 
 	for _, image := range images {
-		image := image.(map[string]interface{})
-		serviceName := image["service"].(string)
+		image, ok := image.(map[string]interface{})
+		if !ok {
+			return nil, errors.New("malformed image")
+		}
+
+		serviceName, ok := image["service"].(string)
+		if !ok {
+			return nil, errors.New("malformed 'service' in image")
+		}
 
 		if _, ok := comp.Services[serviceName]; !ok {
 			return nil, fmt.Errorf(
@@ -299,14 +329,27 @@ func (c *composefileWriter) filterComposefileServices(
 				)
 			}
 
-			tag := image["tag"].(string)
+			tag, ok := image["tag"].(string)
+			if !ok {
+				return nil, errors.New("malformed 'tag' in image")
+			}
+
 			if c.excludeTags {
 				tag = ""
 			}
 
+			name, ok := image["name"].(string)
+			if !ok {
+				return nil, errors.New("malformed 'name' in image")
+			}
+
+			digest, ok := image["digest"].(string)
+			if !ok {
+				return nil, errors.New("malformed 'digest' in image")
+			}
+
 			imageLine := parse.NewImage(
-				c.kind, image["name"].(string), tag, image["digest"].(string),
-				nil, nil,
+				c.kind, name, tag, digest, nil, nil,
 			).ImageLine()
 			serviceImageLines[serviceName] = imageLine
 		}
@@ -327,12 +370,13 @@ func (c *composefileWriter) filterComposefileServices(
 func (c *composefileWriter) filterDockerfilePathImages(
 	pathImages map[string][]interface{},
 ) (map[string][]interface{}, error) {
-	filteredCh := make(chan *filteredDockerfilePathImages)
+	var (
+		filteredCh = make(chan *filteredDockerfilePathImages)
+		done       = make(chan struct{})
+		waitGroup  sync.WaitGroup
+	)
 
-	done := make(chan struct{})
 	defer close(done)
-
-	var waitGroup sync.WaitGroup
 
 	waitGroup.Add(1)
 
@@ -350,10 +394,32 @@ func (c *composefileWriter) filterDockerfilePathImages(
 				serviceDockerfileImages := map[string][]interface{}{}
 
 				for _, image := range images {
-					image := image.(map[string]interface{})
+					image, ok := image.(map[string]interface{})
+					if !ok {
+						select {
+						case <-done:
+						case filteredCh <- &filteredDockerfilePathImages{
+							err: errors.New("malformed image"),
+						}:
+						}
+
+						return
+					}
 
 					if image["dockerfile"] != nil {
-						dockerfilePath := image["dockerfile"].(string)
+						dockerfilePath, ok := image["dockerfile"].(string)
+						if !ok {
+							select {
+							case <-done:
+							case filteredCh <- &filteredDockerfilePathImages{
+								err: errors.New(
+									"malformed 'dockerfile' in image",
+								),
+							}:
+							}
+
+							return
+						}
 
 						if filepath.IsAbs(dockerfilePath) {
 							var err error
@@ -375,7 +441,18 @@ func (c *composefileWriter) filterDockerfilePathImages(
 							image["dockerfile"] = dockerfilePath
 						}
 
-						serviceName := image["service"].(string)
+						serviceName, ok := image["service"].(string)
+						if !ok {
+							select {
+							case <-done:
+							case filteredCh <- &filteredDockerfilePathImages{
+								err: errors.New("malformed 'service' in image"),
+							}:
+							}
+
+							return
+						}
+
 						serviceDockerfileImages[serviceName] = append(
 							serviceDockerfileImages[serviceName], image,
 						)
@@ -383,11 +460,35 @@ func (c *composefileWriter) filterDockerfilePathImages(
 				}
 
 				for _, images := range serviceDockerfileImages {
-					dockerfilePathImages := map[string][]interface{}{} // nolint: lll
+					dockerfilePathImages := map[string][]interface{}{}
 
 					for _, image := range images {
-						image := image.(map[string]interface{})
-						dockerfilePath := image["dockerfile"].(string)
+						image, ok := image.(map[string]interface{})
+						if !ok {
+							select {
+							case <-done:
+							case filteredCh <- &filteredDockerfilePathImages{
+								err: errors.New("malformed image"),
+							}:
+							}
+
+							return
+						}
+
+						dockerfilePath, ok := image["dockerfile"].(string)
+						if !ok {
+							select {
+							case <-done:
+							case filteredCh <- &filteredDockerfilePathImages{
+								err: errors.New(
+									"malformed 'dockerfile' in image",
+								),
+							}:
+							}
+
+							return
+						}
+
 						dockerfilePathImages[dockerfilePath] = append(
 							dockerfilePathImages[dockerfilePath], image,
 						)
@@ -428,8 +529,15 @@ func (c *composefileWriter) filterDockerfilePathImages(
 				}
 
 				for i := 0; i < len(existingImages); i++ {
-					existingImage := existingImages[i].(map[string]interface{})
-					image := images[i].(map[string]interface{})
+					existingImage, ok := existingImages[i].(map[string]interface{}) // nolint: lll
+					if !ok {
+						return nil, errors.New("malformed image")
+					}
+
+					image, ok := images[i].(map[string]interface{})
+					if !ok {
+						return nil, errors.New("malformed image")
+					}
 
 					if existingImage["name"] != image["name"] ||
 						existingImage["tag"] != image["tag"] ||

@@ -1,6 +1,8 @@
 package generate
 
 import (
+	"errors"
+	"reflect"
 	"sync"
 
 	"github.com/safe-waters/docker-lock/pkg/generate/parse"
@@ -16,9 +18,11 @@ type imageDigestUpdater struct {
 func NewImageDigestUpdater(
 	updater update.IImageDigestUpdater,
 ) (IImageDigestUpdater, error) {
-	return &imageDigestUpdater{
-		updater: updater,
-	}, nil
+	if updater == nil || reflect.ValueOf(updater).IsNil() {
+		return nil, errors.New("'updater' cannot be nil")
+	}
+
+	return &imageDigestUpdater{updater: updater}, nil
 }
 
 // UpdateDigests updates images with the most recent digests from registries.
@@ -64,7 +68,25 @@ func (i *imageDigestUpdater) UpdateDigests(
 				key := image.ImageLine()
 				if _, ok := imageLineCache[key]; !ok {
 					metadata := image.Metadata()
-					metadata["key"] = key
+					if metadata == nil {
+						metadata = map[string]interface{}{}
+					}
+
+					if _, ok := metadata["__updateKey"]; ok {
+						select {
+						case <-done:
+						case updatedImages <- parse.NewImage(
+							image.Kind(), "", "", "", nil,
+							errors.New(
+								"image metadata key '__updateKey' is reserved",
+							),
+						):
+						}
+
+						return
+					}
+
+					metadata["__updateKey"] = key
 
 					select {
 					case <-done:
@@ -103,7 +125,31 @@ func (i *imageDigestUpdater) UpdateDigests(
 		}
 
 		for _, updatedImage := range allUpdatedImages {
-			key := updatedImage.Metadata()["key"].(string)
+			metadata := updatedImage.Metadata()
+			if metadata == nil {
+				select {
+				case <-done:
+				case updatedImages <- parse.NewImage(
+					updatedImage.Kind(), "", "", "", nil,
+					errors.New("image 'metadata' cannot be nil"),
+				):
+				}
+
+				return
+			}
+
+			key, _ := metadata["__updateKey"].(string)
+			if key == "" {
+				select {
+				case <-done:
+				case updatedImages <- parse.NewImage(
+					updatedImage.Kind(), "", "", "", nil,
+					errors.New("missing '__updateKey' in image"),
+				):
+				}
+
+				return
+			}
 
 			for _, image := range imageLineCache[key] {
 				image.SetDigest(updatedImage.Digest())

@@ -29,15 +29,14 @@ func NewMigrateCmd() (*cobra.Command, error) {
 				return err
 			}
 
-			migrater := migrate.NewMigrater()
-
 			reader, err := os.Open(flags.LockfileName)
 			if err != nil {
 				return err
 			}
 			defer reader.Close()
 
-			err = migrater.Migrate(reader, flags.Prefix)
+			migrater := migrate.NewMigrater(flags.Prefix)
+			err = migrater.Migrate(reader)
 			if err == nil {
 				fmt.Println("successfully migrated images from lockfile!")
 			}
@@ -49,8 +48,9 @@ func NewMigrateCmd() (*cobra.Command, error) {
 		"lockfile-name", "docker-lock.json", "Lockfile to read from",
 	)
 	migrateCmd.Flags().String(
-		"prefix", "hostname:port/repo", "location for migrated images",
+		"prefix", "", "location for migrated images such as hostname:port/repo",
 	)
+	migrateCmd.MarkFlagRequired("prefix")
 
 	return migrateCmd, nil
 }

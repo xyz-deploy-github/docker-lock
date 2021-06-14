@@ -18,10 +18,12 @@ type IMigrater interface {
 	Migrate(lockfileReader io.Reader) error
 }
 
-type migrater struct{}
+type migrater struct {
+	prefix string
+}
 
-func NewMigrater() IMigrater {
-	return &migrater{}
+func NewMigrater(prefix string) IMigrater {
+	return &migrater{prefix: prefix}
 }
 
 func (m *migrater) Migrate(lockfileReader io.Reader) error {
@@ -47,15 +49,15 @@ func (m *migrater) Migrate(lockfileReader io.Reader) error {
 	go func() {
 		defer waitGroup.Done()
 
-		for k := range lockfile {
-			k := k
+		for kind := range lockfile {
+			kind := kind
 
 			waitGroup.Add(1)
 
 			go func() {
 				defer waitGroup.Done()
 
-				for _, images := range lockfile[k] {
+				for _, images := range lockfile[kind] {
 					images := images
 
 					waitGroup.Add(1)
@@ -87,12 +89,16 @@ func (m *migrater) Migrate(lockfileReader io.Reader) error {
 									return
 								}
 
-								if err := crane.Copy(
-									parsedImage.ImageLine(),
-									imageLineWithoutHostPrefix(
-										parsedImage.ImageLine(), "mperel",
-									),
-								); err != nil {
+								src := parsedImage.ImageLine()
+								dst := imageLineWithoutHostPrefix(
+									parsedImage.ImageLine(), m.prefix,
+								)
+
+								if err := crane.Copy(src, dst); err != nil {
+									err = fmt.Errorf(
+										"unable to copy '%s' to '%s'", src, dst,
+									)
+
 									select {
 									case errCh <- err:
 									case <-doneCh:

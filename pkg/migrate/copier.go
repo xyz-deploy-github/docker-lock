@@ -33,7 +33,9 @@ func (c *copier) Copy(imageLine string) error {
 	dst := c.imageLineWithoutHostPrefix(src)
 
 	if err := crane.Copy(src, dst); err != nil {
-		return fmt.Errorf("unable to copy '%s' to '%s': '%v'", src, dst, err)
+		return fmt.Errorf(
+			"unable to copy '%s' to '%s': err: '%v'", src, dst, err,
+		)
 	}
 
 	return nil

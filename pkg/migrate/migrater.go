@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"strings"
 	"sync"
 
-	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/safe-waters/docker-lock/pkg/generate/parse"
 	"github.com/safe-waters/docker-lock/pkg/kind"
 )
@@ -19,11 +17,15 @@ type IMigrater interface {
 }
 
 type migrater struct {
-	prefix string
+	copier ICopier
 }
 
-func NewMigrater(prefix string) IMigrater {
-	return &migrater{prefix: prefix}
+func NewMigrater(copier ICopier) (IMigrater, error) {
+	if copier == nil || reflect.ValueOf(copier).IsNil() {
+		return nil, errors.New("'copier' cannot be nil")
+	}
+
+	return &migrater{copier: copier}, nil
 }
 
 func (m *migrater) Migrate(lockfileReader io.Reader) error {
@@ -73,7 +75,7 @@ func (m *migrater) Migrate(lockfileReader io.Reader) error {
 							go func() {
 								defer waitGroup.Done()
 
-								parsedImage, err := parseImageFromLockfile(
+								parsedImage, err := m.parseImageFromLockfile(
 									image,
 								)
 								if err != nil {
@@ -89,16 +91,9 @@ func (m *migrater) Migrate(lockfileReader io.Reader) error {
 									return
 								}
 
-								src := parsedImage.ImageLine()
-								dst := imageLineWithoutHostPrefix(
-									parsedImage.ImageLine(), m.prefix,
-								)
-
-								if err := crane.Copy(src, dst); err != nil {
-									err = fmt.Errorf(
-										"unable to copy '%s' to '%s'", src, dst,
-									)
-
+								if err := m.copier.Copy(
+									parsedImage,
+								); err != nil {
 									select {
 									case errCh <- err:
 									case <-doneCh:
@@ -126,31 +121,26 @@ func (m *migrater) Migrate(lockfileReader io.Reader) error {
 	return nil
 }
 
-func parseImageFromLockfile(lockfileImage interface{}) (parse.IImage, error) {
+func (m *migrater) parseImageFromLockfile(lockfileImage interface{}) (parse.IImage, error) {
 	image, ok := lockfileImage.(map[string]interface{})
 	if !ok {
-		return nil, errors.New("malformed image")
+		return nil, fmt.Errorf("malformed image '%v'", lockfileImage)
 	}
 
 	name, ok := image["name"].(string)
 	if !ok {
-		return nil, fmt.Errorf("malformed name '%s'", name)
+		return nil, fmt.Errorf("malformed name in image '%v'", image)
 	}
 
 	tag, ok := image["tag"].(string)
 	if !ok {
-		return nil, fmt.Errorf("malformed tag '%s'", tag)
+		return nil, fmt.Errorf("malformed tag in image '%v'", image)
 	}
 
 	digest, ok := image["digest"].(string)
 	if !ok {
-		return nil, fmt.Errorf("malformed digest '%s'", digest)
+		return nil, fmt.Errorf("malformed digest in image '%v'", image)
 	}
 
 	return parse.NewImage("", name, tag, digest, nil, nil), nil
-}
-
-func imageLineWithoutHostPrefix(imageLine string, prefix string) string {
-	fields := strings.Split(imageLine, "/")
-	return fmt.Sprintf("%s/%s", prefix, fields[len(fields)-1])
 }

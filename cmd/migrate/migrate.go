@@ -35,7 +35,12 @@ func NewMigrateCmd() (*cobra.Command, error) {
 			}
 			defer reader.Close()
 
-			migrater := migrate.NewMigrater(flags.Prefix)
+			copier := migrate.NewCopier(flags.Prefix)
+			migrater, err := migrate.NewMigrater(copier)
+			if err != nil {
+				return err
+			}
+
 			err = migrater.Migrate(reader)
 			if err == nil {
 				fmt.Println("successfully migrated images from lockfile!")

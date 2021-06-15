@@ -20,10 +20,21 @@ func (m *mockCopier) Copy(imageLine string) error {
 	defer m.mu.Unlock()
 
 	m.imageLines = append(m.imageLines, imageLine)
+
 	return nil
 }
 
-var lockfile = `{
+func TestMigrate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		lockfile []byte
+		expected []string
+	}{
+		{
+			name: "duplicates",
+			lockfile: []byte(`{
 	"dockerfiles": {
 		".devcontainer/Dockerfile": [
 			{
@@ -52,49 +63,56 @@ var lockfile = `{
 			}
 		]
 	}
-}`
-
-func TestMigrate(t *testing.T) {
-	t.Parallel()
-
-	prefix := "myrepo"
-	copier := &mockCopier{
-		prefix:     prefix,
-		imageLines: []string{},
-		mu:         &sync.Mutex{},
-	}
-	migrater, err := migrate.NewMigrater(copier)
-	if err != nil {
-		t.Fatal(err)
+}`),
+			expected: []string{
+				"ubuntu:bionic@sha256:122f", "alpine:latest@sha256:826f",
+			},
+		},
 	}
 
-	lockfileReader := bytes.NewReader([]byte(lockfile))
+	for _, test := range tests {
+		test := test
 
-	if err := migrater.Migrate(lockfileReader); err != nil {
-		t.Fatal(err)
-	}
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 
-	expected := []string{
-		"ubuntu:bionic@sha256:122f",
-		"alpine:latest@sha256:826f",
-	}
+			prefix := "myrepo"
+			copier := &mockCopier{
+				prefix:     prefix,
+				imageLines: []string{},
+				mu:         &sync.Mutex{},
+			}
 
-	if len(copier.imageLines) != len(expected) {
-		t.Fatalf(
-			"expected '%d' imageLines, got '%d'",
-			len(expected),
-			len(copier.imageLines),
-		)
-	}
+			migrater, err := migrate.NewMigrater(copier)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	sort.Strings(copier.imageLines)
-	sort.Strings(expected)
+			lockfileReader := bytes.NewReader(test.lockfile)
 
-	for i := range expected {
-		if expected[i] != copier.imageLines[i] {
-			t.Fatalf(
-				"expected '%s', got '%s'", expected[i], copier.imageLines[i],
-			)
-		}
+			if err := migrater.Migrate(lockfileReader); err != nil {
+				t.Fatal(err)
+			}
+
+			if len(test.expected) != len(copier.imageLines) {
+				t.Fatalf(
+					"expected '%d' imageLines, got '%d'",
+					len(test.expected),
+					len(copier.imageLines),
+				)
+			}
+
+			sort.Strings(copier.imageLines)
+			sort.Strings(test.expected)
+
+			for i := range test.expected {
+				if test.expected[i] != copier.imageLines[i] {
+					t.Fatalf(
+						"expected '%s', got '%s'",
+						test.expected[i], copier.imageLines[i],
+					)
+				}
+			}
+		})
 	}
 }

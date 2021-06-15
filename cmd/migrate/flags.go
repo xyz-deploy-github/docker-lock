@@ -23,9 +23,7 @@ func NewFlags(
 		return nil, err
 	}
 
-	if strings.HasSuffix(prefix, "/") {
-		prefix = prefix[:len(prefix)-1]
-	}
+	prefix = strings.TrimSuffix(prefix, "/")
 
 	return &Flags{
 		LockfileName: lockfileName,

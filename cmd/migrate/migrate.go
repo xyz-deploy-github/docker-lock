@@ -2,6 +2,7 @@
 package migrate
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -29,17 +30,16 @@ func NewMigrateCmd() (*cobra.Command, error) {
 				return err
 			}
 
+			migrater, err := SetupMigrater(flags)
+			if err != nil {
+				return err
+			}
+
 			reader, err := os.Open(flags.LockfileName)
 			if err != nil {
 				return err
 			}
 			defer reader.Close()
-
-			copier := migrate.NewCopier(flags.Prefix)
-			migrater, err := migrate.NewMigrater(copier)
-			if err != nil {
-				return err
-			}
 
 			err = migrater.Migrate(reader)
 			if err == nil {
@@ -55,9 +55,39 @@ func NewMigrateCmd() (*cobra.Command, error) {
 	migrateCmd.Flags().String(
 		"prefix", "", "location for migrated images such as hostname:port/repo",
 	)
-	migrateCmd.MarkFlagRequired("prefix")
+
+	err := migrateCmd.MarkFlagRequired("prefix")
+	if err != nil {
+		return nil, err
+	}
 
 	return migrateCmd, nil
+}
+
+// SetupMigrater creates a Migrater configured for docker-lock's cli.
+func SetupMigrater(flags *Flags) (migrate.IMigrater, error) {
+	if flags == nil {
+		return nil, errors.New("'flags' cannot be nil")
+	}
+
+	if _, err := os.Stat(flags.LockfileName); err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf(
+				"lockfile '%s' does not exist", flags.LockfileName,
+			)
+		}
+
+		return nil, err
+	}
+
+	copier := migrate.NewCopier(flags.Prefix)
+
+	migrater, err := migrate.NewMigrater(copier)
+	if err != nil {
+		return nil, err
+	}
+
+	return migrater, nil
 }
 
 func bindPFlags(cmd *cobra.Command, flagNames []string) error {

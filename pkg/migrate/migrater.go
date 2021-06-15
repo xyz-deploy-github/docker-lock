@@ -12,14 +12,11 @@ import (
 	"github.com/safe-waters/docker-lock/pkg/kind"
 )
 
-type IMigrater interface {
-	Migrate(lockfileReader io.Reader) error
-}
-
 type migrater struct {
 	copier ICopier
 }
 
+// NewMigrater returns an IMigrater after ensuring copier is not nil.
 func NewMigrater(copier ICopier) (IMigrater, error) {
 	if copier == nil || reflect.ValueOf(copier).IsNil() {
 		return nil, errors.New("'copier' cannot be nil")
@@ -28,6 +25,8 @@ func NewMigrater(copier ICopier) (IMigrater, error) {
 	return &migrater{copier: copier}, nil
 }
 
+// Migrate copies all images referenced in a lockfile to another
+// registry.
 func (m *migrater) Migrate(lockfileReader io.Reader) error {
 	if lockfileReader == nil || reflect.ValueOf(lockfileReader).IsNil() {
 		return errors.New("'lockfileReader' cannot be nil")
@@ -121,7 +120,9 @@ func (m *migrater) Migrate(lockfileReader io.Reader) error {
 	return nil
 }
 
-func (m *migrater) parseImageFromLockfile(lockfileImage interface{}) (parse.IImage, error) {
+func (m *migrater) parseImageFromLockfile(
+	lockfileImage interface{},
+) (parse.IImage, error) {
 	image, ok := lockfileImage.(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("malformed image '%v'", lockfileImage)

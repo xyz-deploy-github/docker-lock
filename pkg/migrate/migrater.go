@@ -25,8 +25,7 @@ func NewMigrater(copier ICopier) (IMigrater, error) {
 	return &migrater{copier: copier}, nil
 }
 
-// Migrate copies all images referenced in a lockfile to another
-// registry.
+// Migrate copies all images referenced in a Lockfile to other registries.
 func (m *migrater) Migrate(lockfileReader io.Reader) error {
 	if lockfileReader == nil || reflect.ValueOf(lockfileReader).IsNil() {
 		return errors.New("'lockfileReader' cannot be nil")
@@ -40,10 +39,10 @@ func (m *migrater) Migrate(lockfileReader io.Reader) error {
 	var (
 		waitGroup sync.WaitGroup
 		errCh     = make(chan error)
-		doneCh    = make(chan struct{})
+		done      = make(chan struct{})
 	)
 
-	defer close(doneCh)
+	defer close(done)
 
 	waitGroup.Add(1)
 
@@ -59,7 +58,7 @@ func (m *migrater) Migrate(lockfileReader io.Reader) error {
 					if err != nil {
 						select {
 						case errCh <- err:
-						case <-doneCh:
+						case <-done:
 						}
 
 						return
@@ -82,10 +81,10 @@ func (m *migrater) Migrate(lockfileReader io.Reader) error {
 					go func() {
 						defer waitGroup.Done()
 
-						if err := m.copier.Copy(imageLine); err != nil {
+						if err := m.copier.Copy(imageLine, done); err != nil {
 							select {
 							case errCh <- err:
-							case <-doneCh:
+							case <-done:
 							}
 
 							return

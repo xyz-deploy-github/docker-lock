@@ -10,12 +10,12 @@ import (
 )
 
 type mockCopier struct {
-	prefix     string
+	prefixes   []string
 	imageLines []string
 	mu         *sync.Mutex
 }
 
-func (m *mockCopier) Copy(imageLine string) error {
+func (m *mockCopier) Copy(imageLine string, done <-chan struct{}) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -76,9 +76,9 @@ func TestMigrate(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			prefix := "myrepo"
+			prefixes := []string{"myrepo"}
 			copier := &mockCopier{
-				prefix:     prefix,
+				prefixes:   prefixes,
 				imageLines: []string{},
 				mu:         &sync.Mutex{},
 			}

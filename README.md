@@ -26,8 +26,8 @@ a Lockfile containing digests that correspond to their tags.
 than those last recorded in the Lockfile.
 * `docker lock rewrite` rewrites `Dockerfiles`, `docker-compose` files,
 and `Kubernetes` manifests to include digests.
-* `docker lock migrate --prefix=myrepo` copies images referenced in a
-Lockfile to another repository.
+* `docker lock migrate` copies images referenced in a Lockfile to
+other repositories.
 
 `docker-lock` is most commonly used as a
 [cli-plugin](https://github.com/docker/cli/issues/1534) for `docker` so `lock`
@@ -301,11 +301,16 @@ measures in `docker-lock` to ensure this transaction happens and you are not
 left with some files rewritten if a failure occurs.
 
 ## Migrate
-* `docker lock migrate --prefix=myrepo` copies all images referenced by a
-Lockfile to `myrepo`. For instance, if a Lockfile contains
+* `docker lock migrate --downstream-prefixes=[myrepo,]` copies all images
+referenced by a Lockfile to other repositories. For instance, if a Lockfile
+contains
 `docker.io/library/ubuntu:bionic@sha256:122f506735a26c0a1aff2363335412cfc4f84de38326356d31ee00c2cbe52171`
 this command will migrate the image to
 `myrepo/ubuntu:bionic@sha256:122f506735a26c0a1aff2363335412cfc4f84de38326356d31ee00c2cbe52171`.
+> Note: `downstream-prefixes` is required.
+
+* `docker lock migrate --lockfile-name=[file name]` will use another file,
+instead of the default `docker-lock.json`, as the Lockfile.
 
 # Suggested workflow
 * Locally run `docker lock generate` to create a Lockfile, `docker-lock.json`,

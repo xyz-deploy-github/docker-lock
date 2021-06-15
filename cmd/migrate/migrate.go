@@ -21,7 +21,7 @@ func NewMigrateCmd() (*cobra.Command, error) {
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return bindPFlags(cmd, []string{
 				"lockfile-name",
-				"prefix",
+				"downstream-prefixes",
 			})
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -52,11 +52,12 @@ func NewMigrateCmd() (*cobra.Command, error) {
 	migrateCmd.Flags().String(
 		"lockfile-name", "docker-lock.json", "Lockfile to read from",
 	)
-	migrateCmd.Flags().String(
-		"prefix", "", "location for migrated images such as hostname:port/repo",
+	migrateCmd.Flags().StringSlice(
+		"downstream-prefixes",
+		[]string{}, "locations for migrated images such as hostname:port/repo",
 	)
 
-	err := migrateCmd.MarkFlagRequired("prefix")
+	err := migrateCmd.MarkFlagRequired("downstream-prefixes")
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +81,7 @@ func SetupMigrater(flags *Flags) (migrate.IMigrater, error) {
 		return nil, err
 	}
 
-	copier := migrate.NewCopier(flags.Prefix)
+	copier := migrate.NewCopier(flags.DownstreamPrefixes)
 
 	migrater, err := migrate.NewMigrater(copier)
 	if err != nil {
@@ -107,10 +108,10 @@ func parseFlags() (*Flags, error) {
 		lockfileName = viper.GetString(
 			fmt.Sprintf("%s.%s", namespace, "lockfile-name"),
 		)
-		prefix = viper.GetString(
-			fmt.Sprintf("%s.%s", namespace, "prefix"),
+		downstreamPrefixes = viper.GetStringSlice(
+			fmt.Sprintf("%s.%s", namespace, "downstream-prefixes"),
 		)
 	)
 
-	return NewFlags(lockfileName, prefix)
+	return NewFlags(lockfileName, downstreamPrefixes)
 }

@@ -50,61 +50,49 @@ func (m *migrater) Migrate(lockfileReader io.Reader) error {
 	go func() {
 		defer waitGroup.Done()
 
+		imageLineCache := map[string]struct{}{}
+
 		for kind := range lockfile {
-			kind := kind
+			for _, images := range lockfile[kind] {
+				for _, image := range images {
+					parsedImage, err := m.parseImageFromLockfile(image)
+					if err != nil {
+						select {
+						case errCh <- err:
+						case <-doneCh:
+						}
 
-			waitGroup.Add(1)
+						return
+					}
 
-			go func() {
-				defer waitGroup.Done()
+					if parsedImage.Name() == "scratch" {
+						continue
+					}
 
-				for _, images := range lockfile[kind] {
-					images := images
+					imageLine := parsedImage.ImageLine()
+
+					if _, ok := imageLineCache[imageLine]; ok {
+						continue
+					}
+
+					imageLineCache[imageLine] = struct{}{}
 
 					waitGroup.Add(1)
 
 					go func() {
 						defer waitGroup.Done()
 
-						for _, image := range images {
-							image := image
+						if err := m.copier.Copy(imageLine); err != nil {
+							select {
+							case errCh <- err:
+							case <-doneCh:
+							}
 
-							waitGroup.Add(1)
-
-							go func() {
-								defer waitGroup.Done()
-
-								parsedImage, err := m.parseImageFromLockfile(
-									image,
-								)
-								if err != nil {
-									select {
-									case errCh <- err:
-									case <-doneCh:
-									}
-
-									return
-								}
-
-								if parsedImage.Name() == "scratch" {
-									return
-								}
-
-								if err := m.copier.Copy(
-									parsedImage,
-								); err != nil {
-									select {
-									case errCh <- err:
-									case <-doneCh:
-									}
-
-									return
-								}
-							}()
+							return
 						}
 					}()
 				}
-			}()
+			}
 		}
 	}()
 

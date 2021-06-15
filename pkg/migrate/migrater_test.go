@@ -6,7 +6,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/safe-waters/docker-lock/pkg/generate/parse"
 	"github.com/safe-waters/docker-lock/pkg/migrate"
 )
 
@@ -16,11 +15,11 @@ type mockCopier struct {
 	mu         *sync.Mutex
 }
 
-func (m *mockCopier) Copy(image parse.IImage) error {
+func (m *mockCopier) Copy(imageLine string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.imageLines = append(m.imageLines, image.ImageLine())
+	m.imageLines = append(m.imageLines, imageLine)
 	return nil
 }
 
@@ -77,7 +76,6 @@ func TestMigrate(t *testing.T) {
 
 	expected := []string{
 		"ubuntu:bionic@sha256:122f",
-		"alpine:latest@sha256:826f",
 		"alpine:latest@sha256:826f",
 	}
 

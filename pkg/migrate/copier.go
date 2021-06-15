@@ -3,11 +3,9 @@ package migrate
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/crane"
-	"github.com/safe-waters/docker-lock/pkg/generate/parse"
 )
 
 type copier struct {
@@ -20,22 +18,22 @@ func NewCopier(prefix string) ICopier {
 }
 
 // Copy copies an image to another repository. It prepends the last
-// part of an image's path with the prefix.
+// part of an image line with the prefix.
 //
 // For instance:
-// Given an image such as docker.io/library/ubuntu:bionic@sha256:122...
+// Given an image line such as docker.io/library/ubuntu:bionic@sha256:122...
 // and a prefix of `myrepo`, Copy will push the exact same contents of the
-// image to myrepo/ubuntu:bionic@sha256:122.
-func (c *copier) Copy(image parse.IImage) error {
-	if image == nil || reflect.ValueOf(image).IsNil() {
-		return errors.New("cannot copy nil image")
+// image Line to myrepo/ubuntu:bionic@sha256:122.
+func (c *copier) Copy(imageLine string) error {
+	if imageLine == "" {
+		return errors.New("cannot copy an empty imageLine")
 	}
 
-	src := image.ImageLine()
+	src := imageLine
 	dst := c.imageLineWithoutHostPrefix(src)
 
 	if err := crane.Copy(src, dst); err != nil {
-		return fmt.Errorf("unable to copy '%s' to '%s'", src, dst)
+		return fmt.Errorf("unable to copy '%s' to '%s': '%v'", src, dst, err)
 	}
 
 	return nil

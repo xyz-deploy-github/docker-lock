@@ -2,6 +2,8 @@ package migrate
 
 import (
 	"io"
+
+	"github.com/safe-waters/docker-lock/pkg/generate/parse"
 )
 
 // IMigrater provides an interface for migrating images in a Lockfile
@@ -13,5 +15,5 @@ type IMigrater interface {
 // ICopier provides an interface for copying an image from one repository
 // to others.
 type ICopier interface {
-	Copy(imageLine string, done <-chan struct{}) error
+	Copy(image parse.IImage, done <-chan struct{}) error
 }

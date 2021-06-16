@@ -81,7 +81,7 @@ func (m *migrater) Migrate(lockfileReader io.Reader) error {
 					go func() {
 						defer waitGroup.Done()
 
-						if err := m.copier.Copy(imageLine, done); err != nil {
+						if err := m.copier.Copy(parsedImage, done); err != nil {
 							select {
 							case errCh <- err:
 							case <-done:

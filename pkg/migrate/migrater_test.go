@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/safe-waters/docker-lock/pkg/generate/parse"
 	"github.com/safe-waters/docker-lock/pkg/migrate"
 )
 
@@ -15,11 +16,11 @@ type mockCopier struct {
 	mu         *sync.Mutex
 }
 
-func (m *mockCopier) Copy(imageLine string, done <-chan struct{}) error {
+func (m *mockCopier) Copy(image parse.IImage, done <-chan struct{}) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.imageLines = append(m.imageLines, imageLine)
+	m.imageLines = append(m.imageLines, image.ImageLine())
 
 	return nil
 }

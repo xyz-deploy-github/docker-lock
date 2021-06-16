@@ -3,10 +3,12 @@ package migrate
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 
 	"github.com/google/go-containerregistry/pkg/crane"
+	"github.com/safe-waters/docker-lock/pkg/generate/parse"
 )
 
 type copier struct {
@@ -26,9 +28,9 @@ func NewCopier(downstreamPrefixes []string) ICopier {
 // Given an image line such as docker.io/library/ubuntu:bionic@sha256:122...
 // and a prefix of `myrepo`, Copy will push the exact same contents of the
 // image Line to myrepo/ubuntu:bionic@sha256:122.
-func (c *copier) Copy(imageLine string, done <-chan struct{}) error {
-	if imageLine == "" {
-		return errors.New("cannot copy an empty imageLine")
+func (c *copier) Copy(image parse.IImage, done <-chan struct{}) error {
+	if image == nil || reflect.ValueOf(image).IsNil() {
+		return errors.New("'image' cannot be nil")
 	}
 
 	var (
@@ -50,7 +52,7 @@ func (c *copier) Copy(imageLine string, done <-chan struct{}) error {
 				defer waitGroup.Done()
 
 				var (
-					src = imageLine
+					src = image.ImageLine()
 					dst = c.imageLineWithoutHostPrefix(prefix, src)
 				)
 
@@ -83,6 +85,14 @@ func (c *copier) Copy(imageLine string, done <-chan struct{}) error {
 func (c *copier) imageLineWithoutHostPrefix(
 	downstreamPrefix string, imageLine string,
 ) string {
-	fields := strings.Split(imageLine, "/")
-	return fmt.Sprintf("%s/%s", downstreamPrefix, fields[len(fields)-1])
+	var (
+		fields   = strings.Split(imageLine, "/")
+		lastPart = fields[len(fields)-1]
+	)
+
+	if i := strings.Index(lastPart, "@"); i != -1 {
+		lastPart = lastPart[:i]
+	}
+
+	return fmt.Sprintf("%s/%s", downstreamPrefix, lastPart)
 }

@@ -49,6 +49,11 @@ func TestMigrate(t *testing.T) {
 				"name": "alpine",
 				"tag": "latest",
 				"digest": "826f"
+			},
+			{
+				"name": "alpine",
+				"tag": "",
+				"digest": "826f"
 			}
 		],
 		"Dockerfile.scratch": [
@@ -67,6 +72,7 @@ func TestMigrate(t *testing.T) {
 }`),
 			expected: []string{
 				"ubuntu:bionic@sha256:122f", "alpine:latest@sha256:826f",
+				"alpine@sha256:826f",
 			},
 		},
 	}

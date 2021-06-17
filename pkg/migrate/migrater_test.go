@@ -42,6 +42,11 @@ func TestMigrate(t *testing.T) {
 				"name": "ubuntu",
 				"tag": "bionic",
 				"digest": "122f"
+			},
+			{
+				"name": "docker.io/library/ubuntu",
+				"tag": "bionic",
+				"digest": "122f"
 			}
 		],
 		"Dockerfile.alpine": [
@@ -73,6 +78,7 @@ func TestMigrate(t *testing.T) {
 			expected: []string{
 				"ubuntu:bionic@sha256:122f", "alpine:latest@sha256:826f",
 				"alpine@sha256:826f",
+				"docker.io/library/ubuntu:bionic@sha256:122f",
 			},
 		},
 	}

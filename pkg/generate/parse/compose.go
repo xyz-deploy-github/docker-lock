@@ -191,17 +191,7 @@ func (c *composefileImageParser) parseService(
 ) {
 	defer waitGroup.Done()
 
-	if serviceConfig.Build.Context == "" {
-		if serviceConfig.Build.Dockerfile != "" {
-			fmt.Printf(
-				"warning: '%s' has 'dockerfile' key but no 'context' key, "+
-					"so will be ignored\n",
-				path.Val(),
-			)
-
-			return
-		}
-
+	if serviceConfig.Build == nil {
 		if serviceConfig.Image == "" {
 			return
 		}

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/docker/cli/cli/compose/loader"
-	"github.com/docker/cli/cli/compose/types"
+	"github.com/compose-spec/compose-go/loader"
+	"github.com/compose-spec/compose-go/types"
 	"github.com/docker/cli/opts"
 	"github.com/safe-waters/docker-lock/pkg/generate/collect"
 	"github.com/safe-waters/docker-lock/pkg/kind"
@@ -232,18 +232,11 @@ func (c *composefileImageParser) parseService(
 	go func() {
 		defer dockerfileImageWaitGroup.Done()
 
-		context := serviceConfig.Build.Context
-		if !filepath.IsAbs(context) {
-			context = filepath.Join(filepath.Dir(path.Val()), context)
-		}
-
-		dockerfile := serviceConfig.Build.Dockerfile
-		if dockerfile == "" {
-			dockerfile = "Dockerfile"
-		}
+		cwd, _ := os.Getwd()
+		dockerfile, _ := filepath.Rel(cwd, serviceConfig.Build.Dockerfile)
 
 		dockerfilePath := collect.NewPath(
-			c.kind, filepath.Join(context, dockerfile), nil,
+			c.kind, dockerfile, nil,
 		)
 
 		buildArgs := map[string]string{}

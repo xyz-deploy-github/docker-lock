@@ -12,12 +12,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/docker/cli/cli/compose/loader"
-	"github.com/docker/cli/cli/compose/types"
-	"github.com/docker/cli/opts"
+	"github.com/compose-spec/compose-go/cli"
+	"github.com/compose-spec/compose-go/types"
 	"github.com/safe-waters/docker-lock/pkg/generate/parse"
 	"github.com/safe-waters/docker-lock/pkg/kind"
-	"gopkg.in/yaml.v2"
 )
 
 type composefileWriter struct {
@@ -202,66 +200,33 @@ func (c *composefileWriter) writeFile(
 	images []interface{},
 	outputDir string,
 ) (string, error) {
-	pathByt, err := ioutil.ReadFile(path)
+	opts, err := cli.NewProjectOptions(
+		[]string{path},
+		cli.WithWorkingDirectory(filepath.Dir(path)),
+		cli.WithDotEnv,
+		cli.WithOsEnv,
+	)
 	if err != nil {
 		return "", err
 	}
 
-	data, err := loader.ParseYAML(pathByt)
+	project, err := cli.ProjectFromOptions(opts)
 	if err != nil {
-		return "", fmt.Errorf(
-			"'%s' failed to parse with err: %v", path, err,
-		)
+		return "", fmt.Errorf("'%s' failed to parse with err: %v", path, err)
 	}
 
-	envVars := map[string]string{}
-
-	for _, envVarStr := range os.Environ() {
-		envVarVal := strings.SplitN(envVarStr, "=", 2)
-		envVars[envVarVal[0]] = envVarVal[1]
-	}
-
-	var envFileVars []string
-
-	if envFileVars, err = opts.ParseEnvFile(
-		filepath.Join(filepath.Dir(path), ".env"),
-	); err == nil {
-		for _, envVarStr := range envFileVars {
-			envVarVal := strings.SplitN(envVarStr, "=", 2)
-			if _, ok := envVars[envVarVal[0]]; !ok {
-				envVars[envVarVal[0]] = envVarVal[1]
-			}
-		}
-	}
-
-	skipValidation := func(opts *loader.Options) {
-		opts.SkipValidation = true
-	}
-
-	if _, err = loader.Load(
-		types.ConfigDetails{
-			ConfigFiles: []types.ConfigFile{
-				{
-					Config:   data,
-					Filename: path,
-				},
-			},
-			Environment: envVars,
-		},
-		skipValidation,
-	); err != nil {
-		return "", fmt.Errorf(
-			"'%s' failed to load with err: %v", path, err,
-		)
-	}
-
-	serviceImageLines, err := c.filterComposefileServices(pathByt, images)
+	serviceImageLines, err := c.filterComposefileServices(project, images)
 	if err != nil {
 		return "", fmt.Errorf("in '%s', %s", path, err)
 	}
 
 	if len(serviceImageLines) == 0 {
 		return "", nil
+	}
+
+	pathByt, err := ioutil.ReadFile(path)
+	if err != nil {
+		return "", err
 	}
 
 	var (
@@ -322,14 +287,9 @@ func (c *composefileWriter) writeFile(
 }
 
 func (c *composefileWriter) filterComposefileServices(
-	pathByt []byte,
+	project *types.Project,
 	images []interface{},
 ) (map[string]string, error) {
-	comp := compose{}
-	if err := yaml.Unmarshal(pathByt, &comp); err != nil {
-		return nil, err
-	}
-
 	var (
 		uniqueServicesInLockfile = map[string]struct{}{}
 		serviceImageLines        = map[string]string{}
@@ -346,7 +306,7 @@ func (c *composefileWriter) filterComposefileServices(
 			return nil, errors.New("malformed 'service' in image")
 		}
 
-		if _, ok := comp.Services[serviceName]; !ok {
+		if _, err := project.GetService(serviceName); err != nil {
 			return nil, fmt.Errorf(
 				"'%s' service does not exist", serviceName,
 			)
@@ -390,25 +350,35 @@ func (c *composefileWriter) filterComposefileServices(
 
 	var numServicesInComposefile int
 
-	for _, v := range comp.Services {
-		if v.Build != nil {
-			switch build := v.Build.(type) {
-			case string:
-				if build != "" {
-					numServicesInComposefile++
-					continue
-				}
-			case map[interface{}]interface{}:
-				if _, ok := build["context"]; ok {
-					numServicesInComposefile++
-					continue
-				}
-			}
-		}
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
 
-		if v.Image != "" {
+	for _, serviceConfig := range project.Services {
+		if serviceConfig.Image != "" {
 			numServicesInComposefile++
 			continue
+		}
+
+		if serviceConfig.Build != nil {
+			relPath := strings.TrimPrefix(
+				serviceConfig.Build.Dockerfile,
+				fmt.Sprintf("%s%s", wd, string(filepath.Separator)),
+			)
+
+			mode, err := os.Stat(relPath)
+
+			switch {
+			case err == nil:
+				numServicesInComposefile++
+			case err != nil || mode.IsDir():
+				fmt.Printf("warning: '%s' with a service named '%s' "+
+					"has a 'build' block that references '%s' - "+
+					"skipping because the path does not exist\n",
+					project.ComposeFiles[0], serviceConfig.Name, relPath,
+				)
+			}
 		}
 	}
 

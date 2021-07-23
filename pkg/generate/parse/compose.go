@@ -3,16 +3,14 @@ package parse
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
 
-	"github.com/docker/cli/cli/compose/loader"
-	"github.com/docker/cli/cli/compose/types"
-	"github.com/docker/cli/opts"
+	"github.com/compose-spec/compose-go/cli"
+	"github.com/compose-spec/compose-go/types"
 	"github.com/safe-waters/docker-lock/pkg/generate/collect"
 	"github.com/safe-waters/docker-lock/pkg/kind"
 )
@@ -103,7 +101,12 @@ func (c *composefileImageParser) ParseFile(
 		return
 	}
 
-	byt, err := ioutil.ReadFile(path.Val())
+	opts, err := cli.NewProjectOptions(
+		[]string{path.Val()},
+		cli.WithWorkingDirectory(filepath.Dir(path.Val())),
+		cli.WithDotEnv,
+		cli.WithOsEnv,
+	)
 	if err != nil {
 		select {
 		case <-done:
@@ -113,75 +116,24 @@ func (c *composefileImageParser) ParseFile(
 		return
 	}
 
-	composefileData, err := loader.ParseYAML(byt)
+	project, err := cli.ProjectFromOptions(opts)
 	if err != nil {
 		select {
 		case <-done:
 		case composefileImages <- NewImage(
-			c.kind, "", "", "", nil, fmt.Errorf(
-				"'%s' failed to parse with err: %v", path.Val(), err,
-			),
+			c.kind, "", "", "", nil,
+			fmt.Errorf("'%s' failed to parse with err: %v", path.Val(), err),
 		):
 		}
 
 		return
 	}
 
-	envVars := map[string]string{}
-
-	for _, envVarStr := range os.Environ() {
-		envVarVal := strings.SplitN(envVarStr, "=", 2)
-		envVars[envVarVal[0]] = envVarVal[1]
-	}
-
-	var envFileVars []string
-
-	if envFileVars, err = opts.ParseEnvFile(
-		filepath.Join(filepath.Dir(path.Val()), ".env"),
-	); err == nil {
-		for _, envVarStr := range envFileVars {
-			envVarVal := strings.SplitN(envVarStr, "=", 2)
-			if _, ok := envVars[envVarVal[0]]; !ok {
-				envVars[envVarVal[0]] = envVarVal[1]
-			}
-		}
-	}
-
-	skipValidation := func(opts *loader.Options) {
-		opts.SkipValidation = true
-	}
-
-	loadedComposefile, err := loader.Load(
-		types.ConfigDetails{
-			ConfigFiles: []types.ConfigFile{
-				{
-					Config:   composefileData,
-					Filename: path.Val(),
-				},
-			},
-			// replaces env vars with $ in file
-			Environment: envVars,
-		},
-		skipValidation,
-	)
-	if err != nil {
-		select {
-		case <-done:
-		case composefileImages <- NewImage(
-			c.kind, "", "", "", nil, fmt.Errorf(
-				"'%s' failed to load with err: %v", path.Val(), err,
-			),
-		):
-		}
-
-		return
-	}
-
-	for _, serviceConfig := range loadedComposefile.Services {
+	for _, serviceConfig := range project.Services {
 		waitGroup.Add(1)
 
 		go c.parseService(
-			serviceConfig, path, envVars, composefileImages, waitGroup, done,
+			serviceConfig, path, composefileImages, waitGroup, done,
 		)
 	}
 }
@@ -189,24 +141,13 @@ func (c *composefileImageParser) ParseFile(
 func (c *composefileImageParser) parseService(
 	serviceConfig types.ServiceConfig,
 	path collect.IPath,
-	envVars map[string]string,
 	composefileImages chan<- IImage,
 	waitGroup *sync.WaitGroup,
 	done <-chan struct{},
 ) {
 	defer waitGroup.Done()
 
-	if serviceConfig.Build.Context == "" {
-		if serviceConfig.Build.Dockerfile != "" {
-			fmt.Printf(
-				"warning: '%s' has 'dockerfile' key but no 'context' key, "+
-					"so will be ignored\n",
-				path.Val(),
-			)
-
-			return
-		}
-
+	if serviceConfig.Build == nil {
 		if serviceConfig.Image == "" {
 			return
 		}
@@ -227,6 +168,49 @@ func (c *composefileImageParser) parseService(
 		return
 	}
 
+	wd, err := os.Getwd()
+	if err != nil {
+		select {
+		case <-done:
+		case composefileImages <- NewImage(c.kind, "", "", "", nil, err):
+		}
+
+		return
+	}
+
+	relPath := strings.TrimPrefix(
+		serviceConfig.Build.Dockerfile,
+		fmt.Sprintf("%s%s", wd, string(filepath.Separator)),
+	)
+
+	mode, err := os.Stat(relPath)
+
+	switch {
+	case err != nil && serviceConfig.Image != "":
+		image := NewImage(c.kind, "", "", "", map[string]interface{}{
+			"serviceName":     serviceConfig.Name,
+			"servicePosition": 0,
+			"path":            path.Val(),
+		}, nil)
+
+		image.SetNameTagDigestFromImageLine(serviceConfig.Image)
+
+		select {
+		case <-done:
+		case composefileImages <- image:
+		}
+
+		return
+	case err != nil || mode.IsDir():
+		fmt.Printf("warning: '%s' with a service named '%s' has a 'build' "+
+			"block that references '%s' - "+
+			"skipping because the file does not exist\n",
+			path.Val(), serviceConfig.Name, relPath,
+		)
+
+		return
+	}
+
 	var (
 		dockerfileImageWaitGroup sync.WaitGroup
 		dockerfileImages         = make(chan IImage)
@@ -237,30 +221,11 @@ func (c *composefileImageParser) parseService(
 	go func() {
 		defer dockerfileImageWaitGroup.Done()
 
-		context := serviceConfig.Build.Context
-		if !filepath.IsAbs(context) {
-			context = filepath.Join(filepath.Dir(path.Val()), context)
-		}
-
-		dockerfile := serviceConfig.Build.Dockerfile
-		if dockerfile == "" {
-			dockerfile = "Dockerfile"
-		}
-
-		dockerfilePath := collect.NewPath(
-			c.kind, filepath.Join(context, dockerfile), nil,
-		)
-
+		dockerfilePath := collect.NewPath(c.kind, relPath, nil)
 		buildArgs := map[string]string{}
 
 		for arg, val := range serviceConfig.Build.Args {
-			if val == nil {
-				// For the case:
-				//	args:
-				//	  - MYENVVAR
-				// where MYENVVAR does not have $ in front
-				buildArgs[arg] = envVars[arg]
-			} else {
+			if val != nil {
 				buildArgs[arg] = *val
 			}
 		}

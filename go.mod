@@ -13,4 +13,4 @@ require (
 	k8s.io/client-go v0.21.1
 )
 
-replace github.com/compose-spec/compose-go => github.com/michaelperel/compose-go v0.0.0-20210824182527-54163a104a9a
+replace github.com/compose-spec/compose-go => github.com/michaelperel/compose-go v0.0.0-20210825150141-a0ea9674ae7d

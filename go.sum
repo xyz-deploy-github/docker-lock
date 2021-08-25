@@ -668,8 +668,8 @@ github.com/mattn/goveralls v0.0.2/go.mod h1:8d1ZMHsd7fW6IRPKQh46F2WRpyib5/X4FOpe
 github.com/matttproud/golang_protobuf_extensions v1.0.1/go.mod h1:D8He9yQNgCq6Z5Ld7szi9bcBfOoFv/3dc6xSMkL2PC0=
 github.com/maxbrunsfeld/counterfeiter/v6 v6.2.2/go.mod h1:eD9eIE7cdwcMi9rYluz88Jz2VyhSmden33/aXg4oVIY=
 github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b/go.mod h1:01TrycV0kFyexm33Z7vhZRXopbI8J3TDReVlkTgMUxE=
-github.com/michaelperel/compose-go v0.0.0-20210824182527-54163a104a9a h1:Oi1Nf3pCoD/DlR1m1W245dRzGBm69nrwDEAOPLaYTjs=
-github.com/michaelperel/compose-go v0.0.0-20210824182527-54163a104a9a/go.mod h1:Hnmn5ZCVA3sSBN2urjCZNNIyNqCPayRGH7PmMSaV2Q0=
+github.com/michaelperel/compose-go v0.0.0-20210825150141-a0ea9674ae7d h1:+f9EA3FriKsYZ58+g9gEogPPAt0EoBchIDNzKEKiqxY=
+github.com/michaelperel/compose-go v0.0.0-20210825150141-a0ea9674ae7d/go.mod h1:Hnmn5ZCVA3sSBN2urjCZNNIyNqCPayRGH7PmMSaV2Q0=
 github.com/miekg/dns v1.0.14/go.mod h1:W1PPwlIAgtquWBMBEV9nkV9Cazfe8ScdGz/Lj7v3Nrg=
 github.com/mitchellh/cli v1.0.0/go.mod h1:hNIlj7HEI86fIcpObd7a0FcrxTWetlwJDGcceTlRvqc=
 github.com/mitchellh/go-homedir v1.0.0/go.mod h1:SfyaCUpYCn1Vlf4IUYiD9fPX4A5wJrkLzIz1N1q0pr0=

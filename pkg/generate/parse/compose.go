@@ -102,30 +102,13 @@ func (c *composefileImageParser) ParseFile(
 		return
 	}
 
-	opts, err := cli.NewProjectOptions(
-		[]string{path.Val()},
-		cli.WithWorkingDirectory(filepath.Dir(path.Val())),
-		cli.WithDotEnv,
-		cli.WithOsEnv,
-		cli.WithLoadOptions(loader.WithSkipValidation),
-	)
-	if err != nil {
-		select {
-		case <-done:
-		case composefileImages <- NewImage(c.kind, "", "", "", nil, err):
-		}
-
-		return
-	}
-
-	project, err := cli.ProjectFromOptions(opts)
+	project, err := c.loadNewProject(path.Val())
 	if err != nil {
 		select {
 		case <-done:
 		case composefileImages <- NewImage(
 			c.kind, "", "", "", nil,
-			fmt.Errorf("'%s' failed to parse with err: %v", path.Val(), err),
-		):
+			fmt.Errorf("'%s' failed to parse with err: %v", path.Val(), err)):
 		}
 
 		return
@@ -138,6 +121,41 @@ func (c *composefileImageParser) ParseFile(
 			serviceConfig, path, composefileImages, waitGroup, done,
 		)
 	}
+}
+
+func (c *composefileImageParser) loadNewProject(
+	path string,
+) (project *types.Project, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+
+	var opts *cli.ProjectOptions
+
+	opts, err = cli.NewProjectOptions(
+		[]string{path},
+		cli.WithWorkingDirectory(filepath.Dir(path)),
+		cli.WithDotEnv,
+		cli.WithOsEnv,
+		cli.WithLoadOptions(
+			loader.WithSkipValidation,
+			func(o *loader.Options) {
+				o.SkipConsistencyCheck = true
+			},
+		),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	project, err = cli.ProjectFromOptions(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return project, nil
 }
 
 func (c *composefileImageParser) parseService(
